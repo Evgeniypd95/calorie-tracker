@@ -96,8 +96,9 @@ cd firebase/functions
 npm install
 
 # Set the Gemini API key
-firebase functions:config:set gemini.api_key="YOUR_GEMINI_API_KEY"
-
+  # Add your Gemini API key to functions/.env:
+  # GEMINI_API_KEY=your_api_key_here
+  
 # Deploy functions
 firebase deploy --only functions
 ```
