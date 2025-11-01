@@ -5,25 +5,34 @@ import { userService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 
 export default function BudgetConfirmScreen({ route, navigation }) {
-  const { user } = useAuth();
+  const { user, refreshUserProfile } = useAuth();
   const { userData, dailyBudget } = route.params;
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = async () => {
+    console.log('🚀 BudgetConfirmScreen: Starting profile creation');
+    console.log('📋 User ID:', user?.uid);
+    console.log('📊 User Data:', userData);
+    console.log('🎯 Daily Budget:', dailyBudget);
+
     setLoading(true);
     try {
+      console.log('💾 Creating user profile in Firestore...');
       await userService.createUserProfile(user.uid, {
         ...userData,
         dailyBudget
       });
+      console.log('✅ Profile created successfully!');
 
-      // Navigation to main app will be handled by auth state update
-      // Force a slight delay to ensure Firestore has written
-      setTimeout(() => {
-        setLoading(false);
-      }, 1000);
+      // Refresh the user profile in auth context to trigger navigation
+      console.log('🔄 Refreshing user profile...');
+      await refreshUserProfile();
+      console.log('✅ Profile refreshed! Should navigate to main app now.');
+
+      setLoading(false);
     } catch (error) {
-      console.error('Error creating profile:', error);
+      console.error('❌ Error creating profile:', error);
+      console.error('Error details:', error.message, error.code);
       alert('Failed to save your profile. Please try again.');
       setLoading(false);
     }

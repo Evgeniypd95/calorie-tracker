@@ -11,13 +11,25 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('🔥 AuthContext: Setting up auth state listener');
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('🔥 AuthContext: Auth state changed', {
+        hasUser: !!firebaseUser,
+        uid: firebaseUser?.uid
+      });
+
       if (firebaseUser) {
         setUser(firebaseUser);
         // Load user profile
+        console.log('👤 AuthContext: Loading user profile...');
         const profile = await userService.getUserProfile(firebaseUser.uid);
+        console.log('👤 AuthContext: Profile loaded:', {
+          hasProfile: !!profile,
+          hasDailyBudget: !!profile?.dailyBudget
+        });
         setUserProfile(profile);
       } else {
+        console.log('🚪 AuthContext: User logged out');
         setUser(null);
         setUserProfile(null);
       }
@@ -28,9 +40,16 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const refreshUserProfile = async () => {
+    console.log('🔄 AuthContext: Manually refreshing user profile...');
     if (user) {
       const profile = await userService.getUserProfile(user.uid);
+      console.log('🔄 AuthContext: Profile refreshed:', {
+        hasProfile: !!profile,
+        hasDailyBudget: !!profile?.dailyBudget
+      });
       setUserProfile(profile);
+    } else {
+      console.log('⚠️ AuthContext: Cannot refresh - no user');
     }
   };
 

@@ -33,9 +33,14 @@ export const authService = {
 
 export const userService = {
   createUserProfile: async (userId, profileData) => {
+    console.log('💾 userService.createUserProfile called:', {
+      userId,
+      profileData
+    });
+
     const personalCode = generatePersonalCode();
 
-    await setDoc(doc(db, 'users', userId), {
+    const dataToSave = {
       ...profileData,
       personalCode,
       following: [],
@@ -43,15 +48,27 @@ export const userService = {
       streakCount: 0,
       lastLogDate: null,
       createdAt: serverTimestamp()
-    });
+    };
 
+    console.log('💾 Saving to Firestore:', dataToSave);
+
+    await setDoc(doc(db, 'users', userId), dataToSave);
+
+    console.log('✅ Profile saved successfully. Personal code:', personalCode);
     return personalCode;
   },
 
   getUserProfile: async (userId) => {
+    console.log('📖 userService.getUserProfile called for:', userId);
     const docRef = doc(db, 'users', userId);
     const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? docSnap.data() : null;
+    const profile = docSnap.exists() ? docSnap.data() : null;
+    console.log('📖 Profile retrieved:', {
+      exists: docSnap.exists(),
+      hasData: !!profile,
+      hasDailyBudget: !!profile?.dailyBudget
+    });
+    return profile;
   },
 
   updateUserProfile: async (userId, updates) => {
