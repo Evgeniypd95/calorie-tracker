@@ -1,5 +1,6 @@
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions';
 import { getApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 
 // Get the default Firebase app instance
 const app = getApp();
@@ -11,6 +12,27 @@ const functions = getFunctions(app, 'us-central1');
 // connectFunctionsEmulator(functions, 'localhost', 5001);
 
 export const parseMealDescription = async (mealDescription) => {
+  // Check auth status
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+
+  console.log('🔐 Auth Status Check:');
+  console.log('  - Is user logged in?', !!currentUser);
+  console.log('  - User ID:', currentUser?.uid);
+  console.log('  - User email:', currentUser?.email);
+
+  if (currentUser) {
+    try {
+      const token = await currentUser.getIdToken();
+      console.log('  - Auth token exists:', !!token);
+      console.log('  - Token length:', token?.length);
+    } catch (error) {
+      console.error('  - Error getting token:', error);
+    }
+  } else {
+    console.error('❌ NO USER LOGGED IN!');
+  }
+
   console.log('🤖 Calling parseMeal function with:', mealDescription);
 
   try {
@@ -28,6 +50,7 @@ export const parseMealDescription = async (mealDescription) => {
     console.error('❌ Error calling parseMeal function:', error);
     console.error('Error code:', error.code);
     console.error('Error message:', error.message);
+    console.error('Error details:', error.details);
     throw error;
   }
 };
