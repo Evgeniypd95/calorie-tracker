@@ -1,82 +1,35 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
-import { Text, FAB, Card, Chip } from 'react-native-paper';
+import { Text, FAB, Card } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { mealService, userService } from '../../services/firebase';
+import { mealService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
-import ProgressRing from '../../components/ProgressRing';
-import MacroBar from '../../components/MacroBar';
-import MealCard from '../../components/MealCard';
-import { calculateProgress } from '../../services/nutritionCalculator';
 
 export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
-  const [userProfile, setUserProfile] = useState(null);
   const [meals, setMeals] = useState([]);
-  const [dailyTotals, setDailyTotals] = useState({
-    calories: 0,
-    protein: 0,
-    carbs: 0,
-    fat: 0
-  });
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = async () => {
+  const loadMeals = async () => {
     try {
-      const profile = await userService.getUserProfile(user.uid);
-      setUserProfile(profile);
-
       const todaysMeals = await mealService.getTodaysMeals(user.uid);
       setMeals(todaysMeals);
-
-      // Calculate totals
-      const totals = todaysMeals.reduce(
-        (acc, meal) => ({
-          calories: acc.calories + meal.totals.calories,
-          protein: acc.protein + meal.totals.protein,
-          carbs: acc.carbs + meal.totals.carbs,
-          fat: acc.fat + meal.totals.fat
-        }),
-        { calories: 0, protein: 0, carbs: 0, fat: 0 }
-      );
-      setDailyTotals(totals);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading meals:', error);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      loadMeals();
     }, [])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await loadMeals();
     setRefreshing(false);
   };
-
-  if (!userProfile) {
-    return <View style={styles.container}><Text>Loading...</Text></View>;
-  }
-
-  const calorieProgress = calculateProgress(
-    dailyTotals.calories,
-    userProfile.dailyBudget.calories
-  );
-  const proteinProgress = calculateProgress(
-    dailyTotals.protein,
-    userProfile.dailyBudget.protein
-  );
-  const carbProgress = calculateProgress(
-    dailyTotals.carbs,
-    userProfile.dailyBudget.carbs
-  );
-  const fatProgress = calculateProgress(
-    dailyTotals.fat,
-    userProfile.dailyBudget.fat
-  );
 
   return (
     <View style={styles.container}>
@@ -85,69 +38,64 @@ export default function DashboardScreen({ navigation }) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header with Streak */}
         <View style={styles.header}>
-          <Text variant="headlineMedium">Today's Progress</Text>
-          <Chip icon="fire" mode="outlined">
-            {userProfile.streakCount} day streak
-          </Chip>
+          <Text variant="headlineMedium">My Meals</Text>
         </View>
 
-        {/* Calorie Ring */}
-        <View style={styles.ringContainer}>
-          <ProgressRing
-            consumed={dailyTotals.calories}
-            target={userProfile.dailyBudget.calories}
-            size={200}
-            strokeWidth={20}
-          />
-        </View>
-
-        {/* Macros */}
-        <Card style={styles.macrosCard}>
-          <Card.Content>
-            <Text variant="titleMedium" style={styles.macrosTitle}>
-              Macronutrients
-            </Text>
-            <MacroBar
-              label="Protein"
-              consumed={proteinProgress.consumed}
-              target={proteinProgress.target}
-              unit="g"
-              color="#4CAF50"
-            />
-            <MacroBar
-              label="Carbs"
-              consumed={carbProgress.consumed}
-              target={carbProgress.target}
-              unit="g"
-              color="#2196F3"
-            />
-            <MacroBar
-              label="Fat"
-              consumed={fatProgress.consumed}
-              target={fatProgress.target}
-              unit="g"
-              color="#FF9800"
-            />
-          </Card.Content>
-        </Card>
-
-        {/* Meals */}
-        <Text variant="titleLarge" style={styles.mealsTitle}>
-          Today's Meals
-        </Text>
         {meals.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Card.Content>
               <Text style={styles.emptyText}>
-                No meals logged yet. Tap + to log your first meal!
+                No meals logged yet. Tap + to add your first meal!
               </Text>
             </Card.Content>
           </Card>
         ) : (
           meals.map((meal) => (
-            <MealCard key={meal.id} meal={meal} />
+            <Card key={meal.id} style={styles.mealCard}>
+              <Card.Content>
+                <View style={styles.mealHeader}>
+                  <Text variant="titleMedium">{meal.mealType}</Text>
+                  <Text variant="bodySmall" style={styles.timeText}>
+                    {meal.date?.toDate?.()?.toLocaleTimeString?.('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit'
+                    })}
+                  </Text>
+                </View>
+                <Text variant="bodyMedium" style={styles.descriptionText}>
+                  {meal.description}
+                </Text>
+                <View style={styles.nutrientsContainer}>
+                  <View style={styles.nutrientItem}>
+                    <Text variant="labelSmall" style={styles.nutrientLabel}>
+                      Calories
+                    </Text>
+                    <Text variant="titleMedium" style={styles.caloriesValue}>
+                      {meal.totals.calories}
+                    </Text>
+                  </View>
+                  <View style={styles.nutrientItem}>
+                    <Text variant="labelSmall" style={styles.nutrientLabel}>
+                      Protein
+                    </Text>
+                    <Text variant="bodyLarge">{meal.totals.protein}g</Text>
+                  </View>
+                  <View style={styles.nutrientItem}>
+                    <Text variant="labelSmall" style={styles.nutrientLabel}>
+                      Carbs
+                    </Text>
+                    <Text variant="bodyLarge">{meal.totals.carbs}g</Text>
+                  </View>
+                  <View style={styles.nutrientItem}>
+                    <Text variant="labelSmall" style={styles.nutrientLabel}>
+                      Fat
+                    </Text>
+                    <Text variant="bodyLarge">{meal.totals.fat}g</Text>
+                  </View>
+                </View>
+              </Card.Content>
+            </Card>
           ))
         )}
       </ScrollView>
@@ -167,36 +115,52 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5'
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     padding: 20,
-    backgroundColor: '#fff'
-  },
-  ringContainer: {
-    alignItems: 'center',
-    paddingVertical: 30,
-    backgroundColor: '#fff'
-  },
-  macrosCard: {
-    margin: 16,
-    marginTop: 0
-  },
-  macrosTitle: {
-    marginBottom: 16
-  },
-  mealsTitle: {
-    marginLeft: 16,
-    marginTop: 8,
-    marginBottom: 12
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee'
   },
   emptyCard: {
-    margin: 16,
-    marginTop: 0
+    margin: 16
   },
   emptyText: {
     textAlign: 'center',
     color: '#666'
+  },
+  mealCard: {
+    margin: 16,
+    marginBottom: 8
+  },
+  mealHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  timeText: {
+    color: '#666'
+  },
+  descriptionText: {
+    color: '#666',
+    marginBottom: 16
+  },
+  nutrientsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#eee'
+  },
+  nutrientItem: {
+    alignItems: 'center'
+  },
+  nutrientLabel: {
+    color: '#999',
+    marginBottom: 4
+  },
+  caloriesValue: {
+    color: '#2196F3',
+    fontWeight: 'bold'
   },
   fab: {
     position: 'absolute',

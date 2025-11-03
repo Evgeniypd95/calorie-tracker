@@ -4,14 +4,6 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const genAI = new GoogleGenerativeAI(functions.config().gemini.api_key);
 
 exports.parseMeal = functions.https.onCall(async (data, context) => {
-  // Verify authentication
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'User must be authenticated'
-    );
-  }
-
   const { mealDescription } = data;
 
   try {

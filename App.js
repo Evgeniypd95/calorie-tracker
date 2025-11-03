@@ -4,7 +4,6 @@ import { PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import AuthNavigator from './src/navigation/AuthNavigator';
-import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
 
 const theme = {
@@ -16,17 +15,9 @@ const theme = {
 };
 
 function AppContent() {
-  const { user, userProfile, loading } = useAuth();
-
-  console.log('📱 AppContent render:', {
-    loading,
-    hasUser: !!user,
-    hasProfile: !!userProfile,
-    hasDailyBudget: !!userProfile?.dailyBudget
-  });
+  const { user, loading } = useAuth();
 
   if (loading) {
-    console.log('⏳ Loading...');
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2196F3" />
@@ -36,18 +27,10 @@ function AppContent() {
 
   // Not authenticated - show auth screens
   if (!user) {
-    console.log('🔐 No user - showing auth navigator');
     return <AuthNavigator />;
   }
 
-  // Authenticated but no profile - show onboarding
-  if (!userProfile || !userProfile.dailyBudget) {
-    console.log('📝 User exists but no profile/budget - showing onboarding');
-    return <OnboardingNavigator />;
-  }
-
-  // Authenticated with complete profile - show main app
-  console.log('✅ User has complete profile - showing main app');
+  // Authenticated - show main app
   return <MainNavigator />;
 }
 
