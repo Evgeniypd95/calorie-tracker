@@ -13,6 +13,7 @@ import {
   where,
   getDocs,
   updateDoc,
+  deleteDoc,
   serverTimestamp
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase.config';
@@ -102,6 +103,71 @@ export const mealService = {
 
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
+  getMealsByDate: async (userId, date) => {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const q = query(
+      collection(db, 'meals'),
+      where('userId', '==', userId),
+      where('date', '>=', startOfDay),
+      where('date', '<=', endOfDay)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
+  getRecentMeals: async (userId, limit = 5) => {
+    const q = query(
+      collection(db, 'meals'),
+      where('userId', '==', userId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const meals = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Sort by createdAt descending and limit
+    return meals
+      .sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || 0;
+        const timeB = b.createdAt?.toMillis?.() || 0;
+        return timeB - timeA;
+      })
+      .slice(0, limit);
+  },
+
+  searchMealsByDescription: async (userId, searchTerm) => {
+    if (!searchTerm || searchTerm.trim() === '') {
+      return [];
+    }
+
+    const q = query(
+      collection(db, 'meals'),
+      where('userId', '==', userId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const meals = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Filter meals by description containing search term (case insensitive)
+    const searchLower = searchTerm.toLowerCase();
+    return meals
+      .filter(meal => meal.description?.toLowerCase().includes(searchLower))
+      .sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || 0;
+        const timeB = b.createdAt?.toMillis?.() || 0;
+        return timeB - timeA;
+      });
+  },
+
+  deleteMeal: async (mealId) => {
+    await deleteDoc(doc(db, 'meals', mealId));
   }
 };
 
