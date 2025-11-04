@@ -54,3 +54,36 @@ export const parseMealDescription = async (mealDescription) => {
     throw error;
   }
 };
+
+export const convertImageToDescription = async (imageData) => {
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+
+  console.log('🔐 imageToDescription Auth Check:');
+  console.log('  - Is user logged in?', !!currentUser);
+
+  if (!currentUser) {
+    throw new Error('User must be logged in');
+  }
+
+  console.log('📸 Calling imageToDescription function');
+
+  try {
+    const imageToDescription = httpsCallable(functions, 'imageToDescription');
+    const result = await imageToDescription({ imageData });
+
+    console.log('✅ imageToDescription response:', result.data);
+
+    if (result.data.success) {
+      return result.data.description;
+    } else {
+      throw new Error('Failed to analyze image');
+    }
+  } catch (error) {
+    console.error('❌ Error calling imageToDescription function:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    console.error('Error details:', error.details);
+    throw error;
+  }
+};

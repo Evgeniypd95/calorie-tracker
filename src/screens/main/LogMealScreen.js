@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform } from 'react-native';
-import { TextInput, Button, Text, Chip, ActivityIndicator, Card, Searchbar, Divider } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform, Image } from 'react-native';
+import { TextInput, Button, Text, Chip, ActivityIndicator, Card, Searchbar, Divider, IconButton } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { parseMealDescription } from '../../services/geminiService';
+import * as ImagePicker from 'expo-image-picker';
+import { parseMealDescription, convertImageToDescription } from '../../services/geminiService';
 import { mealService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -18,10 +19,61 @@ export default function LogMealScreen({ navigation, route }) {
   const [recentMeals, setRecentMeals] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [processingImage, setProcessingImage] = useState(false);
 
   // Load recent meals on mount
   useEffect(() => {
     loadRecentMeals();
+  }, []);
+
+  // Initialize speech recognition for web
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognitionInstance = new SpeechRecognition();
+        recognitionInstance.continuous = true;
+        recognitionInstance.interimResults = true;
+        recognitionInstance.lang = 'en-US';
+
+        recognitionInstance.onresult = (event) => {
+          let transcript = '';
+          for (let i = 0; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+          }
+          // Append to existing text instead of replacing
+          setMealDescription((prev) => {
+            const separator = prev ? ', ' : '';
+            return prev + separator + transcript;
+          });
+        };
+
+        recognitionInstance.onerror = (event) => {
+          console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+          if (event.error === 'not-allowed') {
+            showAlert('Error', 'Microphone access denied. Please enable microphone permissions.');
+          } else if (event.error === 'no-speech') {
+            showAlert('Info', 'No speech detected. Please try again.');
+          }
+        };
+
+        recognitionInstance.onend = () => {
+          setIsListening(false);
+        };
+
+        setRecognition(recognitionInstance);
+      }
+    }
+
+    return () => {
+      if (recognition) {
+        recognition.stop();
+      }
+    };
   }, []);
 
   const loadRecentMeals = async () => {
@@ -65,6 +117,120 @@ export default function LogMealScreen({ navigation, route }) {
     }
   };
 
+  const toggleVoiceInput = () => {
+    if (Platform.OS === 'web') {
+      if (!recognition) {
+        showAlert('Not Supported', 'Speech recognition is not supported in this browser. Try Chrome or Edge.');
+        return;
+      }
+
+      if (isListening) {
+        recognition.stop();
+        setIsListening(false);
+      } else {
+        // Don't clear - will append to existing text
+        recognition.start();
+        setIsListening(true);
+      }
+    } else {
+      // Mobile - not implemented yet
+      showAlert('Coming Soon', 'Voice input is currently only available on web browsers. Use the text input for now.');
+    }
+  };
+
+  const pickImage = async () => {
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showAlert('Permission Required', 'Sorry, we need camera roll permissions to upload meal photos.');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImage(result.assets[0]);
+        await processImage(result.assets[0]);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      showAlert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        showAlert('Permission Required', 'Sorry, we need camera permissions to take meal photos.');
+        return;
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImage(result.assets[0]);
+        await processImage(result.assets[0]);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      showAlert('Error', 'Failed to take photo. Please try again.');
+    }
+  };
+
+  const processImage = async (image) => {
+    setProcessingImage(true);
+    try {
+      const base64Data = `data:image/jpeg;base64,${image.base64}`;
+      const description = await convertImageToDescription(base64Data);
+      setMealDescription(description);
+      showAlert('Success', 'Image analyzed! You can edit the description before parsing.');
+    } catch (error) {
+      console.error('Error processing image:', error);
+      showAlert('Error', 'Failed to analyze image. Please try again or enter manually.');
+      setSelectedImage(null);
+    } finally {
+      setProcessingImage(false);
+    }
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+  };
+
+  const showImageOptions = () => {
+    if (Platform.OS === 'web') {
+      // On web, just pick from library
+      pickImage();
+    } else {
+      // On mobile, show action sheet
+      Alert.alert(
+        'Add Meal Photo',
+        'Choose an option',
+        [
+          { text: 'Take Photo', onPress: takePhoto },
+          { text: 'Choose from Library', onPress: pickImage },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    }
+  };
+
   const handleParse = async () => {
     if (!mealDescription.trim()) {
       showAlert('Error', 'Please describe what you ate');
@@ -82,6 +248,24 @@ export default function LogMealScreen({ navigation, route }) {
       setLoading(false);
     }
   };
+
+  const handleDeleteItem = (index) => {
+    const newItems = parsedData.items.filter((_, i) => i !== index);
+
+    // Recalculate totals
+    const newTotals = newItems.reduce((acc, item) => ({
+      calories: acc.calories + item.calories,
+      protein: acc.protein + item.protein,
+      carbs: acc.carbs + item.carbs,
+      fat: acc.fat + item.fat
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+    setParsedData({
+      items: newItems,
+      totals: newTotals
+    });
+  };
+
 
   const handleSave = async () => {
     if (!parsedData) return;
@@ -212,17 +396,72 @@ export default function LogMealScreen({ navigation, route }) {
         </Text>
       )}
 
+      {/* Image Preview */}
+      {selectedImage && (
+        <Card style={styles.imagePreviewCard}>
+          <Card.Content style={styles.imagePreviewContent}>
+            <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} />
+            <IconButton
+              icon="close-circle"
+              size={28}
+              iconColor="#ff4444"
+              style={styles.removeImageButton}
+              onPress={removeImage}
+            />
+          </Card.Content>
+        </Card>
+      )}
+
+      {processingImage && (
+        <Card style={styles.processingCard}>
+          <Card.Content style={styles.processingContent}>
+            <ActivityIndicator size="large" color="#2196F3" />
+            <Text variant="bodyMedium" style={styles.processingText}>
+              Analyzing your meal photo...
+            </Text>
+          </Card.Content>
+        </Card>
+      )}
+
       {/* Meal Description */}
-      <TextInput
-        label="Describe your meal or use AI to parse"
-        value={mealDescription}
-        onChangeText={setMealDescription}
-        mode="outlined"
-        multiline
-        numberOfLines={4}
-        placeholder="e.g., 2 scrambled eggs, whole wheat toast with butter, medium banana"
-        style={styles.input}
-      />
+      <View style={styles.inputContainer}>
+        <View style={styles.inputHeader}>
+          <Text variant="labelMedium" style={styles.inputLabel}>
+            Describe your meal
+          </Text>
+          <View style={styles.inputIcons}>
+            <IconButton
+              icon="camera"
+              size={24}
+              iconColor="#2196F3"
+              onPress={showImageOptions}
+              style={styles.iconButton}
+            />
+            <IconButton
+              icon={isListening ? 'microphone' : 'microphone-outline'}
+              size={24}
+              iconColor={isListening ? '#ff4444' : '#2196F3'}
+              onPress={toggleVoiceInput}
+              style={styles.iconButton}
+            />
+          </View>
+        </View>
+        <TextInput
+          label=""
+          value={mealDescription}
+          onChangeText={setMealDescription}
+          mode="outlined"
+          multiline
+          numberOfLines={4}
+          placeholder="Type, speak, or take a photo of your meal"
+          style={styles.input}
+        />
+        {isListening && (
+          <Text variant="bodySmall" style={styles.listeningText}>
+            🎤 Listening... Tap mic to stop
+          </Text>
+        )}
+      </View>
 
       <Button
         mode="contained"
@@ -251,9 +490,20 @@ export default function LogMealScreen({ navigation, route }) {
 
             {parsedData.items.map((item, index) => (
               <View key={index} style={styles.foodItem}>
-                <Text variant="bodyLarge" style={styles.foodName}>
-                  {item.quantity} {item.food}
-                </Text>
+                <View style={styles.foodItemHeader}>
+                  <View style={styles.foodItemLeft}>
+                    <Text variant="bodyLarge" style={styles.foodName}>
+                      {item.quantity} {item.food}
+                    </Text>
+                  </View>
+                  <IconButton
+                    icon="delete"
+                    size={20}
+                    iconColor="#ff4444"
+                    onPress={() => handleDeleteItem(index)}
+                    style={styles.deleteItemButton}
+                  />
+                </View>
                 <Text variant="bodySmall" style={styles.foodStats}>
                   {item.calories} cal | P: {item.protein}g | C: {item.carbs}g | F: {item.fat}g
                 </Text>
@@ -359,8 +609,66 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8
   },
-  input: {
+  inputContainer: {
     marginBottom: 16
+  },
+  inputHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  inputLabel: {
+    color: '#333',
+    fontWeight: '600'
+  },
+  inputIcons: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  iconButton: {
+    margin: 0
+  },
+  input: {
+    marginBottom: 4
+  },
+  listeningText: {
+    color: '#ff4444',
+    marginBottom: 8,
+    marginTop: 4,
+    fontWeight: '600',
+    textAlign: 'center'
+  },
+  imagePreviewCard: {
+    marginBottom: 16,
+    backgroundColor: '#fff'
+  },
+  imagePreviewContent: {
+    position: 'relative',
+    padding: 0
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)'
+  },
+  processingCard: {
+    marginBottom: 16,
+    backgroundColor: '#fff'
+  },
+  processingContent: {
+    alignItems: 'center',
+    paddingVertical: 32
+  },
+  processingText: {
+    marginTop: 16,
+    color: '#666'
   },
   button: {
     marginBottom: 24
@@ -385,9 +693,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee'
   },
+  foodItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8
+  },
+  foodItemLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
   foodName: {
-    fontWeight: 'bold',
-    marginBottom: 4
+    flex: 1,
+    fontWeight: 'bold'
+  },
+  deleteItemButton: {
+    margin: 0,
+    marginTop: -8
   },
   foodStats: {
     color: '#666'
