@@ -1,6 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DashboardScreen from '../screens/main/DashboardScreen';
 import LogMealScreen from '../screens/main/LogMealScreen';
 import SharedMealsScreen from '../screens/main/SharedMealsScreen';
@@ -80,6 +81,8 @@ function ProfileStack() {
 }
 
 export default function MainNavigator() {
+  const insets = useSafeAreaInsets();
+  
   return (
     <Tab.Navigator
       screenOptions={{
@@ -91,8 +94,8 @@ export default function MainNavigator() {
           borderTopWidth: 1,
           borderTopColor: '#E2E8F0',
           paddingTop: 8,
-          paddingBottom: 8,
-          height: 64
+          paddingBottom: Math.max(8, insets.bottom),
+          height: 64 + Math.max(0, insets.bottom - 8)
         }
       }}
     >
