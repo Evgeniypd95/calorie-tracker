@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "AI Calorie Tracker",
-    "slug": "calorie-tracker",
+    "name": "Text to Calorie AI",
+    "slug": "text-to-cal-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,7 +13,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.calorietracker"
+      "bundleIdentifier": "com.evgenypavlovd.text-to-cal-ai"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +21,7 @@
         "backgroundColor": "#2196F3"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.yourcompany.calorietracker"
+      "package": "com.evgenypavlovd.text-to-cal-ai"
     },
     "web": {
       "favicon": "./assets/favicon.png",
