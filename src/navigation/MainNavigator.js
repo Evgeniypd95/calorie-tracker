@@ -1,13 +1,57 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import DashboardScreen from '../screens/main/DashboardScreen';
 import LogMealScreen from '../screens/main/LogMealScreen';
-import { IconButton } from 'react-native-paper';
+import SharedMealsScreen from '../screens/main/SharedMealsScreen';
+import ProfileScreen from '../screens/main/ProfileScreen';
+import { IconButton, Icon } from 'react-native-paper';
 import { authService } from '../services/firebase';
 
 const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator();
 
-export default function MainNavigator() {
+function DashboardStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="DashboardMain"
+        component={DashboardScreen}
+        options={{
+          title: 'My Meals',
+          headerShown: true,
+          headerStyle: { backgroundColor: '#fff' }
+        }}
+      />
+      <Stack.Screen
+        name="LogMeal"
+        component={LogMealScreen}
+        options={{
+          title: 'Log Meal',
+          headerBackTitle: 'Back'
+        }}
+      />
+    </Stack.Navigator>
+  );
+}
+
+function SharedMealsStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="SharedMealsMain"
+        component={SharedMealsScreen}
+        options={{
+          title: 'Shared Meals',
+          headerShown: true,
+          headerStyle: { backgroundColor: '#fff' }
+        }}
+      />
+    </Stack.Navigator>
+  );
+}
+
+function ProfileStack() {
   const handleLogout = async () => {
     try {
       await authService.logout();
@@ -19,10 +63,10 @@ export default function MainNavigator() {
   return (
     <Stack.Navigator>
       <Stack.Screen
-        name="Dashboard"
-        component={DashboardScreen}
+        name="ProfileMain"
+        component={ProfileScreen}
         options={{
-          title: 'My Meals',
+          title: 'Profile',
           headerRight: () => (
             <IconButton
               icon="logout"
@@ -31,11 +75,48 @@ export default function MainNavigator() {
           )
         }}
       />
-      <Stack.Screen
-        name="LogMeal"
-        component={LogMealScreen}
-        options={{ title: 'Add Meal' }}
-      />
     </Stack.Navigator>
+  );
+}
+
+export default function MainNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: '#2196F3',
+      }}
+    >
+      <Tab.Screen
+        name="Dashboard"
+        component={DashboardStack}
+        options={{
+          tabBarLabel: 'My Meals',
+          tabBarIcon: ({ color, size }) => (
+            <Icon source="food" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="SharedMeals"
+        component={SharedMealsStack}
+        options={{
+          tabBarLabel: 'Shared',
+          tabBarIcon: ({ color, size }) => (
+            <Icon source="account-group" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileStack}
+        options={{
+          tabBarLabel: 'Profile',
+          tabBarIcon: ({ color, size }) => (
+            <Icon source="account" size={size} color={color} />
+          ),
+        }}
+      />
+    </Tab.Navigator>
   );
 }
