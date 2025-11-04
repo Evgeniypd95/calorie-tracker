@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform, Image } from 'react-native';
 import { TextInput, Button, Text, Chip, ActivityIndicator, Card, Searchbar, Divider, IconButton } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,6 +24,7 @@ export default function LogMealScreen({ navigation, route }) {
   const [recognition, setRecognition] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [processingImage, setProcessingImage] = useState(false);
+  const textBeforeVoiceRef = useRef('');
 
   // Load recent meals on mount
   useEffect(() => {
@@ -41,16 +42,21 @@ export default function LogMealScreen({ navigation, route }) {
         recognitionInstance.interimResults = true;
         recognitionInstance.lang = 'en-US';
 
+        let savedText = '';
+
+        recognitionInstance.onstart = () => {
+          // Save text at the moment voice starts
+          savedText = mealDescription;
+        };
+
         recognitionInstance.onresult = (event) => {
           let transcript = '';
           for (let i = 0; i < event.results.length; i++) {
             transcript += event.results[i][0].transcript;
           }
-          // Append to existing text instead of replacing
-          setMealDescription((prev) => {
-            const separator = prev ? ', ' : '';
-            return prev + separator + transcript;
-          });
+          // Replace with interim results, append to text that existed before voice started
+          const separator = savedText ? ', ' : '';
+          setMealDescription(savedText + separator + transcript);
         };
 
         recognitionInstance.onerror = (event) => {
@@ -70,9 +76,10 @@ export default function LogMealScreen({ navigation, route }) {
         setRecognition(recognitionInstance);
       }
     } else {
-      // Mobile: Use react-native-voice
+      // Mobile: Use react-native-voice - just set up event handlers
       Voice.onSpeechStart = () => {
         console.log('Speech started');
+        setIsListening(true);
       };
 
       Voice.onSpeechEnd = () => {
@@ -84,19 +91,19 @@ export default function LogMealScreen({ navigation, route }) {
         if (event.value && event.value.length > 0) {
           const transcript = event.value[0];
           console.log('Speech results:', transcript);
-          // Append to existing text instead of replacing
-          setMealDescription((prev) => {
-            const separator = prev ? ', ' : '';
-            return prev + separator + transcript;
-          });
+          // Replace with current results, append to text that existed before voice started
+          const baseText = textBeforeVoiceRef.current;
+          const separator = baseText ? ', ' : '';
+          setMealDescription(baseText + separator + transcript);
         }
       };
 
       Voice.onSpeechError = (event) => {
         console.error('Speech recognition error:', event.error);
         setIsListening(false);
-        if (event.error?.code === 'permissions') {
-          showAlert('Error', 'Microphone permission denied. Please enable microphone access in settings.');
+        if (event.error?.message?.includes('Missing permissions') ||
+            event.error?.message?.includes('privacy-sensitive')) {
+          showAlert('Permission Required', 'Please grant microphone and speech recognition permissions in Settings.');
         } else {
           showAlert('Error', 'Voice recognition failed. Please try again.');
         }
@@ -107,7 +114,7 @@ export default function LogMealScreen({ navigation, route }) {
       if (Platform.OS === 'web' && recognition) {
         recognition.stop();
       } else if (Platform.OS !== 'web') {
-        Voice.destroy().then(Voice.removeAllListeners);
+        Voice.destroy().then(Voice.removeAllListeners).catch(console.error);
       }
     };
   }, []);
@@ -165,6 +172,8 @@ export default function LogMealScreen({ navigation, route }) {
         recognition.stop();
         setIsListening(false);
       } else {
+        // Save current text before starting voice
+        textBeforeVoiceRef.current = mealDescription;
         recognition.start();
         setIsListening(true);
       }
@@ -175,6 +184,8 @@ export default function LogMealScreen({ navigation, route }) {
           await Voice.stop();
           setIsListening(false);
         } else {
+          // Save current text before starting voice
+          textBeforeVoiceRef.current = mealDescription;
           await Voice.start('en-US');
           setIsListening(true);
         }
