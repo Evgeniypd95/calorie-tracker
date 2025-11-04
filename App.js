@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { PaperProvider, MD3LightTheme } from 'react-native-paper';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Platform } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
@@ -36,17 +36,30 @@ function AppContent() {
 
 export default function App() {
   return (
-    <PaperProvider theme={theme}>
-      <AuthProvider>
-        <NavigationContainer>
-          <AppContent />
-        </NavigationContainer>
-      </AuthProvider>
-    </PaperProvider>
+    <View style={styles.appContainer}>
+      <PaperProvider theme={theme}>
+        <AuthProvider>
+          <NavigationContainer>
+            <AppContent />
+          </NavigationContainer>
+        </AuthProvider>
+      </PaperProvider>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  appContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    ...Platform.select({
+      web: {
+        maxWidth: 600,
+        marginHorizontal: 'auto',
+        width: '100%',
+      },
+    }),
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

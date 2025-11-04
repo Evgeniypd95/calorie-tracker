@@ -1,22 +1,73 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { TextInput, Button, Text, Chip, ActivityIndicator, Card } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform } from 'react-native';
+import { TextInput, Button, Text, Chip, ActivityIndicator, Card, Searchbar, Divider } from 'react-native-paper';
+import { useFocusEffect } from '@react-navigation/native';
 import { parseMealDescription } from '../../services/geminiService';
 import { mealService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
-export default function LogMealScreen({ navigation }) {
+export default function LogMealScreen({ navigation, route }) {
   const { user } = useAuth();
-  const [selectedMealType, setSelectedMealType] = useState('Lunch');
+  const { selectedDate } = route.params || {};
+  const [selectedMealType, setSelectedMealType] = useState(null);
   const [mealDescription, setMealDescription] = useState('');
   const [parsedData, setParsedData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [recentMeals, setRecentMeals] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+
+  // Load recent meals on mount
+  useEffect(() => {
+    loadRecentMeals();
+  }, []);
+
+  const loadRecentMeals = async () => {
+    try {
+      const meals = await mealService.getRecentMeals(user.uid, 5);
+      setRecentMeals(meals);
+    } catch (error) {
+      console.error('Error loading recent meals:', error);
+    }
+  };
+
+  const handleSearch = async (query) => {
+    setSearchQuery(query);
+    if (query.trim()) {
+      try {
+        const results = await mealService.searchMealsByDescription(user.uid, query);
+        setSearchResults(results);
+      } catch (error) {
+        console.error('Error searching meals:', error);
+      }
+    } else {
+      setSearchResults([]);
+    }
+  };
+
+  const handleSelectMeal = (meal) => {
+    setMealDescription(meal.description);
+    setParsedData({
+      items: meal.items,
+      totals: meal.totals
+    });
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const showAlert = (title, message) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}: ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
 
   const handleParse = async () => {
     if (!mealDescription.trim()) {
-      Alert.alert('Error', 'Please describe what you ate');
+      showAlert('Error', 'Please describe what you ate');
       return;
     }
 
@@ -25,7 +76,7 @@ export default function LogMealScreen({ navigation }) {
       const result = await parseMealDescription(mealDescription);
       setParsedData(result);
     } catch (error) {
-      Alert.alert('Error', 'Failed to parse meal. Please try rephrasing.');
+      showAlert('Error', 'Failed to parse meal. Please try rephrasing.');
       console.error(error);
     } finally {
       setLoading(false);
@@ -35,19 +86,33 @@ export default function LogMealScreen({ navigation }) {
   const handleSave = async () => {
     if (!parsedData) return;
 
+    if (!selectedMealType) {
+      showAlert('Error', 'Please select a meal type');
+      return;
+    }
+
     try {
+      // Use the selected date from the dashboard, or default to now
+      const mealDate = selectedDate ? new Date(selectedDate) : new Date();
+
+      // Preserve the current time but set the date to the selected day
+      if (selectedDate) {
+        const now = new Date();
+        mealDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+      }
+
       await mealService.logMeal(user.uid, {
         mealType: selectedMealType,
         description: mealDescription,
         items: parsedData.items,
         totals: parsedData.totals,
-        date: new Date()
+        date: mealDate
       });
 
-      Alert.alert('Success', 'Meal logged successfully!');
+      showAlert('Success', 'Meal logged successfully!');
       navigation.goBack();
     } catch (error) {
-      Alert.alert('Error', 'Failed to save meal');
+      showAlert('Error', 'Failed to save meal');
       console.error(error);
     }
   };
@@ -58,7 +123,77 @@ export default function LogMealScreen({ navigation }) {
         Log a Meal
       </Text>
 
+      {/* Search Bar */}
+      <Searchbar
+        placeholder="Search previous meals..."
+        onChangeText={handleSearch}
+        value={searchQuery}
+        style={styles.searchBar}
+      />
+
+      {/* Search Results or Recent Meals */}
+      {searchQuery.trim() ? (
+        searchResults.length > 0 ? (
+          <View style={styles.mealsSection}>
+            <Text variant="labelLarge" style={styles.sectionLabel}>Search Results</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mealsScroll}>
+              {searchResults.map((meal) => (
+                <TouchableOpacity
+                  key={meal.id}
+                  onPress={() => handleSelectMeal(meal)}
+                  style={styles.mealChip}
+                >
+                  <Card style={styles.mealCard}>
+                    <Card.Content style={styles.mealCardContent}>
+                      <Text variant="titleSmall" style={styles.mealTitle} numberOfLines={2}>
+                        {meal.description}
+                      </Text>
+                      <Text variant="bodySmall" style={styles.mealCalories}>
+                        {meal.totals?.calories} cal
+                      </Text>
+                    </Card.Content>
+                  </Card>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Divider style={styles.divider} />
+          </View>
+        ) : (
+          <View style={styles.noResults}>
+            <Text variant="bodySmall" style={styles.noResultsText}>No meals found</Text>
+          </View>
+        )
+      ) : recentMeals.length > 0 ? (
+        <View style={styles.mealsSection}>
+          <Text variant="labelLarge" style={styles.sectionLabel}>Recent Meals</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mealsScroll}>
+            {recentMeals.map((meal) => (
+              <TouchableOpacity
+                key={meal.id}
+                onPress={() => handleSelectMeal(meal)}
+                style={styles.mealChip}
+              >
+                <Card style={styles.mealCard}>
+                  <Card.Content style={styles.mealCardContent}>
+                    <Text variant="titleSmall" style={styles.mealTitle} numberOfLines={2}>
+                      {meal.description}
+                    </Text>
+                    <Text variant="bodySmall" style={styles.mealCalories}>
+                      {meal.totals?.calories} cal
+                    </Text>
+                  </Card.Content>
+                </Card>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <Divider style={styles.divider} />
+        </View>
+      ) : null}
+
       {/* Meal Type Selector */}
+      <Text variant="labelLarge" style={styles.mealTypeLabel}>
+        Meal Type *
+      </Text>
       <View style={styles.chipContainer}>
         {MEAL_TYPES.map((type) => (
           <Chip
@@ -71,10 +206,15 @@ export default function LogMealScreen({ navigation }) {
           </Chip>
         ))}
       </View>
+      {!selectedMealType && (
+        <Text variant="bodySmall" style={styles.requiredText}>
+          Please select a meal type
+        </Text>
+      )}
 
       {/* Meal Description */}
       <TextInput
-        label="What did you eat?"
+        label="Describe your meal or use AI to parse"
         value={mealDescription}
         onChangeText={setMealDescription}
         mode="outlined"
@@ -149,6 +289,66 @@ const styles = StyleSheet.create({
   title: {
     marginBottom: 16,
     fontWeight: 'bold'
+  },
+  searchBar: {
+    marginBottom: 16,
+    elevation: 2,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+      },
+    }),
+  },
+  mealsSection: {
+    marginBottom: 16
+  },
+  sectionLabel: {
+    marginBottom: 8,
+    color: '#666',
+    fontWeight: '600'
+  },
+  mealTypeLabel: {
+    marginBottom: 8,
+    color: '#333',
+    fontWeight: '600'
+  },
+  requiredText: {
+    color: '#ff4444',
+    marginTop: -8,
+    marginBottom: 16
+  },
+  mealsScroll: {
+    marginBottom: 8
+  },
+  mealChip: {
+    marginRight: 12
+  },
+  mealCard: {
+    width: 160,
+    backgroundColor: '#fff'
+  },
+  mealCardContent: {
+    padding: 12
+  },
+  mealTitle: {
+    fontWeight: 'bold',
+    marginBottom: 4,
+    color: '#333'
+  },
+  mealCalories: {
+    color: '#2196F3',
+    fontWeight: '500'
+  },
+  divider: {
+    marginTop: 8,
+    marginBottom: 8
+  },
+  noResults: {
+    padding: 16,
+    alignItems: 'center'
+  },
+  noResultsText: {
+    color: '#999'
   },
   chipContainer: {
     flexDirection: 'row',
