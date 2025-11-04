@@ -13,7 +13,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.evgenypavlovd.text-to-cal-ai"
+      "bundleIdentifier": "com.evgenypavlovd.texttocalai"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +21,7 @@
         "backgroundColor": "#2196F3"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.evgenypavlovd.text-to-cal-ai"
+      "package": "com.evgenypavlovd.texttocalai"
     },
     "web": {
       "favicon": "./assets/favicon.png",
