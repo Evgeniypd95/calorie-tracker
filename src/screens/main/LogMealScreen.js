@@ -25,6 +25,12 @@ export default function LogMealScreen({ navigation, route }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [processingImage, setProcessingImage] = useState(false);
   const textBeforeVoiceRef = useRef('');
+  const [feedback, setFeedback] = useState('');
+  const [isFeedbackVoiceListening, setIsFeedbackVoiceListening] = useState(false);
+  const [isImproving, setIsImproving] = useState(false);
+  const [originalDescription, setOriginalDescription] = useState('');
+  const feedbackTextBeforeVoiceRef = useRef('');
+  const voiceContextRef = useRef('meal'); // 'meal' or 'feedback'
 
   // Load recent meals on mount
   useEffect(() => {
@@ -42,26 +48,30 @@ export default function LogMealScreen({ navigation, route }) {
         recognitionInstance.interimResults = true;
         recognitionInstance.lang = 'en-US';
 
-        let savedText = '';
-
-        recognitionInstance.onstart = () => {
-          // Save text at the moment voice starts
-          savedText = mealDescription;
-        };
-
         recognitionInstance.onresult = (event) => {
           let transcript = '';
           for (let i = 0; i < event.results.length; i++) {
             transcript += event.results[i][0].transcript;
           }
-          // Replace with interim results, append to text that existed before voice started
-          const separator = savedText ? ', ' : '';
-          setMealDescription(savedText + separator + transcript);
+
+          // Check which context we're in
+          if (voiceContextRef.current === 'feedback') {
+            // Feedback context
+            const baseText = feedbackTextBeforeVoiceRef.current;
+            const separator = baseText ? ', ' : '';
+            setFeedback(baseText + separator + transcript);
+          } else {
+            // Meal description context
+            const baseText = textBeforeVoiceRef.current;
+            const separator = baseText ? ', ' : '';
+            setMealDescription(baseText + separator + transcript);
+          }
         };
 
         recognitionInstance.onerror = (event) => {
           console.error('Speech recognition error:', event.error);
           setIsListening(false);
+          setIsFeedbackVoiceListening(false);
           if (event.error === 'not-allowed') {
             showAlert('Error', 'Microphone access denied. Please enable microphone permissions.');
           } else if (event.error === 'no-speech') {
@@ -70,7 +80,11 @@ export default function LogMealScreen({ navigation, route }) {
         };
 
         recognitionInstance.onend = () => {
-          setIsListening(false);
+          if (voiceContextRef.current === 'feedback') {
+            setIsFeedbackVoiceListening(false);
+          } else {
+            setIsListening(false);
+          }
         };
 
         setRecognition(recognitionInstance);
@@ -79,28 +93,46 @@ export default function LogMealScreen({ navigation, route }) {
       // Mobile: Use react-native-voice - just set up event handlers
       Voice.onSpeechStart = () => {
         console.log('Speech started');
-        setIsListening(true);
+        if (voiceContextRef.current === 'feedback') {
+          setIsFeedbackVoiceListening(true);
+        } else {
+          setIsListening(true);
+        }
       };
 
       Voice.onSpeechEnd = () => {
         console.log('Speech ended');
-        setIsListening(false);
+        if (voiceContextRef.current === 'feedback') {
+          setIsFeedbackVoiceListening(false);
+        } else {
+          setIsListening(false);
+        }
       };
 
       Voice.onSpeechResults = (event) => {
         if (event.value && event.value.length > 0) {
           const transcript = event.value[0];
           console.log('Speech results:', transcript);
-          // Replace with current results, append to text that existed before voice started
-          const baseText = textBeforeVoiceRef.current;
-          const separator = baseText ? ', ' : '';
-          setMealDescription(baseText + separator + transcript);
+
+          // Check which context we're in
+          if (voiceContextRef.current === 'feedback') {
+            // Feedback context
+            const baseText = feedbackTextBeforeVoiceRef.current;
+            const separator = baseText ? ', ' : '';
+            setFeedback(baseText + separator + transcript);
+          } else {
+            // Meal description context
+            const baseText = textBeforeVoiceRef.current;
+            const separator = baseText ? ', ' : '';
+            setMealDescription(baseText + separator + transcript);
+          }
         }
       };
 
       Voice.onSpeechError = (event) => {
         console.error('Speech recognition error:', event.error);
         setIsListening(false);
+        setIsFeedbackVoiceListening(false);
         if (event.error?.message?.includes('Missing permissions') ||
             event.error?.message?.includes('privacy-sensitive')) {
           showAlert('Permission Required', 'Please grant microphone and speech recognition permissions in Settings.');
@@ -174,6 +206,7 @@ export default function LogMealScreen({ navigation, route }) {
       } else {
         // Save current text before starting voice
         textBeforeVoiceRef.current = mealDescription;
+        voiceContextRef.current = 'meal';
         recognition.start();
         setIsListening(true);
       }
@@ -186,11 +219,50 @@ export default function LogMealScreen({ navigation, route }) {
         } else {
           // Save current text before starting voice
           textBeforeVoiceRef.current = mealDescription;
+          voiceContextRef.current = 'meal';
           await Voice.start('en-US');
           setIsListening(true);
         }
       } catch (error) {
         console.error('Error toggling voice input:', error);
+        showAlert('Error', 'Failed to start voice recognition. Please try again.');
+      }
+    }
+  };
+
+  const toggleFeedbackVoice = async () => {
+    if (Platform.OS === 'web') {
+      // Web: Use browser's Speech Recognition API
+      if (!recognition) {
+        showAlert('Not Supported', 'Speech recognition is not supported in this browser. Try Chrome or Edge.');
+        return;
+      }
+
+      if (isFeedbackVoiceListening) {
+        recognition.stop();
+        setIsFeedbackVoiceListening(false);
+      } else {
+        // Save current feedback text before starting voice
+        feedbackTextBeforeVoiceRef.current = feedback;
+        voiceContextRef.current = 'feedback';
+        recognition.start();
+        setIsFeedbackVoiceListening(true);
+      }
+    } else {
+      // Mobile: Use react-native-voice
+      try {
+        if (isFeedbackVoiceListening) {
+          await Voice.stop();
+          setIsFeedbackVoiceListening(false);
+        } else {
+          // Save current feedback text before starting voice
+          feedbackTextBeforeVoiceRef.current = feedback;
+          voiceContextRef.current = 'feedback';
+          await Voice.start('en-US');
+          setIsFeedbackVoiceListening(true);
+        }
+      } catch (error) {
+        console.error('Error toggling feedback voice input:', error);
         showAlert('Error', 'Failed to start voice recognition. Please try again.');
       }
     }
@@ -299,12 +371,43 @@ export default function LogMealScreen({ navigation, route }) {
     try {
       const result = await parseMealDescription(mealDescription);
       setParsedData(result);
+      setOriginalDescription(mealDescription); // Save original for feedback
+      setFeedback(''); // Clear any previous feedback
     } catch (error) {
       showAlert('Error', 'Failed to parse meal. Please try rephrasing.');
       console.error(error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleImprove = async () => {
+    if (!feedback.trim()) {
+      showAlert('Error', 'Please provide feedback on what to improve');
+      return;
+    }
+
+    setIsImproving(true);
+    try {
+      // Combine original description with feedback
+      const improvedPrompt = `${originalDescription}\n\nAdditional info: ${feedback}`;
+      const result = await parseMealDescription(improvedPrompt);
+      setParsedData(result);
+      setFeedback(''); // Clear feedback after successful improvement
+    } catch (error) {
+      showAlert('Error', 'Failed to improve meal. Please try again.');
+      console.error(error);
+    } finally {
+      setIsImproving(false);
+    }
+  };
+
+  const handleStartOver = () => {
+    setParsedData(null);
+    setMealDescription('');
+    setOriginalDescription('');
+    setFeedback('');
+    setSelectedImage(null);
   };
 
   const handleDeleteItem = (index) => {
@@ -365,16 +468,18 @@ export default function LogMealScreen({ navigation, route }) {
         Log a Meal
       </Text>
 
-      {/* Search Bar */}
-      <Searchbar
-        placeholder="Search previous meals..."
-        onChangeText={handleSearch}
-        value={searchQuery}
-        style={styles.searchBar}
-      />
+      {!parsedData && (
+        <>
+          {/* Search Bar */}
+          <Searchbar
+            placeholder="Search previous meals..."
+            onChangeText={handleSearch}
+            value={searchQuery}
+            style={styles.searchBar}
+          />
 
-      {/* Search Results or Recent Meals */}
-      {searchQuery.trim() ? (
+          {/* Search Results or Recent Meals */}
+          {searchQuery.trim() ? (
         searchResults.length > 0 ? (
           <View style={styles.mealsSection}>
             <Text variant="labelLarge" style={styles.sectionLabel}>Search Results</Text>
@@ -432,29 +537,7 @@ export default function LogMealScreen({ navigation, route }) {
         </View>
       ) : null}
 
-      {/* Meal Type Selector */}
-      <Text variant="labelLarge" style={styles.mealTypeLabel}>
-        Meal Type *
-      </Text>
-      <View style={styles.chipContainer}>
-        {MEAL_TYPES.map((type) => (
-          <Chip
-            key={type}
-            selected={selectedMealType === type}
-            onPress={() => setSelectedMealType(type)}
-            style={styles.chip}
-          >
-            {type}
-          </Chip>
-        ))}
-      </View>
-      {!selectedMealType && (
-        <Text variant="bodySmall" style={styles.requiredText}>
-          Please select a meal type
-        </Text>
-      )}
-
-      {/* Image Preview */}
+          {/* Image Preview */}
       {selectedImage && (
         <Card style={styles.imagePreviewCard}>
           <Card.Content style={styles.imagePreviewContent}>
@@ -521,15 +604,17 @@ export default function LogMealScreen({ navigation, route }) {
         )}
       </View>
 
-      <Button
-        mode="contained"
-        onPress={handleParse}
-        loading={loading}
-        disabled={loading}
-        style={styles.button}
-      >
-        Parse with AI
-      </Button>
+          <Button
+            mode="contained"
+            onPress={handleParse}
+            loading={loading}
+            disabled={loading}
+            style={styles.button}
+          >
+            Parse with AI
+          </Button>
+        </>
+      )}
 
       {/* Parsed Results */}
       {loading && (
@@ -578,11 +663,103 @@ export default function LogMealScreen({ navigation, route }) {
               </Text>
             </View>
 
-            <Button mode="contained" onPress={handleSave} style={styles.saveButton}>
-              Save Meal
-            </Button>
+            {/* Feedback Section */}
+            <View style={styles.feedbackSection}>
+              <Text variant="labelLarge" style={styles.feedbackLabel}>
+                Not quite right?
+              </Text>
+              <View style={styles.feedbackInputContainer}>
+                <View style={styles.feedbackInputHeader}>
+                  <Text variant="bodySmall" style={styles.feedbackHelp}>
+                    Tell us what to improve (e.g., "Add 100g rice", "Chicken was 200g")
+                  </Text>
+                  <IconButton
+                    icon={isFeedbackVoiceListening ? 'microphone' : 'microphone-outline'}
+                    size={20}
+                    iconColor={isFeedbackVoiceListening ? '#ff4444' : '#2196F3'}
+                    onPress={toggleFeedbackVoice}
+                    style={styles.feedbackIconButton}
+                  />
+                </View>
+                <TextInput
+                  label=""
+                  value={feedback}
+                  onChangeText={setFeedback}
+                  mode="outlined"
+                  multiline
+                  numberOfLines={2}
+                  placeholder="What needs to be corrected?"
+                  style={styles.feedbackInput}
+                />
+                {isFeedbackVoiceListening && (
+                  <Text variant="bodySmall" style={styles.listeningText}>
+                    🎤 Listening... Tap mic to stop
+                  </Text>
+                )}
+              </View>
+              <Button
+                mode="outlined"
+                onPress={handleImprove}
+                loading={isImproving}
+                disabled={isImproving || !feedback.trim()}
+                style={styles.improveButton}
+              >
+                Improve
+              </Button>
+            </View>
+
+            {/* Meal Type Selector */}
+            <View style={styles.mealTypeSection}>
+              <Text variant="labelLarge" style={styles.mealTypeLabel}>
+                Meal Type *
+              </Text>
+              <View style={styles.chipContainer}>
+                {MEAL_TYPES.map((type) => (
+                  <Chip
+                    key={type}
+                    selected={selectedMealType === type}
+                    onPress={() => setSelectedMealType(type)}
+                    style={styles.chip}
+                  >
+                    {type}
+                  </Chip>
+                ))}
+              </View>
+              {!selectedMealType && (
+                <Text variant="bodySmall" style={styles.requiredText}>
+                  Please select a meal type
+                </Text>
+              )}
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.actionButtons}>
+              <Button
+                mode="outlined"
+                onPress={handleStartOver}
+                style={styles.startOverButton}
+              >
+                Start Over
+              </Button>
+              <Button
+                mode="contained"
+                onPress={handleSave}
+                style={styles.saveButton}
+                icon="check"
+                disabled={!selectedMealType}
+              >
+                Looks Correct ✓
+              </Button>
+            </View>
           </Card.Content>
         </Card>
+      )}
+
+      {isImproving && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2196F3" />
+          <Text style={styles.loadingText}>AI is improving your meal breakdown...</Text>
+        </View>
       )}
     </ScrollView>
   );
@@ -784,7 +961,57 @@ const styles = StyleSheet.create({
     color: '#2196F3',
     marginVertical: 4
   },
+  feedbackSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0'
+  },
+  feedbackLabel: {
+    marginBottom: 8,
+    color: '#666',
+    fontWeight: '600'
+  },
+  feedbackInputContainer: {
+    marginBottom: 12
+  },
+  feedbackInputHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  feedbackHelp: {
+    flex: 1,
+    color: '#999',
+    fontSize: 12,
+    fontStyle: 'italic'
+  },
+  feedbackIconButton: {
+    margin: 0
+  },
+  feedbackInput: {
+    marginBottom: 4
+  },
+  improveButton: {
+    borderColor: '#2196F3'
+  },
+  mealTypeSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0'
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20
+  },
+  startOverButton: {
+    flex: 1,
+    borderColor: '#999'
+  },
   saveButton: {
-    marginTop: 16
+    flex: 2
   }
 });

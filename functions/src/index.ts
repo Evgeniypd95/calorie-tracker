@@ -111,7 +111,57 @@ export const parseMeal = onCall(async (request) => {
   try {
     const model = genAI.getGenerativeModel({model: "gemini-2.0-flash"});
 
-    const prompt = `Parse the following meal description and return a JSON
+    // Check if this is a feedback/improvement request
+    const hasFeedback = mealDescription.includes("Additional info:");
+
+    let prompt = "";
+
+    if (hasFeedback) {
+      // Split original description and additional info
+      const parts = mealDescription.split("\n\nAdditional info:");
+      const originalMeal = parts[0];
+      const additionalInfo = parts[1] || "";
+
+      prompt = `Re-analyze this meal with additional information.
+
+Original meal description: "${originalMeal}"
+
+Additional info: "${additionalInfo}"
+
+The user is providing additional information about their meal. Consider this new information:
+- If they say "add X", include that item
+- If they say "X was Yg", update that quantity
+- If they say "remove X", exclude that item
+- If they mention missing items, add them
+- If they clarify cooking methods or specifics, use that information
+
+Return ONLY valid JSON in this exact format (no markdown, no explanations):
+{
+  "items": [
+    {
+      "food": "food name",
+      "quantity": "amount in metric (e.g., '170g', '250ml', '2 pieces')",
+      "calories": number,
+      "protein": number,
+      "carbs": number,
+      "fat": number
+    }
+  ],
+  "totals": {
+    "calories": number,
+    "protein": number,
+    "carbs": number,
+    "fat": number
+  }
+}
+
+Use metric measurements:
+- Weights in grams (g)
+- Liquids in milliliters (ml)
+- Counts as pieces/items`;
+    } else {
+      // Original parsing prompt
+      prompt = `Parse the following meal description and return a JSON
 object with nutritional information. Be as accurate as possible with
 calorie and macro estimates. Use METRIC units in quantities.
 
@@ -141,6 +191,7 @@ Use metric measurements:
 - Weights in grams (g)
 - Liquids in milliliters (ml)
 - Counts as pieces/items`;
+    }
 
     const result = await model.generateContent(prompt);
     const response = result.response;
