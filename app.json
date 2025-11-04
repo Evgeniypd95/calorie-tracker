@@ -13,7 +13,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.evgenypavlovd.texttocalai"
+      "bundleIdentifier": "com.evgenypavlovd.texttocalai",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice input when logging meals.",
+        "NSSpeechRecognitionUsageDescription": "This app needs access to speech recognition to convert your voice to text when logging meals."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +25,10 @@
         "backgroundColor": "#2196F3"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.evgenypavlovd.texttocalai"
+      "package": "com.evgenypavlovd.texttocalai",
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

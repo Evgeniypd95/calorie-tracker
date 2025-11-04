@@ -182,7 +182,12 @@ export default function DashboardScreen({ navigation }) {
 
             {/* Calories Section */}
             <View style={styles.caloriesSection}>
-              <Text variant="headlineLarge" style={styles.caloriesNumber}>
+              <Text
+                style={styles.caloriesNumber}
+                adjustsFontSizeToFit
+                numberOfLines={1}
+                allowFontScaling={false}
+              >
                 {totals.calories}
               </Text>
               <Text variant="bodyMedium" style={styles.caloriesLabel}>
@@ -306,7 +311,7 @@ export default function DashboardScreen({ navigation }) {
       <FAB
         icon="plus"
         style={styles.fab}
-        onPress={() => navigation.navigate('LogMeal', { selectedDate })}
+        onPress={() => navigation.navigate('LogMeal', { selectedDate: selectedDate.toISOString() })}
       />
     </View>
   );
@@ -370,13 +375,17 @@ const styles = StyleSheet.create({
   caloriesSection: {
     alignItems: 'center',
     paddingVertical: 20,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0'
   },
   caloriesNumber: {
-    fontSize: 48,
+    fontSize: 64,
     fontWeight: 'bold',
-    color: '#2196F3'
+    color: '#2196F3',
+    width: '100%',
+    textAlign: 'center',
+    minHeight: 70
   },
   caloriesLabel: {
     color: '#666',

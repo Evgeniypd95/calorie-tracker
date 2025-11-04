@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform, Image 
 import { TextInput, Button, Text, Chip, ActivityIndicator, Card, Searchbar, Divider, IconButton } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import Voice from '@react-native-voice/voice';
 import { parseMealDescription, convertImageToDescription } from '../../services/geminiService';
 import { mealService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -29,9 +30,10 @@ export default function LogMealScreen({ navigation, route }) {
     loadRecentMeals();
   }, []);
 
-  // Initialize speech recognition for web
+  // Initialize speech recognition
   useEffect(() => {
     if (Platform.OS === 'web') {
+      // Web: Use browser's Speech Recognition API
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognitionInstance = new SpeechRecognition();
@@ -67,11 +69,45 @@ export default function LogMealScreen({ navigation, route }) {
 
         setRecognition(recognitionInstance);
       }
+    } else {
+      // Mobile: Use react-native-voice
+      Voice.onSpeechStart = () => {
+        console.log('Speech started');
+      };
+
+      Voice.onSpeechEnd = () => {
+        console.log('Speech ended');
+        setIsListening(false);
+      };
+
+      Voice.onSpeechResults = (event) => {
+        if (event.value && event.value.length > 0) {
+          const transcript = event.value[0];
+          console.log('Speech results:', transcript);
+          // Append to existing text instead of replacing
+          setMealDescription((prev) => {
+            const separator = prev ? ', ' : '';
+            return prev + separator + transcript;
+          });
+        }
+      };
+
+      Voice.onSpeechError = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        if (event.error?.code === 'permissions') {
+          showAlert('Error', 'Microphone permission denied. Please enable microphone access in settings.');
+        } else {
+          showAlert('Error', 'Voice recognition failed. Please try again.');
+        }
+      };
     }
 
     return () => {
-      if (recognition) {
+      if (Platform.OS === 'web' && recognition) {
         recognition.stop();
+      } else if (Platform.OS !== 'web') {
+        Voice.destroy().then(Voice.removeAllListeners);
       }
     };
   }, []);
@@ -117,8 +153,9 @@ export default function LogMealScreen({ navigation, route }) {
     }
   };
 
-  const toggleVoiceInput = () => {
+  const toggleVoiceInput = async () => {
     if (Platform.OS === 'web') {
+      // Web: Use browser's Speech Recognition API
       if (!recognition) {
         showAlert('Not Supported', 'Speech recognition is not supported in this browser. Try Chrome or Edge.');
         return;
@@ -128,13 +165,23 @@ export default function LogMealScreen({ navigation, route }) {
         recognition.stop();
         setIsListening(false);
       } else {
-        // Don't clear - will append to existing text
         recognition.start();
         setIsListening(true);
       }
     } else {
-      // Mobile - not implemented yet
-      showAlert('Coming Soon', 'Voice input is currently only available on web browsers. Use the text input for now.');
+      // Mobile: Use react-native-voice
+      try {
+        if (isListening) {
+          await Voice.stop();
+          setIsListening(false);
+        } else {
+          await Voice.start('en-US');
+          setIsListening(true);
+        }
+      } catch (error) {
+        console.error('Error toggling voice input:', error);
+        showAlert('Error', 'Failed to start voice recognition. Please try again.');
+      }
     }
   };
 
