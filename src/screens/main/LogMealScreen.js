@@ -545,7 +545,7 @@ export default function LogMealScreen({ navigation, route }) {
             <IconButton
               icon="close-circle"
               size={28}
-              iconColor="#ff4444"
+              iconColor="#EF4444"
               style={styles.removeImageButton}
               onPress={removeImage}
             />
@@ -554,14 +554,14 @@ export default function LogMealScreen({ navigation, route }) {
       )}
 
       {processingImage && (
-        <Card style={styles.processingCard}>
-          <Card.Content style={styles.processingContent}>
-            <ActivityIndicator size="large" color="#2196F3" />
-            <Text variant="bodyMedium" style={styles.processingText}>
-              Analyzing your meal photo...
-            </Text>
-          </Card.Content>
-        </Card>
+      <Card style={styles.processingCard}>
+        <Card.Content style={styles.processingContent}>
+          <ActivityIndicator size="large" color="#6366F1" />
+          <Text variant="bodyMedium" style={styles.processingText}>
+            Analyzing your meal photo...
+          </Text>
+        </Card.Content>
+      </Card>
       )}
 
       {/* Meal Description */}
@@ -574,14 +574,14 @@ export default function LogMealScreen({ navigation, route }) {
             <IconButton
               icon="camera"
               size={24}
-              iconColor="#2196F3"
+              iconColor="#6366F1"
               onPress={showImageOptions}
               style={styles.iconButton}
             />
             <IconButton
               icon={isListening ? 'microphone' : 'microphone-outline'}
               size={24}
-              iconColor={isListening ? '#ff4444' : '#2196F3'}
+              iconColor={isListening ? '#EF4444' : '#6366F1'}
               onPress={toggleVoiceInput}
               style={styles.iconButton}
             />
@@ -630,7 +630,7 @@ export default function LogMealScreen({ navigation, route }) {
       {/* Parsed Results */}
       {loading && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" />
+          <ActivityIndicator size="large" color="#6366F1" />
           <Text style={styles.loadingText}>AI is analyzing your meal...</Text>
         </View>
       )}
@@ -653,7 +653,7 @@ export default function LogMealScreen({ navigation, route }) {
                   <IconButton
                     icon="delete"
                     size={20}
-                    iconColor="#ff4444"
+                    iconColor="#EF4444"
                     onPress={() => handleDeleteItem(index)}
                     style={styles.deleteItemButton}
                   />
@@ -687,7 +687,7 @@ export default function LogMealScreen({ navigation, route }) {
                   <IconButton
                     icon={isFeedbackVoiceListening ? 'microphone' : 'microphone-outline'}
                     size={20}
-                    iconColor={isFeedbackVoiceListening ? '#ff4444' : '#2196F3'}
+                    iconColor={isFeedbackVoiceListening ? '#EF4444' : '#6366F1'}
                     onPress={toggleFeedbackVoice}
                     style={styles.feedbackIconButton}
                   />
@@ -759,7 +759,7 @@ export default function LogMealScreen({ navigation, route }) {
                 icon="check"
                 disabled={!selectedMealType}
               >
-                Looks Correct ✓
+                Looks Correct
               </Button>
             </View>
           </Card.Content>
@@ -768,7 +768,7 @@ export default function LogMealScreen({ navigation, route }) {
 
       {isImproving && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2196F3" />
+          <ActivityIndicator size="large" color="#6366F1" />
           <Text style={styles.loadingText}>AI is improving your meal breakdown...</Text>
         </View>
       )}
@@ -780,93 +780,116 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: '#f5f5f5'
+    backgroundColor: '#F1F5F9'
   },
   title: {
-    marginBottom: 16,
-    fontWeight: 'bold'
+    marginBottom: 24,
+    fontWeight: '700',
+    fontSize: 28,
+    color: '#1E293B',
+    letterSpacing: -0.8
   },
   searchBar: {
-    marginBottom: 16,
-    elevation: 2,
+    marginBottom: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     ...Platform.select({
       web: {
-        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
       },
     }),
   },
   mealsSection: {
-    marginBottom: 16
+    marginBottom: 20
   },
   sectionLabel: {
-    marginBottom: 8,
-    color: '#666',
-    fontWeight: '600'
+    marginBottom: 12,
+    color: '#64748B',
+    fontWeight: '700',
+    fontSize: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
   },
   mealTypeLabel: {
-    marginBottom: 8,
-    color: '#333',
-    fontWeight: '600'
+    marginBottom: 12,
+    color: '#1E293B',
+    fontWeight: '700',
+    fontSize: 16,
+    letterSpacing: -0.3
   },
   requiredText: {
-    color: '#ff4444',
+    color: '#EF4444',
     marginTop: -8,
-    marginBottom: 16
+    marginBottom: 20,
+    fontSize: 13
   },
   mealsScroll: {
-    marginBottom: 8
+    marginBottom: 12
   },
   mealChip: {
     marginRight: 12
   },
   mealCard: {
     width: 160,
-    backgroundColor: '#fff'
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
+      },
+    }),
   },
   mealCardContent: {
-    padding: 12
+    padding: 14
   },
   mealTitle: {
-    fontWeight: 'bold',
-    marginBottom: 4,
-    color: '#333'
+    fontWeight: '700',
+    marginBottom: 6,
+    color: '#1E293B',
+    fontSize: 15
   },
   mealCalories: {
-    color: '#2196F3',
-    fontWeight: '500'
+    color: '#6366F1',
+    fontWeight: '700',
+    fontSize: 14
   },
   divider: {
-    marginTop: 8,
-    marginBottom: 8
+    marginTop: 12,
+    marginBottom: 12
   },
   noResults: {
-    padding: 16,
+    padding: 20,
     alignItems: 'center'
   },
   noResultsText: {
-    color: '#999'
+    color: '#94A3B8',
+    fontSize: 14
   },
   chipContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 16
+    marginBottom: 20,
+    gap: 8
   },
   chip: {
     marginRight: 8,
     marginBottom: 8
   },
   inputContainer: {
-    marginBottom: 16
+    marginBottom: 20
   },
   inputHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8
+    marginBottom: 12
   },
   inputLabel: {
-    color: '#333',
-    fontWeight: '600'
+    color: '#1E293B',
+    fontWeight: '700',
+    fontSize: 16,
+    letterSpacing: -0.3
   },
   inputIcons: {
     flexDirection: 'row',
@@ -876,26 +899,37 @@ const styles = StyleSheet.create({
     margin: 0
   },
   stopChip: {
-    backgroundColor: '#ffecec',
-    marginLeft: 6
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+    borderWidth: 1,
+    marginTop: 8
   },
   stopChipText: {
-    color: '#ff4444',
+    color: '#EF4444',
     fontWeight: '600'
   },
   input: {
-    marginBottom: 4
+    marginBottom: 8,
+    backgroundColor: '#FFFFFF'
   },
   listeningText: {
-    color: '#ff4444',
-    marginBottom: 8,
-    marginTop: 4,
+    color: '#EF4444',
+    marginBottom: 12,
+    marginTop: 8,
     fontWeight: '600',
-    textAlign: 'center'
+    textAlign: 'center',
+    fontSize: 13
   },
   imagePreviewCard: {
-    marginBottom: 16,
-    backgroundColor: '#fff'
+    marginBottom: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 12px rgba(0, 0, 0, 0.08)',
+      },
+    }),
   },
   imagePreviewContent: {
     position: 'relative',
@@ -904,54 +938,75 @@ const styles = StyleSheet.create({
   imagePreview: {
     width: '100%',
     height: 200,
-    borderRadius: 8
+    borderRadius: 0
   },
   removeImageButton: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)'
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 20
   },
   processingCard: {
-    marginBottom: 16,
-    backgroundColor: '#fff'
+    marginBottom: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
+      },
+    }),
   },
   processingContent: {
     alignItems: 'center',
-    paddingVertical: 32
+    paddingVertical: 40
   },
   processingText: {
-    marginTop: 16,
-    color: '#666'
+    marginTop: 20,
+    color: '#64748B',
+    fontSize: 15
   },
   button: {
-    marginBottom: 24
+    marginBottom: 28
   },
   loadingContainer: {
     alignItems: 'center',
-    paddingVertical: 32
+    paddingVertical: 40
   },
   loadingText: {
-    marginTop: 16,
-    color: '#666'
+    marginTop: 20,
+    color: '#64748B',
+    fontSize: 15
   },
   resultsCard: {
-    marginBottom: 24
+    marginBottom: 28,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.08)',
+      },
+    }),
   },
   resultsTitle: {
-    marginBottom: 16
+    marginBottom: 20,
+    fontWeight: '700',
+    fontSize: 20,
+    color: '#1E293B',
+    letterSpacing: -0.5
   },
   foodItem: {
-    marginBottom: 12,
-    paddingBottom: 12,
+    marginBottom: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee'
+    borderBottomColor: '#F1F5F9'
   },
   foodItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8
+    marginBottom: 10
   },
   foodItemLeft: {
     flex: 1,
@@ -960,77 +1015,86 @@ const styles = StyleSheet.create({
   },
   foodName: {
     flex: 1,
-    fontWeight: 'bold'
+    fontWeight: '700',
+    color: '#1E293B',
+    fontSize: 16
   },
   deleteItemButton: {
     margin: 0,
     marginTop: -8
   },
   foodStats: {
-    color: '#666'
+    color: '#64748B',
+    fontSize: 13
   },
   totals: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8
+    marginTop: 20,
+    padding: 20,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
   },
   totalCalories: {
-    fontWeight: 'bold',
-    color: '#2196F3',
-    marginVertical: 4
+    fontWeight: '700',
+    color: '#6366F1',
+    marginVertical: 8,
+    fontSize: 24
   },
   feedbackSection: {
-    marginTop: 20,
-    paddingTop: 20,
+    marginTop: 24,
+    paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0'
+    borderTopColor: '#F1F5F9'
   },
   feedbackLabel: {
-    marginBottom: 8,
-    color: '#666',
-    fontWeight: '600'
+    marginBottom: 12,
+    color: '#1E293B',
+    fontWeight: '700',
+    fontSize: 16,
+    letterSpacing: -0.3
   },
   feedbackInputContainer: {
-    marginBottom: 12
+    marginBottom: 16
   },
   feedbackInputHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8
+    marginBottom: 10
   },
   feedbackHelp: {
     flex: 1,
-    color: '#999',
+    color: '#94A3B8',
     fontSize: 12,
-    fontStyle: 'italic'
+    lineHeight: 16
   },
   feedbackIconButton: {
     margin: 0
   },
   feedbackInput: {
-    marginBottom: 4
+    marginBottom: 8,
+    backgroundColor: '#FFFFFF'
   },
   improveButton: {
-    borderColor: '#2196F3'
+    borderColor: '#6366F1'
   },
   mealTypeSection: {
-    marginTop: 20,
-    paddingTop: 20,
+    marginTop: 24,
+    paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0'
+    borderTopColor: '#F1F5F9'
   },
   actionButtons: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 12,
-    marginTop: 20
+    marginTop: 24
   },
   startOverButton: {
     flex: 1,
-    borderColor: '#999'
+    borderColor: '#CBD5E1'
   },
   saveButton: {
-    flex: 2
+    flex: 1
   }
 });

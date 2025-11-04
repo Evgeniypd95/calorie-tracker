@@ -20,7 +20,7 @@ function DashboardStack() {
         options={{
           title: 'My Meals',
           headerShown: true,
-          headerStyle: { backgroundColor: '#fff' }
+          headerStyle: { backgroundColor: '#FFFFFF', elevation: 0, shadowOpacity: 0, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }
         }}
       />
       <Stack.Screen
@@ -44,7 +44,7 @@ function SharedMealsStack() {
         options={{
           title: 'Shared Meals',
           headerShown: true,
-          headerStyle: { backgroundColor: '#fff' }
+          headerStyle: { backgroundColor: '#FFFFFF', elevation: 0, shadowOpacity: 0, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }
         }}
       />
     </Stack.Navigator>
@@ -84,7 +84,16 @@ export default function MainNavigator() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#2196F3',
+        tabBarActiveTintColor: '#6366F1',
+        tabBarInactiveTintColor: '#94A3B8',
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 1,
+          borderTopColor: '#E2E8F0',
+          paddingTop: 8,
+          paddingBottom: 8,
+          height: 64
+        }
       }}
     >
       <Tab.Screen

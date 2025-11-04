@@ -10,7 +10,19 @@ const theme = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
-    primary: '#2196F3',
+    primary: '#6366F1', // Modern indigo
+    secondary: '#8B5CF6', // Purple accent
+    tertiary: '#EC4899', // Pink accent
+    surface: '#FFFFFF',
+    surfaceVariant: '#F8FAFC',
+    background: '#F1F5F9',
+    error: '#EF4444',
+    onPrimary: '#FFFFFF',
+    onSecondary: '#FFFFFF',
+    onSurface: '#1E293B',
+    onSurfaceVariant: '#64748B',
+    outline: '#E2E8F0',
+    outlineVariant: '#F1F5F9',
   },
 };
 
@@ -20,7 +32,7 @@ function AppContent() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2196F3" />
+        <ActivityIndicator size="large" color="#6366F1" />
       </View>
     );
   }
@@ -64,6 +76,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff'
+    backgroundColor: '#F1F5F9'
   }
 });

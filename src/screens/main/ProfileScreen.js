@@ -218,7 +218,7 @@ export default function ProfileScreen({ navigation }) {
                     <IconButton
                       {...props}
                       icon="delete"
-                      iconColor="#ff4444"
+                      iconColor="#EF4444"
                       onPress={() => handleRemoveConnection(connection)}
                     />
                   )}
@@ -238,42 +238,62 @@ export default function ProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
-    padding: 16
+    backgroundColor: '#F1F5F9',
+    padding: 20
   },
   title: {
-    marginBottom: 16,
-    fontWeight: 'bold'
+    marginBottom: 20,
+    fontWeight: '700',
+    fontSize: 24,
+    color: '#1E293B',
+    letterSpacing: -0.5
   },
   card: {
-    marginBottom: 16,
-    backgroundColor: '#fff'
+    marginBottom: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.08)',
+      },
+    }),
   },
   sectionTitle: {
     marginBottom: 8,
-    fontWeight: 'bold'
+    fontWeight: '700',
+    fontSize: 18,
+    color: '#1E293B',
+    letterSpacing: -0.3
   },
   helpText: {
-    marginBottom: 16,
-    color: '#666'
+    marginBottom: 20,
+    color: '#64748B',
+    fontSize: 14,
+    lineHeight: 20
   },
   shareCodeContainer: {
-    backgroundColor: '#f5f5f5',
-    padding: 20,
-    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    padding: 24,
+    borderRadius: 16,
     alignItems: 'center',
-    marginBottom: 16
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed'
   },
   shareCodeText: {
-    fontWeight: 'bold',
-    color: '#2196F3',
-    letterSpacing: 2
+    fontWeight: '700',
+    color: '#6366F1',
+    letterSpacing: 3,
+    fontSize: 28
   },
   warningText: {
     textAlign: 'center',
-    color: '#ff6b6b',
-    marginTop: 8,
-    fontStyle: 'italic'
+    color: '#EF4444',
+    marginTop: 12,
+    fontSize: 13,
+    lineHeight: 18
   },
   buttonRow: {
     flexDirection: 'row',
@@ -283,14 +303,17 @@ const styles = StyleSheet.create({
     flex: 1
   },
   input: {
-    marginBottom: 12
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF'
   },
   addButton: {
-    marginTop: 4
+    marginTop: 8
   },
   emptyText: {
     textAlign: 'center',
-    color: '#999',
-    padding: 20
+    color: '#94A3B8',
+    padding: 24,
+    fontSize: 15,
+    lineHeight: 22
   }
 });

@@ -212,35 +212,35 @@ export default function DashboardScreen({ navigation }) {
 
             {/* Macros Section */}
             <View style={styles.macrosContainer}>
-              <View style={styles.macroItem}>
-                <View style={[styles.macroIcon, { backgroundColor: '#FF6B6B' }]} />
-                <View>
-                  <Text variant="bodySmall" style={styles.macroLabel}>Protein</Text>
-                  <Text variant="titleMedium" style={styles.macroValue}>
-                    {Math.round(totals.protein)}g
-                  </Text>
-                </View>
-              </View>
+                    <View style={styles.macroItem}>
+                      <View style={[styles.macroIcon, { backgroundColor: '#EF4444' }]} />
+                      <View>
+                        <Text variant="bodySmall" style={styles.macroLabel}>Protein</Text>
+                        <Text variant="titleMedium" style={styles.macroValue}>
+                          {Math.round(totals.protein)}g
+                        </Text>
+                      </View>
+                    </View>
 
-              <View style={styles.macroItem}>
-                <View style={[styles.macroIcon, { backgroundColor: '#4ECDC4' }]} />
-                <View>
-                  <Text variant="bodySmall" style={styles.macroLabel}>Carbs</Text>
-                  <Text variant="titleMedium" style={styles.macroValue}>
-                    {Math.round(totals.carbs)}g
-                  </Text>
-                </View>
-              </View>
+                    <View style={styles.macroItem}>
+                      <View style={[styles.macroIcon, { backgroundColor: '#10B981' }]} />
+                      <View>
+                        <Text variant="bodySmall" style={styles.macroLabel}>Carbs</Text>
+                        <Text variant="titleMedium" style={styles.macroValue}>
+                          {Math.round(totals.carbs)}g
+                        </Text>
+                      </View>
+                    </View>
 
-              <View style={styles.macroItem}>
-                <View style={[styles.macroIcon, { backgroundColor: '#FFE66D' }]} />
-                <View>
-                  <Text variant="bodySmall" style={styles.macroLabel}>Fat</Text>
-                  <Text variant="titleMedium" style={styles.macroValue}>
-                    {Math.round(totals.fat)}g
-                  </Text>
-                </View>
-              </View>
+                    <View style={styles.macroItem}>
+                      <View style={[styles.macroIcon, { backgroundColor: '#F59E0B' }]} />
+                      <View>
+                        <Text variant="bodySmall" style={styles.macroLabel}>Fat</Text>
+                        <Text variant="titleMedium" style={styles.macroValue}>
+                          {Math.round(totals.fat)}g
+                        </Text>
+                      </View>
+                    </View>
             </View>
           </Card.Content>
         </Card>
@@ -278,7 +278,7 @@ export default function DashboardScreen({ navigation }) {
                     <IconButton
                       icon="delete"
                       size={20}
-                      iconColor="#ff4444"
+                      iconColor="#EF4444"
                       onPress={() => handleDeleteMeal(meal.id, meal.description)}
                     />
                   </View>
@@ -326,6 +326,7 @@ export default function DashboardScreen({ navigation }) {
       <FAB
         icon="plus"
         style={styles.fab}
+        color="#FFFFFF"
         onPress={() => navigation.navigate('LogMeal', { selectedDate: selectedDate.toISOString() })}
       />
     </View>
@@ -335,175 +336,236 @@ export default function DashboardScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa'
+    backgroundColor: '#F1F5F9'
   },
   // Calendar Ribbon Styles
   calendarRibbon: {
-    backgroundColor: '#fff',
-    paddingVertical: 12
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.05)',
+      },
+    }),
   },
   calendarContent: {
-    paddingHorizontal: 8
+    paddingHorizontal: 12
   },
   dateItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     marginHorizontal: 4,
-    borderRadius: 12,
-    minWidth: 60
+    borderRadius: 16,
+    minWidth: 64,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderColor: 'transparent'
   },
   dateItemSelected: {
-    backgroundColor: '#2196F3'
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 12px rgba(99, 102, 241, 0.3)',
+      },
+    }),
   },
   dayName: {
-    color: '#666',
-    marginBottom: 4,
-    fontWeight: '500'
+    color: '#64748B',
+    marginBottom: 6,
+    fontWeight: '600',
+    fontSize: 11,
+    letterSpacing: 0.5
   },
   dayNameSelected: {
-    color: '#fff'
+    color: '#FFFFFF'
   },
   dateNumber: {
-    color: '#333',
-    fontWeight: 'bold'
+    color: '#1E293B',
+    fontWeight: '700',
+    fontSize: 18
   },
   dateNumberSelected: {
-    color: '#fff'
+    color: '#FFFFFF'
   },
   todayDate: {
-    color: '#2196F3'
+    color: '#6366F1',
+    fontWeight: '700'
   },
   // Metrics Card Styles
   metricsCard: {
-    margin: 16,
-    marginBottom: 12,
-    backgroundColor: '#fff',
-    borderRadius: 16
+    margin: 20,
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.08)',
+      },
+    }),
   },
   metricsTitle: {
-    marginBottom: 16,
-    fontWeight: 'bold',
-    color: '#333'
+    marginBottom: 20,
+    fontWeight: '700',
+    color: '#1E293B',
+    fontSize: 20,
+    letterSpacing: -0.5
   },
   caloriesSection: {
     alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0'
+    borderBottomColor: '#F1F5F9'
   },
   caloriesNumber: {
-    fontSize: 64,
-    fontWeight: 'bold',
-    color: '#2196F3',
+    fontSize: 72,
+    fontWeight: '800',
+    color: '#6366F1',
     width: '100%',
     textAlign: 'center',
-    minHeight: 70
+    minHeight: 80,
+    letterSpacing: -2
   },
   caloriesLabel: {
-    color: '#666',
-    marginTop: 4
+    color: '#64748B',
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: '500'
   },
   macrosContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 20
+    marginTop: 24,
+    paddingBottom: 8
   },
   macroItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 10
   },
   macroIcon: {
-    width: 8,
-    height: 40,
-    borderRadius: 4
+    width: 4,
+    height: 48,
+    borderRadius: 2
   },
   macroLabel: {
-    color: '#999',
-    marginBottom: 2
+    color: '#94A3B8',
+    marginBottom: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
   },
   macroValue: {
-    fontWeight: 'bold',
-    color: '#333'
+    fontWeight: '700',
+    color: '#1E293B',
+    fontSize: 18
   },
   // Meals Section Styles
   mealsSection: {
-    paddingHorizontal: 16
+    paddingHorizontal: 20
   },
   sectionTitle: {
-    marginBottom: 12,
-    fontWeight: 'bold',
-    color: '#333'
+    marginBottom: 16,
+    fontWeight: '700',
+    color: '#1E293B',
+    fontSize: 22,
+    letterSpacing: -0.5
   },
   emptyCard: {
     marginBottom: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
+      },
+    }),
   },
   emptyText: {
     textAlign: 'center',
-    color: '#999',
-    fontSize: 15
+    color: '#94A3B8',
+    fontSize: 15,
+    lineHeight: 22,
+    paddingVertical: 8
   },
   mealCard: {
-    marginBottom: 12,
-    backgroundColor: '#fff',
-    borderRadius: 12
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 12px rgba(0, 0, 0, 0.08)',
+      },
+    }),
   },
   mealHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8
+    marginBottom: 12
   },
   mealHeaderLeft: {
     flex: 1
   },
   mealType: {
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 2
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 4,
+    fontSize: 18,
+    letterSpacing: -0.3
   },
   timeText: {
-    color: '#999',
-    fontSize: 13
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '500'
   },
   descriptionText: {
-    color: '#666',
-    marginBottom: 12,
-    lineHeight: 20
+    color: '#475569',
+    marginBottom: 16,
+    lineHeight: 22,
+    fontSize: 15
   },
   nutrientsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingTop: 12,
+    paddingTop: 16,
+    paddingBottom: 4,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0'
+    borderTopColor: '#F1F5F9'
   },
   nutrientItem: {
-    alignItems: 'center'
+    alignItems: 'center',
+    flex: 1
   },
   nutrientLabel: {
-    color: '#999',
-    marginBottom: 4,
-    fontSize: 11
+    color: '#94A3B8',
+    marginBottom: 6,
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
   },
   caloriesValue: {
-    color: '#2196F3',
-    fontWeight: 'bold'
+    color: '#6366F1',
+    fontWeight: '700',
+    fontSize: 16
   },
   fab: {
     position: 'absolute',
-    margin: 16,
+    margin: 20,
     right: 0,
     bottom: 0,
-    backgroundColor: '#2196F3',
+    backgroundColor: '#6366F1',
     ...Platform.select({
       web: {
-        boxShadow: '0px 4px 12px rgba(33, 150, 243, 0.3)',
+        boxShadow: '0px 8px 24px rgba(99, 102, 241, 0.4)',
       },
     }),
   }

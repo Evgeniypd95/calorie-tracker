@@ -189,7 +189,7 @@ export const socialService = {
       throw new Error('You cannot connect to yourself');
     }
 
-    // Add to following/followers
+    // Add to following/followers on BOTH users (mutual connection)
     const currentUserRef = doc(db, 'users', currentUserId);
     const targetUserRef = doc(db, 'users', targetUserId);
 
@@ -201,20 +201,25 @@ export const socialService = {
     const targetUserData = targetUserDoc.exists() ? targetUserDoc.data() : {};
 
     const currentFollowing = currentUserData.following || [];
+    const currentFollowers = currentUserData.followers || [];
+    const targetFollowing = targetUserData.following || [];
     const targetFollowers = targetUserData.followers || [];
 
-    // Check if already following
-    if (currentFollowing.includes(targetUserId)) {
+    // Check if already connected
+    const alreadyConnected = currentFollowing.includes(targetUserId) && targetFollowing.includes(currentUserId);
+    if (alreadyConnected) {
       throw new Error('You are already connected to this user');
     }
 
     // Use setDoc with merge to handle cases where profile might not exist yet
     await setDoc(currentUserRef, {
-      following: [...currentFollowing, targetUserId]
+      following: currentFollowing.includes(targetUserId) ? currentFollowing : [...currentFollowing, targetUserId],
+      followers: currentFollowers.includes(targetUserId) ? currentFollowers : [...currentFollowers, targetUserId]
     }, { merge: true });
 
     await setDoc(targetUserRef, {
-      followers: [...targetFollowers, currentUserId]
+      following: targetFollowing.includes(currentUserId) ? targetFollowing : [...targetFollowing, currentUserId],
+      followers: targetFollowers.includes(currentUserId) ? targetFollowers : [...targetFollowers, currentUserId]
     }, { merge: true });
   },
 
@@ -258,12 +263,14 @@ export const socialService = {
     const currentFollowing = currentUserData.following || [];
     const targetFollowers = targetUserData.followers || [];
 
-    // Use setDoc with merge to handle cases where profile might not exist yet
+    // Remove connection in BOTH directions
     await setDoc(currentUserRef, {
-      following: currentFollowing.filter(id => id !== targetUserId)
+      following: currentFollowing.filter(id => id !== targetUserId),
+      followers: currentFollowers.filter(id => id !== targetUserId)
     }, { merge: true });
 
     await setDoc(targetUserRef, {
+      following: targetFollowing.filter(id => id !== currentUserId),
       followers: targetFollowers.filter(id => id !== currentUserId)
     }, { merge: true });
   },

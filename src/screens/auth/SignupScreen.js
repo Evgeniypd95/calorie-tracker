@@ -119,31 +119,41 @@ export default function SignupScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff'
+    backgroundColor: '#F1F5F9'
   },
   scrollContent: {
     flexGrow: 1
   },
   content: {
     flex: 1,
-    padding: 20,
-    justifyContent: 'center'
+    padding: 32,
+    justifyContent: 'center',
+    maxWidth: 480,
+    alignSelf: 'center',
+    width: '100%'
   },
   title: {
-    marginBottom: 8,
-    fontWeight: 'bold'
+    marginBottom: 12,
+    fontWeight: '800',
+    fontSize: 36,
+    color: '#1E293B',
+    letterSpacing: -1
   },
   subtitle: {
-    marginBottom: 32,
-    color: '#666'
+    marginBottom: 40,
+    color: '#64748B',
+    fontSize: 16,
+    lineHeight: 24
   },
   input: {
-    marginBottom: 16
+    marginBottom: 20,
+    backgroundColor: '#FFFFFF'
   },
   button: {
-    marginTop: 8
+    marginTop: 12,
+    paddingVertical: 8
   },
   linkButton: {
-    marginTop: 16
+    marginTop: 24
   }
 });
