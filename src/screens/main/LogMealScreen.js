@@ -598,6 +598,17 @@ export default function LogMealScreen({ navigation, route }) {
           style={styles.input}
         />
         {isListening && (
+          <Chip
+            icon="microphone-off"
+            onPress={toggleVoiceInput}
+            style={styles.stopChip}
+            textStyle={styles.stopChipText}
+            accessibilityLabel="Stop recording"
+          >
+            Stop recording
+          </Chip>
+        )}
+        {isListening && (
           <Text variant="bodySmall" style={styles.listeningText}>
             🎤 Listening... Tap mic to stop
           </Text>
@@ -608,7 +619,7 @@ export default function LogMealScreen({ navigation, route }) {
             mode="contained"
             onPress={handleParse}
             loading={loading}
-            disabled={loading}
+            disabled={loading || isListening || !mealDescription.trim()}
             style={styles.button}
           >
             Parse with AI
@@ -863,6 +874,14 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     margin: 0
+  },
+  stopChip: {
+    backgroundColor: '#ffecec',
+    marginLeft: 6
+  },
+  stopChipText: {
+    color: '#ff4444',
+    fontWeight: '600'
   },
   input: {
     marginBottom: 4

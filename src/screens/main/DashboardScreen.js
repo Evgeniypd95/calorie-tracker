@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
 import { Text, FAB, Card, Surface, IconButton } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
@@ -37,6 +37,7 @@ export default function DashboardScreen({ navigation }) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [meals, setMeals] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const calendarRef = useRef(null);
 
   const loadMeals = async (date = selectedDate) => {
     try {
@@ -120,6 +121,19 @@ export default function DashboardScreen({ navigation }) {
   const totals = calculateTotals();
   const days = getDateRange();
 
+  // Auto-scroll calendar ribbon to today on first render
+  useEffect(() => {
+    const indexOfToday = days.findIndex((d) => isSameDay(d, new Date()));
+    // Approximate width of an item including margins
+    const ITEM_WIDTH = 72; // minWidth(60) + padding/margins
+    if (calendarRef.current && indexOfToday >= 0) {
+      // Delay slightly to ensure layout is measured
+      setTimeout(() => {
+        calendarRef.current.scrollTo({ x: Math.max(0, (indexOfToday - 2) * ITEM_WIDTH), animated: true });
+      }, 0);
+    }
+  }, []);
+
   return (
     <View style={styles.container}>
       {/* Calendar Ribbon */}
@@ -128,6 +142,7 @@ export default function DashboardScreen({ navigation }) {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.calendarContent}
+          ref={calendarRef}
         >
           {days.map((day, index) => {
             const { day: dayName, date } = formatDate(day);

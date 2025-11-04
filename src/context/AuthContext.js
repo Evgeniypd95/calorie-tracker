@@ -22,11 +22,26 @@ export const AuthProvider = ({ children }) => {
         setUser(firebaseUser);
         // Load user profile
         console.log('👤 AuthContext: Loading user profile...');
-        const profile = await userService.getUserProfile(firebaseUser.uid);
+        let profile = await userService.getUserProfile(firebaseUser.uid);
         console.log('👤 AuthContext: Profile loaded:', {
           hasProfile: !!profile,
           hasDailyBudget: !!profile?.dailyBudget
         });
+
+        // If profile doesn't exist yet, initialize it now so UI has personalCode/share code
+        if (!profile) {
+          console.log('🆕 AuthContext: No profile found. Creating default profile...');
+          try {
+            await userService.createUserProfile(firebaseUser.uid, {
+              email: firebaseUser.email || ''
+            });
+            // Re-fetch profile after creation
+            profile = await userService.getUserProfile(firebaseUser.uid);
+          } catch (e) {
+            console.error('❌ AuthContext: Failed to create default profile', e);
+          }
+        }
+
         setUserProfile(profile);
       } else {
         console.log('🚪 AuthContext: User logged out');
