@@ -23,6 +23,13 @@ export default function ChatLogMealScreen({ navigation, route }) {
       role: 'ai',
       content: "Hey! 👋 Just tell me what you ate and I'll figure out the nutrition for you. You can type, speak, or send a photo!",
       timestamp: new Date()
+    },
+    {
+      id: Date.now() + 1,
+      role: 'ai',
+      content: '',
+      showRecentMealsButton: true,
+      timestamp: new Date()
     }
   ]);
   const [inputText, setInputText] = useState('');
@@ -57,7 +64,19 @@ export default function ChatLogMealScreen({ navigation, route }) {
         return mealDate >= threeDaysAgo;
       });
 
-      setRecentMeals(recentFiltered);
+      // Remove duplicates by description (keep most recent)
+      const uniqueMeals = [];
+      const seenDescriptions = new Set();
+
+      for (const meal of recentFiltered) {
+        const normalizedDesc = meal.description.toLowerCase().trim();
+        if (!seenDescriptions.has(normalizedDesc)) {
+          seenDescriptions.add(normalizedDesc);
+          uniqueMeals.push(meal);
+        }
+      }
+
+      setRecentMeals(uniqueMeals);
     } catch (error) {
       console.error('Error loading recent meals:', error);
     }
@@ -504,6 +523,25 @@ export default function ChatLogMealScreen({ navigation, route }) {
       );
     }
 
+    // Recent meals button (hide if meal already parsed)
+    if (message.showRecentMealsButton && !parsedData) {
+      return (
+        <View key={message.id} style={[styles.messageContainer, styles.aiMessageContainer]}>
+          <Surface style={[styles.messageBubble, styles.aiBubble]}>
+            <Button
+              mode="outlined"
+              icon="clock-outline"
+              onPress={handleShowRecentMeals}
+              style={styles.recentMealsButtonInChat}
+              contentStyle={styles.recentMealsButtonContent}
+            >
+              View recent meals
+            </Button>
+          </Surface>
+        </View>
+      );
+    }
+
     return (
       <View key={message.id} style={[
         styles.messageContainer,
@@ -660,16 +698,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
       {/* Input Bar */}
       <Surface style={styles.inputContainer} elevation={4}>
         <View style={styles.inputRow}>
-          {!parsedData && (
-            <IconButton
-              icon="clock-outline"
-              size={24}
-              iconColor="#6366F1"
-              onPress={handleShowRecentMeals}
-              disabled={isProcessing}
-            />
-          )}
-
           <IconButton
             icon="camera"
             size={24}
@@ -915,5 +943,12 @@ const styles = StyleSheet.create({
   cancelRecentButton: {
     alignSelf: 'center',
     marginTop: 12
+  },
+  recentMealsButtonInChat: {
+    borderColor: '#6366F1',
+    marginTop: 4
+  },
+  recentMealsButtonContent: {
+    paddingVertical: 4
   }
 });
