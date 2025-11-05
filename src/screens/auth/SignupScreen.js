@@ -3,6 +3,7 @@ import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 're
 import { TextInput, Button, Text, Snackbar } from 'react-native-paper';
 import { authService, userService } from '../../services/firebase';
 import { useOnboarding } from '../../context/OnboardingContext';
+import { useAuth } from '../../context/AuthContext';
 
 // Helper to calculate next check-in date
 const getNextCheckInDate = (daysFromNow) => {
@@ -13,6 +14,7 @@ const getNextCheckInDate = (daysFromNow) => {
 
 export default function SignupScreen({ navigation }) {
   const { onboardingData, calculateTargetCalories } = useOnboarding();
+  const { refreshUserProfile } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -85,7 +87,12 @@ export default function SignupScreen({ navigation }) {
         checkInHistory: []
       };
 
-      await userService.updateUserProfile(userId, profileData);
+      await userService.createUserProfile(userId, profileData);
+
+      // Wait a moment for AuthContext to update, then refresh the profile
+      setTimeout(async () => {
+        await refreshUserProfile();
+      }, 500);
 
       // Navigation to main app will be handled automatically by App.js
     } catch (error) {

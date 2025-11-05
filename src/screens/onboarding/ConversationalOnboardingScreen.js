@@ -166,12 +166,37 @@ export default function ConversationalOnboardingScreen({ navigation }) {
   };
 
   const adjustCalories = (amount) => {
+    const newCalories = generatedPlan.dailyCalories + amount;
     const adjusted = {
       ...generatedPlan,
-      dailyCalories: generatedPlan.dailyCalories + amount,
-      protein: Math.round(((generatedPlan.dailyCalories + amount) * 0.30) / 4),
-      carbs: Math.round(((generatedPlan.dailyCalories + amount) * 0.40) / 4),
-      fat: Math.round(((generatedPlan.dailyCalories + amount) * 0.30) / 9),
+      dailyCalories: newCalories,
+      protein: Math.round((newCalories * 0.30) / 4),
+      carbs: Math.round((newCalories * 0.40) / 4),
+      fat: Math.round((newCalories * 0.30) / 9),
+    };
+    setGeneratedPlan(adjusted);
+  };
+
+  const adjustProtein = (amount) => {
+    const adjusted = {
+      ...generatedPlan,
+      protein: Math.max(0, generatedPlan.protein + amount)
+    };
+    setGeneratedPlan(adjusted);
+  };
+
+  const adjustCarbs = (amount) => {
+    const adjusted = {
+      ...generatedPlan,
+      carbs: Math.max(0, generatedPlan.carbs + amount)
+    };
+    setGeneratedPlan(adjusted);
+  };
+
+  const adjustFat = (amount) => {
+    const adjusted = {
+      ...generatedPlan,
+      fat: Math.max(0, generatedPlan.fat + amount)
     };
     setGeneratedPlan(adjusted);
   };
@@ -373,14 +398,58 @@ export default function ConversationalOnboardingScreen({ navigation }) {
               </View>
 
               <View style={styles.adjustments}>
-                <Text style={styles.adjustLabel}>Need adjustments?</Text>
-                <View style={styles.adjustButtons}>
-                  <Button mode="outlined" onPress={() => adjustCalories(-100)} style={styles.adjustButton}>
-                    -100 cal
-                  </Button>
-                  <Button mode="outlined" onPress={() => adjustCalories(100)} style={styles.adjustButton}>
-                    +100 cal
-                  </Button>
+                <Text style={styles.adjustLabel}>Adjust your plan:</Text>
+
+                {/* Calories */}
+                <View style={styles.adjustSection}>
+                  <Text style={styles.adjustSectionLabel}>Calories</Text>
+                  <View style={styles.adjustButtons}>
+                    <Button mode="outlined" onPress={() => adjustCalories(-100)} style={styles.adjustButton} compact>
+                      -100
+                    </Button>
+                    <Button mode="outlined" onPress={() => adjustCalories(100)} style={styles.adjustButton} compact>
+                      +100
+                    </Button>
+                  </View>
+                </View>
+
+                {/* Protein */}
+                <View style={styles.adjustSection}>
+                  <Text style={styles.adjustSectionLabel}>Protein</Text>
+                  <View style={styles.adjustButtons}>
+                    <Button mode="outlined" onPress={() => adjustProtein(-10)} style={styles.adjustButton} compact>
+                      -10g
+                    </Button>
+                    <Button mode="outlined" onPress={() => adjustProtein(10)} style={styles.adjustButton} compact>
+                      +10g
+                    </Button>
+                  </View>
+                </View>
+
+                {/* Carbs */}
+                <View style={styles.adjustSection}>
+                  <Text style={styles.adjustSectionLabel}>Carbs</Text>
+                  <View style={styles.adjustButtons}>
+                    <Button mode="outlined" onPress={() => adjustCarbs(-10)} style={styles.adjustButton} compact>
+                      -10g
+                    </Button>
+                    <Button mode="outlined" onPress={() => adjustCarbs(10)} style={styles.adjustButton} compact>
+                      +10g
+                    </Button>
+                  </View>
+                </View>
+
+                {/* Fat */}
+                <View style={styles.adjustSection}>
+                  <Text style={styles.adjustSectionLabel}>Fat</Text>
+                  <View style={styles.adjustButtons}>
+                    <Button mode="outlined" onPress={() => adjustFat(-5)} style={styles.adjustButton} compact>
+                      -5g
+                    </Button>
+                    <Button mode="outlined" onPress={() => adjustFat(5)} style={styles.adjustButton} compact>
+                      +5g
+                    </Button>
+                  </View>
                 </View>
               </View>
 
@@ -545,15 +614,24 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   adjustLabel: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 16,
+    textAlign: 'center'
+  },
+  adjustSection: {
+    marginBottom: 12
+  },
+  adjustSectionLabel: {
+    fontSize: 13,
     fontWeight: '600',
     color: '#64748B',
-    marginBottom: 12,
-    textAlign: 'center'
+    marginBottom: 8
   },
   adjustButtons: {
     flexDirection: 'row',
-    gap: 12
+    gap: 8
   },
   adjustButton: {
     flex: 1
