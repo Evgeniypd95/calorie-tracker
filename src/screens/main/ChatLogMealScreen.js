@@ -36,6 +36,50 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const [isSaving, setIsSaving] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
+  const [recentMeals, setRecentMeals] = useState([]);
+
+  // Load recent meals on mount
+  useEffect(() => {
+    loadRecentMeals();
+  }, []);
+
+  const loadRecentMeals = async () => {
+    try {
+      const meals = await mealService.getRecentMeals(user.uid, 10);
+
+      // Filter to last 3 days
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      const recentFiltered = meals.filter(meal => {
+        const mealDate = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
+        return mealDate >= threeDaysAgo;
+      });
+
+      setRecentMeals(recentFiltered);
+
+      // Update initial message if we have recent meals
+      if (recentFiltered.length > 0) {
+        const mealsList = recentFiltered.slice(0, 5).map((meal, idx) => {
+          const mealDate = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
+          const daysAgo = Math.floor((new Date() - mealDate) / (1000 * 60 * 60 * 24));
+          const timeLabel = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo}d ago`;
+          return `${idx + 1}. ${meal.description.substring(0, 40)}${meal.description.length > 40 ? '...' : ''} (${timeLabel})`;
+        }).join('\n');
+
+        setMessages([
+          {
+            id: Date.now(),
+            role: 'ai',
+            content: `Hey! 👋 What did you eat?\n\nOr pick from your recent meals:\n${mealsList}\n\nJust tell me the number or describe something new!`,
+            timestamp: new Date()
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error loading recent meals:', error);
+    }
+  };
 
   // Scroll to bottom when messages update
   useEffect(() => {
@@ -178,7 +222,13 @@ export default function ChatLogMealScreen({ navigation, route }) {
     if (isListening) {
       await stopVoiceRecording();
     } else {
-      startCountdown();
+      // Only countdown on initial recording (no parsed data yet)
+      if (!parsedData) {
+        startCountdown();
+      } else {
+        // Feedback mode - no countdown, direct recording
+        startVoiceRecording();
+      }
     }
   };
 
@@ -311,10 +361,13 @@ export default function ChatLogMealScreen({ navigation, route }) {
     const text = inputText.trim();
     if (!text && !selectedImage) return;
 
+    // Clear input immediately
+    setInputText('');
+    textBeforeVoiceRef.current = '';
+
     // If we already have parsed data, treat this as a refinement
     if (parsedData && text) {
       addMessage('user', text);
-      setInputText('');
 
       // AI acknowledges the refinement
       addMessage('ai', "👍 Let me adjust that for you...");
@@ -348,8 +401,35 @@ export default function ChatLogMealScreen({ navigation, route }) {
     // Initial meal description
     if (text) {
       addMessage('user', text);
-      setInputText('');
-      await parseAndRespond(text);
+
+      // Check if user typed a number (selecting recent meal)
+      const mealIndex = parseInt(text);
+      if (!isNaN(mealIndex) && mealIndex >= 1 && mealIndex <= recentMeals.length) {
+        const selectedMeal = recentMeals[mealIndex - 1];
+
+        // Use the selected meal's data
+        addMessage('ai', `Great choice! Using "${selectedMeal.description}"`);
+
+        setParsedData({
+          items: selectedMeal.items,
+          totals: selectedMeal.totals
+        });
+
+        // Show the nutrition breakdown
+        const totalCal = selectedMeal.totals.calories;
+        const itemsList = selectedMeal.items.map(item =>
+          `• ${item.quantity} ${item.food} (${item.calories} cal)`
+        ).join('\n');
+
+        const response = `Here's the breakdown:\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${selectedMeal.totals.protein}g | Carbs: ${selectedMeal.totals.carbs}g | Fat: ${selectedMeal.totals.fat}g\n\nPick a meal type below to save it!`;
+
+        setTimeout(() => {
+          addMessage('ai', response, { parsedData: { items: selectedMeal.items, totals: selectedMeal.totals } });
+        }, 500);
+      } else {
+        // New meal description
+        await parseAndRespond(text);
+      }
     }
   };
 

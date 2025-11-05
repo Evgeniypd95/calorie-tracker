@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, Image, TouchableOpacity, TextInput as RNTextInput, Platform } from 'react-native';
-import { Text, Card, IconButton, Surface, Divider, Avatar, Button, TextInput } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, RefreshControl, Image, TouchableOpacity, TextInput as RNTextInput, Platform, Share, Alert, Modal } from 'react-native';
+import { Text, Card, IconButton, Surface, Divider, Avatar, Button, TextInput, Snackbar, Portal, Chip } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { socialService, mealService } from '../../services/firebase';
+
+const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
 export default function SocialFeedScreen({ navigation }) {
   const { user } = useAuth();
@@ -11,6 +13,11 @@ export default function SocialFeedScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [commentInputs, setCommentInputs] = useState({});
   const [showComments, setShowComments] = useState({});
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [mealTypeDialogVisible, setMealTypeDialogVisible] = useState(false);
+  const [selectedMealForCopy, setSelectedMealForCopy] = useState(null);
+  const [menuVisible, setMenuVisible] = useState(null);
 
   const loadFeed = async () => {
     try {
@@ -74,13 +81,75 @@ export default function SocialFeedScreen({ navigation }) {
     setShowComments(prev => ({ ...prev, [mealId]: !prev[mealId] }));
   };
 
-  const handleCopyMeal = async (meal) => {
+  const handleCopyMeal = (meal) => {
+    setSelectedMealForCopy(meal);
+    setMealTypeDialogVisible(true);
+  };
+
+  const confirmCopyMeal = async (mealType) => {
+    if (!selectedMealForCopy) return;
+
     try {
-      await socialService.copyMealToUser(user.uid, meal);
-      // Could show a snackbar here
-      console.log('Meal copied!');
+      // Copy meal with selected type
+      const mealData = {
+        mealType: mealType,
+        description: selectedMealForCopy.description,
+        items: selectedMealForCopy.items,
+        totals: selectedMealForCopy.totals,
+        date: new Date()
+      };
+
+      await mealService.logMeal(user.uid, mealData);
+
+      setMealTypeDialogVisible(false);
+      setSelectedMealForCopy(null);
+      setSnackbarMessage(`Added to your ${mealType}! 🎉`);
+      setSnackbarVisible(true);
     } catch (error) {
       console.error('Error copying meal:', error);
+      setMealTypeDialogVisible(false);
+      setSnackbarMessage('Failed to add meal');
+      setSnackbarVisible(true);
+    }
+  };
+
+  const handleShare = async (meal) => {
+    try {
+      await Share.share({
+        message: `Check out this meal: ${meal.description}\n\n🔥 ${meal.totals.calories} cal | 💪 ${meal.totals.protein}g protein | 🍞 ${meal.totals.carbs}g carbs | 🥑 ${meal.totals.fat}g fat`,
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+    }
+  };
+
+  const handleMenu = (mealId) => {
+    setMenuVisible(mealId === menuVisible ? null : mealId);
+  };
+
+  const handleMenuAction = (action, meal) => {
+    setMenuVisible(null);
+
+    switch (action) {
+      case 'hide':
+        setSnackbarMessage('Post hidden (placeholder)');
+        setSnackbarVisible(true);
+        break;
+      case 'report':
+        setSnackbarMessage('Post reported (placeholder)');
+        setSnackbarVisible(true);
+        break;
+      case 'unfollow':
+        setSnackbarMessage(`Unfollowed ${meal.userName} (placeholder)`);
+        setSnackbarVisible(true);
+        break;
+      case 'breakdown':
+        // Show full nutrition breakdown
+        Alert.alert(
+          'Nutrition Breakdown',
+          meal.items.map(item => `${item.quantity} ${item.food}: ${item.calories} cal`).join('\n')
+        );
+        break;
     }
   };
 
@@ -126,7 +195,7 @@ export default function SocialFeedScreen({ navigation }) {
           <IconButton
             icon="dots-vertical"
             size={20}
-            onPress={() => {}}
+            onPress={() => handleMenu(meal.id)}
           />
         </View>
 
@@ -135,7 +204,7 @@ export default function SocialFeedScreen({ navigation }) {
           <Image source={{ uri: meal.imageUrl }} style={styles.mealImage} />
         )}
 
-        {/* Actions: Like, Comment, Copy */}
+        {/* Actions: Like, Comment, Share, Add */}
         <View style={styles.actionsRow}>
           <View style={styles.leftActions}>
             <IconButton
@@ -152,15 +221,49 @@ export default function SocialFeedScreen({ navigation }) {
             <IconButton
               icon="share-outline"
               size={26}
-              onPress={() => {}}
+              onPress={() => handleShare(meal)}
             />
           </View>
           <IconButton
-            icon="bookmark-outline"
+            icon="plus-circle-outline"
+            iconColor="#6366F1"
             size={26}
             onPress={() => handleCopyMeal(meal)}
           />
         </View>
+
+        {/* 3-Dot Menu */}
+        {menuVisible === meal.id && (
+          <Card style={styles.menuCard}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => handleMenuAction('breakdown', meal)}
+            >
+              <Text style={styles.menuText}>See full nutrition</Text>
+            </TouchableOpacity>
+            <Divider />
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => handleMenuAction('hide', meal)}
+            >
+              <Text style={styles.menuText}>Hide this post</Text>
+            </TouchableOpacity>
+            <Divider />
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => handleMenuAction('report', meal)}
+            >
+              <Text style={styles.menuText}>Report</Text>
+            </TouchableOpacity>
+            <Divider />
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => handleMenuAction('unfollow', meal)}
+            >
+              <Text style={[styles.menuText, styles.menuTextDanger]}>Unfollow {meal.userName}</Text>
+            </TouchableOpacity>
+          </Card>
+        )}
 
         {/* Like count */}
         {likesCount > 0 && (
@@ -266,6 +369,53 @@ export default function SocialFeedScreen({ navigation }) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Meal Type Selection Dialog */}
+      <Portal>
+        <Modal
+          visible={mealTypeDialogVisible}
+          onDismiss={() => setMealTypeDialogVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <Card style={styles.modalCard}>
+            <Card.Content>
+              <Text style={styles.modalTitle}>Add to My Day</Text>
+              <Text style={styles.modalSubtitle}>Which meal type?</Text>
+
+              <View style={styles.mealTypeChips}>
+                {MEAL_TYPES.map((type) => (
+                  <Chip
+                    key={type}
+                    mode="outlined"
+                    onPress={() => confirmCopyMeal(type)}
+                    style={styles.mealTypeChip}
+                  >
+                    {type}
+                  </Chip>
+                ))}
+              </View>
+
+              <Button
+                mode="text"
+                onPress={() => setMealTypeDialogVisible(false)}
+                style={styles.cancelButton}
+              >
+                Cancel
+              </Button>
+            </Card.Content>
+          </Card>
+        </Modal>
+
+        {/* Success/Error Snackbar */}
+        <Snackbar
+          visible={snackbarVisible}
+          onDismiss={() => setSnackbarVisible(false)}
+          duration={3000}
+          style={styles.snackbar}
+        >
+          {snackbarMessage}
+        </Snackbar>
+      </Portal>
     </View>
   );
 }
@@ -445,5 +595,69 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 15,
     lineHeight: 22
+  },
+  menuCard: {
+    position: 'absolute',
+    top: 50,
+    right: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    minWidth: 200,
+    zIndex: 100,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
+      },
+      default: {
+        elevation: 8,
+      }
+    }),
+  },
+  menuItem: {
+    padding: 16
+  },
+  menuText: {
+    fontSize: 15,
+    color: '#1E293B'
+  },
+  menuTextDanger: {
+    color: '#EF4444'
+  },
+  modalContainer: {
+    padding: 20
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 8
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 8,
+    textAlign: 'center'
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    color: '#64748B',
+    marginBottom: 24,
+    textAlign: 'center'
+  },
+  mealTypeChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 16
+  },
+  mealTypeChip: {
+    marginBottom: 8
+  },
+  cancelButton: {
+    marginTop: 8
+  },
+  snackbar: {
+    backgroundColor: '#1E293B'
   }
 });
