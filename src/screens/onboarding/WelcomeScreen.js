@@ -47,10 +47,14 @@ export default function WelcomeScreen({ navigation }) {
         {/* Video Placeholder */}
         <View style={styles.videoContainer}>
           <View style={styles.phoneMockup}>
+            {/* Dynamic Island / Notch */}
+            <View style={styles.notch} />
             <View style={styles.phoneScreen}>
               <Text style={styles.videoPlaceholder}>📹</Text>
               <Text style={styles.videoText}>Demo Video Coming Soon</Text>
             </View>
+            {/* Home Indicator */}
+            <View style={styles.homeIndicator} />
           </View>
         </View>
 
@@ -107,23 +111,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   phoneMockup: {
-    width: 200,
-    height: 320,
+    width: 260,
+    height: 520,
     backgroundColor: '#1E293B',
-    borderRadius: 28,
-    padding: 10,
+    borderRadius: 38,
+    padding: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 12,
+    position: 'relative',
+  },
+  notch: {
+    position: 'absolute',
+    top: 8,
+    left: '50%',
+    marginLeft: -50,
+    width: 100,
+    height: 26,
+    backgroundColor: '#1E293B',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    zIndex: 10,
   },
   phoneScreen: {
     flex: 1,
     backgroundColor: '#F1F5F9',
-    borderRadius: 20,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  homeIndicator: {
+    position: 'absolute',
+    bottom: 12,
+    left: '50%',
+    marginLeft: -50,
+    width: 100,
+    height: 4,
+    backgroundColor: '#1E293B',
+    borderRadius: 2,
   },
   videoPlaceholder: {
     fontSize: 60,
