@@ -8,6 +8,8 @@ import { parseMealDescription, convertImageToDescription } from '../../services/
 import { mealService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { lookupBarcode, formatBarcodeProductForParsing } from '../../services/barcodeService';
+import { scoreMeal } from '../../services/mealScoringService';
+import MealGradeCard from '../../components/MealGradeCard';
 
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
@@ -15,7 +17,7 @@ const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 // AI messages can have parsedData attached
 
 export default function ChatLogMealScreen({ navigation, route }) {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { selectedDate } = route.params || {};
   const scrollViewRef = useRef(null);
 
@@ -571,6 +573,12 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
       addMessage('ai', `Perfect! Your ${selectedMealType.toLowerCase()} has been logged. Keep up the great work! 💪`);
 
+      // Score the meal based on user's goals
+      if (userProfile && userProfile.onboardingCompleted) {
+        const gradeData = scoreMeal(parsedData, userProfile);
+        addMessage('ai', '', { gradeData });
+      }
+
       setTimeout(() => {
         // Navigate back to Dashboard stack
         if (navigation.canGoBack()) {
@@ -628,6 +636,15 @@ export default function ChatLogMealScreen({ navigation, route }) {
               View recent meals
             </Button>
           </Surface>
+        </View>
+      );
+    }
+
+    // Meal grade card
+    if (message.data?.gradeData) {
+      return (
+        <View key={message.id} style={styles.gradeCardContainer}>
+          <MealGradeCard gradeData={message.data.gradeData} />
         </View>
       );
     }
@@ -1138,6 +1155,11 @@ const styles = StyleSheet.create({
   },
   recentMealsButtonContent: {
     paddingVertical: 4
+  },
+  gradeCardContainer: {
+    width: '100%',
+    paddingHorizontal: 0,
+    marginBottom: 12
   },
   barcodeContainer: {
     flex: 1,
