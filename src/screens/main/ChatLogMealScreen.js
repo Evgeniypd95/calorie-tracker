@@ -54,6 +54,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const [scannedBarcode, setScannedBarcode] = useState(null);
   const [lookingUpBarcode, setLookingUpBarcode] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const [mealSaved, setMealSaved] = useState(false);
 
   // Load recent meals on mount
   useEffect(() => {
@@ -579,14 +580,9 @@ export default function ChatLogMealScreen({ navigation, route }) {
         addMessage('ai', '', { gradeData });
       }
 
-      setTimeout(() => {
-        // Navigate back to Dashboard stack
-        if (navigation.canGoBack()) {
-          navigation.goBack();
-        } else {
-          navigation.navigate('Dashboard', { screen: 'DashboardMain' });
-        }
-      }, 1500);
+      // Show "Done" button instead of auto-redirect
+      setMealSaved(true);
+      setIsSaving(false);
     } catch (error) {
       console.error('Error saving meal:', error);
       showAlert('Error', 'Failed to save meal');
@@ -800,7 +796,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
         )}
 
         {/* Meal Type Selector - shows when we have parsed data */}
-        {parsedData && (
+        {parsedData && !mealSaved && (
           <View style={styles.mealTypeContainer}>
             <Text style={styles.mealTypeTitle}>Pick a meal type:</Text>
             <View style={styles.chipContainer}>
@@ -844,6 +840,26 @@ export default function ChatLogMealScreen({ navigation, route }) {
                 </Button>
               </View>
             )}
+          </View>
+        )}
+
+        {/* Done Button - shows after meal is saved */}
+        {mealSaved && (
+          <View style={styles.doneContainer}>
+            <Button
+              mode="contained"
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.navigate('Dashboard', { screen: 'DashboardMain' });
+                }
+              }}
+              style={styles.doneButton}
+              icon="check"
+            >
+              Done
+            </Button>
           </View>
         )}
       </ScrollView>
@@ -1015,6 +1031,14 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1
+  },
+  doneContainer: {
+    padding: 20,
+    alignItems: 'center'
+  },
+  doneButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 32
   },
   inputContainer: {
     backgroundColor: '#FFFFFF',

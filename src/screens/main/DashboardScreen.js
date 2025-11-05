@@ -6,6 +6,8 @@ import { mealService, userService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { shouldShowCheckIn, getCheckInQuestions, calculateTargetAdjustment, getNextCheckInDate } from '../../services/checkInService';
 import CheckInModal from '../../components/CheckInModal';
+import { scoreMeal } from '../../services/mealScoringService';
+import MealGradeCard from '../../components/MealGradeCard';
 
 // Helper function to get a date range (7 days past, today, 7 days future)
 const getDateRange = () => {
@@ -346,57 +348,76 @@ export default function DashboardScreen({ navigation }) {
               </Card.Content>
             </Card>
           ) : (
-            meals.map((meal) => (
-              <Card key={meal.id} style={styles.mealCard} elevation={1}>
-                <Card.Content>
-                  <View style={styles.mealHeader}>
-                    <View style={styles.mealHeaderLeft}>
-                      <Text variant="titleMedium" style={styles.mealType}>
-                        {meal.mealType}
-                      </Text>
-                      <Text variant="bodySmall" style={styles.timeText}>
-                        {meal.date?.toDate?.()?.toLocaleTimeString?.('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit'
-                        })}
-                      </Text>
+            meals.map((meal) => {
+              // Calculate meal grade if user has completed onboarding
+              const gradeData = userProfile?.onboardingCompleted ? scoreMeal(meal, userProfile) : null;
+
+              return (
+                <Card key={meal.id} style={styles.mealCard} elevation={1}>
+                  <Card.Content>
+                    <View style={styles.mealHeader}>
+                      <View style={styles.mealHeaderLeft}>
+                        <Text variant="titleMedium" style={styles.mealType}>
+                          {meal.mealType}
+                        </Text>
+                        <Text variant="bodySmall" style={styles.timeText}>
+                          {meal.date?.toDate?.()?.toLocaleTimeString?.('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit'
+                          })}
+                        </Text>
+                      </View>
+                      <View style={styles.mealHeaderRight}>
+                        {gradeData && (
+                          <View style={[styles.gradeChip, { backgroundColor: gradeData.color }]}>
+                            <Text style={styles.gradeText}>{gradeData.grade}</Text>
+                          </View>
+                        )}
+                        <IconButton
+                          icon="delete"
+                          size={20}
+                          iconColor="#EF4444"
+                          onPress={() => handleDeleteMeal(meal.id, meal.description)}
+                        />
+                      </View>
                     </View>
-                    <IconButton
-                      icon="delete"
-                      size={20}
-                      iconColor="#EF4444"
-                      onPress={() => handleDeleteMeal(meal.id, meal.description)}
-                    />
-                  </View>
-                  <Text variant="bodyMedium" style={styles.descriptionText}>
-                    {meal.description}
-                  </Text>
-                  <View style={styles.nutrientsContainer}>
-                    <View style={styles.nutrientItem}>
-                      <Text variant="labelSmall" style={styles.nutrientLabel}>
-                        Calories
-                      </Text>
-                      <Text variant="titleSmall" style={styles.caloriesValue}>
-                        {meal.totals.calories}
-                      </Text>
-                    </View>
-                    <View style={styles.nutrientItem}>
-                      <Text variant="labelSmall" style={styles.nutrientLabel}>
-                        Protein
-                      </Text>
-                      <Text variant="titleSmall">{Math.round(meal.totals.protein)}g</Text>
-                    </View>
-                    <View style={styles.nutrientItem}>
-                      <Text variant="labelSmall" style={styles.nutrientLabel}>
-                        Carbs
-                      </Text>
-                      <Text variant="titleSmall">{Math.round(meal.totals.carbs)}g</Text>
-                    </View>
-                    <View style={styles.nutrientItem}>
-                      <Text variant="labelSmall" style={styles.nutrientLabel}>
-                        Fat
-                      </Text>
-                      <Text variant="titleSmall">{Math.round(meal.totals.fat)}g</Text>
+                    <Text variant="bodyMedium" style={styles.descriptionText}>
+                      {meal.description}
+                    </Text>
+
+                    {/* Show full grade card if available */}
+                    {gradeData && (
+                      <View style={styles.gradeCardContainer}>
+                        <MealGradeCard gradeData={gradeData} compact />
+                      </View>
+                    )}
+
+                    <View style={styles.nutrientsContainer}>
+                      <View style={styles.nutrientItem}>
+                        <Text variant="labelSmall" style={styles.nutrientLabel}>
+                          Calories
+                        </Text>
+                        <Text variant="titleSmall" style={styles.caloriesValue}>
+                          {meal.totals.calories}
+                        </Text>
+                      </View>
+                      <View style={styles.nutrientItem}>
+                        <Text variant="labelSmall" style={styles.nutrientLabel}>
+                          Protein
+                        </Text>
+                        <Text variant="titleSmall">{Math.round(meal.totals.protein)}g</Text>
+                      </View>
+                      <View style={styles.nutrientItem}>
+                        <Text variant="labelSmall" style={styles.nutrientLabel}>
+                          Carbs
+                        </Text>
+                        <Text variant="titleSmall">{Math.round(meal.totals.carbs)}g</Text>
+                      </View>
+                      <View style={styles.nutrientItem}>
+                        <Text variant="labelSmall" style={styles.nutrientLabel}>
+                          Fat
+                        </Text>
+                        <Text variant="titleSmall">{Math.round(meal.totals.fat)}g</Text>
                     </View>
                   </View>
                 </Card.Content>
@@ -607,6 +628,28 @@ const styles = StyleSheet.create({
   },
   mealHeaderLeft: {
     flex: 1
+  },
+  mealHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4
+  },
+  gradeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 36,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  gradeText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.5
+  },
+  gradeCardContainer: {
+    marginVertical: 12
   },
   mealType: {
     fontWeight: '700',
