@@ -51,6 +51,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scannedBarcode, setScannedBarcode] = useState(null);
   const [lookingUpBarcode, setLookingUpBarcode] = useState(false);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
 
   // Load recent meals on mount
   useEffect(() => {
@@ -507,8 +508,8 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
       setIsProcessing(true);
       try {
-        // Re-parse with the feedback
-        const result = await parseMealDescription(text);
+        // Re-parse with the feedback AND existing data context
+        const result = await parseMealDescription(text, parsedData);
 
         setMessages(prev => prev.slice(0, -1));
 
@@ -832,20 +833,38 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
       {/* Input Bar */}
       <Surface style={styles.inputContainer} elevation={4}>
+        {/* Plus Menu */}
+        {showPlusMenu && (
+          <View style={styles.plusMenuContainer}>
+            <TouchableOpacity
+              style={styles.plusMenuItem}
+              onPress={() => {
+                setShowPlusMenu(false);
+                showImageOptions();
+              }}
+            >
+              <IconButton icon="camera" size={24} iconColor="#6366F1" />
+              <Text style={styles.plusMenuText}>Camera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.plusMenuItem}
+              onPress={() => {
+                setShowPlusMenu(false);
+                openBarcodeScanner();
+              }}
+            >
+              <IconButton icon="barcode-scan" size={24} iconColor="#6366F1" />
+              <Text style={styles.plusMenuText}>Scan Barcode</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={styles.inputRow}>
           <IconButton
-            icon="camera"
-            size={24}
+            icon={showPlusMenu ? "close" : "plus-circle"}
+            size={26}
             iconColor="#6366F1"
-            onPress={showImageOptions}
-            disabled={isProcessing}
-          />
-
-          <IconButton
-            icon="barcode-scan"
-            size={24}
-            iconColor="#6366F1"
-            onPress={openBarcodeScanner}
+            onPress={() => setShowPlusMenu(!showPlusMenu)}
             disabled={isProcessing}
           />
 
@@ -862,19 +881,11 @@ export default function ChatLogMealScreen({ navigation, route }) {
           />
 
           <IconButton
-            icon={isListening ? 'microphone' : 'microphone-outline'}
+            icon={inputText.trim() ? 'send' : (isListening ? 'microphone' : 'microphone-outline')}
             size={24}
             iconColor={isListening ? '#EF4444' : '#6366F1'}
-            onPress={toggleVoiceInput}
+            onPress={inputText.trim() ? handleSendMessage : toggleVoiceInput}
             disabled={isProcessing}
-          />
-
-          <IconButton
-            icon="send"
-            size={24}
-            iconColor="#6366F1"
-            onPress={handleSendMessage}
-            disabled={!inputText.trim() || isProcessing}
           />
         </View>
 
@@ -993,7 +1004,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0'
+    borderTopColor: '#E2E8F0',
+    position: 'relative'
+  },
+  plusMenuContainer: {
+    position: 'absolute',
+    bottom: '100%',
+    left: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
+      },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 5
+      }
+    })
+  },
+  plusMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    minWidth: 180
+  },
+  plusMenuText: {
+    fontSize: 16,
+    color: '#1E293B',
+    marginLeft: 8
   },
   inputRow: {
     flexDirection: 'row',

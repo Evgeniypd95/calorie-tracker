@@ -11,7 +11,7 @@ const functions = getFunctions(app, 'us-central1');
 // Uncomment to use local emulator during development
 // connectFunctionsEmulator(functions, 'localhost', 5001);
 
-export const parseMealDescription = async (mealDescription) => {
+export const parseMealDescription = async (mealDescription, existingParsedData = null) => {
   // Check auth status
   const auth = getAuth();
   const currentUser = auth.currentUser;
@@ -34,10 +34,16 @@ export const parseMealDescription = async (mealDescription) => {
   }
 
   console.log('🤖 Calling parseMeal function with:', mealDescription);
+  if (existingParsedData) {
+    console.log('📝 Refinement mode - existing data:', existingParsedData);
+  }
 
   try {
     const parseMeal = httpsCallable(functions, 'parseMeal');
-    const result = await parseMeal({ mealDescription });
+    const result = await parseMeal({
+      mealDescription,
+      existingData: existingParsedData
+    });
 
     console.log('✅ parseMeal response:', result.data);
 
