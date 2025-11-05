@@ -4,7 +4,7 @@ Welcome to Calorie Tracker, your intelligent companion for managing nutrition an
 
 ## What is Calorie Tracker?
 
-Calorie Tracker is a smart nutrition tracking app that makes logging meals effortless. Instead of manually looking up every food item, our app uses artificial intelligence to understand what you ate and automatically calculate calories and macronutrients. You can type, speak, or even take a photo of your meal!
+Calorie Tracker is a smart nutrition tracking app that makes logging meals effortless. Instead of manually looking up every food item, our app uses artificial intelligence to understand what you ate and automatically calculate calories and macronutrients. You can type, speak, scan barcodes, or even take a photo of your meal!
 
 ## Getting Started
 
@@ -69,7 +69,20 @@ This is where the magic happens! You have multiple ways to log your meals:
 - The app will transcribe your speech in real-time
 - Tap the microphone again to stop recording
 
-**Method 3: Photo of Your Meal**
+**Method 3: Barcode Scanning**
+- Tap the barcode scanner icon to scan packaged foods
+- Point your camera at the product's barcode (UPC/EAN)
+- The app automatically looks up nutritional information from multiple free databases
+- **Primary databases (100% FREE, no API keys needed):**
+  - **Open Food Facts International** - 2M+ products worldwide, completely free
+  - **Open Food Facts Regional** - Country-specific databases (US, UK, France, Germany, Spain, Italy)
+- **Optional databases (free tiers available):**
+  - **FatSecret Platform API** - Free tier with OAuth authentication
+  - **Edamam Food Database** - 10,000 free API calls per month
+- Nutrition data is automatically populated - no typing required!
+- Review the information and adjust serving size if needed
+
+**Method 4: Photo of Your Meal**
 - Tap the camera icon to take a photo or choose one from your library
 - The AI will analyze the image and describe what it sees
 - You can edit the description before parsing if needed
@@ -170,6 +183,17 @@ Manage your account and social connections here.
 - Pause briefly between different food items
 - Include "and" between items helps the AI understand
 
+### Scanning Barcodes
+
+- Works best with packaged/processed foods
+- Ensure the barcode is clean and not damaged
+- Hold steady and keep the barcode in frame
+- Works with UPC, EAN, and most international barcodes
+- If a product isn't found, you can still enter it manually
+- **Primary lookup is 100% FREE** using Open Food Facts (no API keys needed!)
+- The app searches multiple regional databases automatically for better coverage
+- Optional: Add API keys for FatSecret or Edamam for even more products (both have free tiers)
+
 ### Taking Photos
 
 - Take photos in good lighting
@@ -235,6 +259,15 @@ Make sure you've granted microphone permissions to the app. On some browsers (we
 **Can I track water or supplements?**
 Currently, the app focuses on meals and food. You can include beverages in your meal descriptions (e.g., "coffee with milk and sugar"), but there's no separate tracker for water or supplements.
 
+**Does barcode scanning work for all products?**
+Barcode scanning works best with packaged foods that have UPC or EAN barcodes. The app searches multiple free databases (Open Food Facts International + 6 regional databases, plus optional FatSecret and Edamam) to find nutritional information. With over 2 million products in Open Food Facts alone, most grocery products worldwide are covered. Some local or specialty items may not be in the databases - if a product isn't found, you can still enter it manually.
+
+**Is barcode scanning free?**
+Yes, 100% FREE! The primary databases (Open Food Facts International and all regional variants) are completely free and require zero API keys or configuration. The app works out of the box. For even more coverage, you can optionally add free API keys for FatSecret (free tier) or Edamam (10,000 calls/month free).
+
+**Why doesn't barcode scanning work for fresh produce?**
+Fresh fruits, vegetables, meats, and unpackaged items typically don't have barcodes. For these items, use voice input, photo scanning, or type them manually. Barcode scanning is designed for packaged/processed foods with product barcodes.
+
 **How do I change my password or email?**
 Account management features are coming soon. For now, if you need to change account details, please contact support.
 
@@ -287,6 +320,32 @@ npm install -g eas-cli
 ```bash
 eas login
 ```
+
+7. **Configure Barcode Scanner (Optional)**
+
+**Barcode scanning works immediately out of the box!** Open Food Facts provides 2M+ products with no API keys needed.
+
+For extended database coverage, you can optionally add FREE API keys:
+
+**FatSecret Platform API** (Optional - Free Tier)
+- Sign up at: https://platform.fatsecret.com/api/
+- Create an app to get OAuth credentials
+- Add to `.env`:
+  ```
+  EXPO_PUBLIC_FATSECRET_CLIENT_ID=your_client_id_here
+  EXPO_PUBLIC_FATSECRET_CLIENT_SECRET=your_client_secret_here
+  ```
+
+**Edamam Food Database API** (Optional - 10,000 calls/month FREE)
+- Sign up at: https://developer.edamam.com/food-database-api
+- Choose the "Developer" plan (free)
+- Add to `.env`:
+  ```
+  EXPO_PUBLIC_EDAMAM_APP_ID=your_app_id_here
+  EXPO_PUBLIC_EDAMAM_APP_KEY=your_app_key_here
+  ```
+
+**Note:** These are completely optional. The app works perfectly without them using Open Food Facts!
 
 ### Running the App Locally
 
@@ -666,6 +725,6 @@ If you experience any issues or have questions:
 
 **Start Your Nutrition Journey Today!**
 
-Whether you're trying to lose weight, build muscle, maintain a healthy lifestyle, or simply understand what you're eating better - Calorie Tracker makes it easy and intuitive. The combination of AI-powered meal parsing, voice input, photo analysis, and social sharing creates a seamless experience that fits into your daily life.
+Whether you're trying to lose weight, build muscle, maintain a healthy lifestyle, or simply understand what you're eating better - Calorie Tracker makes it easy and intuitive. The combination of AI-powered meal parsing, voice input, barcode scanning, photo analysis, and social sharing creates a seamless experience that fits into your daily life.
 
 Happy tracking!

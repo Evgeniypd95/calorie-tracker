@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform, Image } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform, Image, Modal } from 'react-native';
 import { TextInput, Button, Text, Chip, ActivityIndicator, Card, Searchbar, Divider, IconButton } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import Voice from '@react-native-voice/voice';
 import { parseMealDescription, convertImageToDescription } from '../../services/geminiService';
 import { mealService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { lookupBarcode, formatBarcodeProductForParsing } from '../../services/barcodeService';
 
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
@@ -31,6 +33,10 @@ export default function LogMealScreen({ navigation, route }) {
   const [originalDescription, setOriginalDescription] = useState('');
   const feedbackTextBeforeVoiceRef = useRef('');
   const voiceContextRef = useRef('meal'); // 'meal' or 'feedback'
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scannedBarcode, setScannedBarcode] = useState(null);
+  const [lookingUpBarcode, setLookingUpBarcode] = useState(false);
 
   // Load recent meals on mount
   useEffect(() => {
@@ -361,6 +367,95 @@ export default function LogMealScreen({ navigation, route }) {
     }
   };
 
+  const openBarcodeScanner = async () => {
+    try {
+      if (!permission) {
+        // Permission is still loading
+        return;
+      }
+
+      if (!permission.granted) {
+        const { granted } = await requestPermission();
+        if (!granted) {
+          showAlert('Permission Required', 'Please grant camera permissions to scan barcodes.');
+          return;
+        }
+      }
+
+      setShowBarcodeScanner(true);
+      setScannedBarcode(null);
+    } catch (error) {
+      console.error('Error requesting barcode scanner permission:', error);
+      showAlert('Error', 'Failed to open barcode scanner.');
+    }
+  };
+
+  const handleBarcodeScanned = async ({ type, data }) => {
+    // Prevent multiple scans
+    if (scannedBarcode === data) return;
+
+    setScannedBarcode(data);
+    setShowBarcodeScanner(false);
+    setLookingUpBarcode(true);
+
+    try {
+      // Look up the barcode in multiple databases
+      const result = await lookupBarcode(data);
+
+      if (result.found) {
+        const formattedProduct = formatBarcodeProductForParsing(result);
+
+        if (formattedProduct) {
+          // Set the meal description
+          setMealDescription(formattedProduct.description);
+
+          // Automatically parse the nutrition data
+          const nutritionData = formattedProduct.nutritionData;
+          const servingSize = formattedProduct.servingSize;
+
+          // Create parsed data structure
+          setParsedData({
+            items: [{
+              food: result.product.name,
+              quantity: servingSize,
+              calories: Math.round(nutritionData.calories || 0),
+              protein: Math.round(nutritionData.protein || 0),
+              carbs: Math.round(nutritionData.carbs || 0),
+              fat: Math.round(nutritionData.fat || 0)
+            }],
+            totals: {
+              calories: Math.round(nutritionData.calories || 0),
+              protein: Math.round(nutritionData.protein || 0),
+              carbs: Math.round(nutritionData.carbs || 0),
+              fat: Math.round(nutritionData.fat || 0)
+            }
+          });
+
+          showAlert(
+            'Product Found!',
+            `${result.product.name}${result.product.brand ? ' (' + result.product.brand + ')' : ''}\n\nSource: ${result.source}\n\nNutrition data loaded. Review and adjust if needed.`
+          );
+        }
+      } else {
+        showAlert(
+          'Product Not Found',
+          `Barcode: ${data}\n\nThis product was not found in our databases. You can still enter it manually.`
+        );
+        setMealDescription(`Product with barcode ${data}`);
+      }
+    } catch (error) {
+      console.error('Error looking up barcode:', error);
+      showAlert('Error', 'Failed to look up product. Please try again or enter manually.');
+    } finally {
+      setLookingUpBarcode(false);
+    }
+  };
+
+  const closeBarcodeScanner = () => {
+    setShowBarcodeScanner(false);
+    setScannedBarcode(null);
+  };
+
   const handleParse = async () => {
     if (!mealDescription.trim()) {
       showAlert('Error', 'Please describe what you ate');
@@ -572,6 +667,13 @@ export default function LogMealScreen({ navigation, route }) {
           </Text>
           <View style={styles.inputIcons}>
             <IconButton
+              icon="barcode-scan"
+              size={24}
+              iconColor="#6366F1"
+              onPress={openBarcodeScanner}
+              style={styles.iconButton}
+            />
+            <IconButton
               icon="camera"
               size={24}
               iconColor="#6366F1"
@@ -594,7 +696,7 @@ export default function LogMealScreen({ navigation, route }) {
           mode="outlined"
           multiline
           numberOfLines={4}
-          placeholder="Type, speak, or take a photo of your meal"
+          placeholder="Type, speak, scan barcode, or take a photo of your meal"
           style={styles.input}
         />
         {isListening && (
@@ -771,6 +873,52 @@ export default function LogMealScreen({ navigation, route }) {
           <ActivityIndicator size="large" color="#6366F1" />
           <Text style={styles.loadingText}>AI is improving your meal breakdown...</Text>
         </View>
+      )}
+
+      {lookingUpBarcode && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#6366F1" />
+          <Text style={styles.loadingText}>Looking up product information...</Text>
+        </View>
+      )}
+
+      {/* Barcode Scanner Modal */}
+      {showBarcodeScanner && (
+        <Modal
+          visible={showBarcodeScanner}
+          onRequestClose={closeBarcodeScanner}
+          animationType="slide"
+        >
+          <View style={styles.barcodeScannerContainer}>
+            <CameraView
+              onBarcodeScanned={scannedBarcode ? undefined : handleBarcodeScanned}
+              barcodeScannerSettings={{
+                barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'qr', 'code128', 'code39'],
+              }}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <View style={styles.barcodeScannerOverlay}>
+              <View style={styles.barcodeScannerHeader}>
+                <Text variant="headlineSmall" style={styles.barcodeScannerTitle}>
+                  Scan Barcode
+                </Text>
+                <IconButton
+                  icon="close"
+                  size={28}
+                  iconColor="#FFFFFF"
+                  onPress={closeBarcodeScanner}
+                  style={styles.barcodeScannerClose}
+                />
+              </View>
+              <View style={styles.barcodeScannerFrame}>
+                <View style={styles.barcodeScannerFrameCorner} />
+              </View>
+              <Text variant="bodyLarge" style={styles.barcodeScannerInstructions}>
+                Position the barcode within the frame
+              </Text>
+            </View>
+          </View>
+        </Modal>
       )}
     </ScrollView>
   );
@@ -1096,5 +1244,65 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1
+  },
+  // Barcode Scanner Styles
+  barcodeScannerContainer: {
+    flex: 1,
+    backgroundColor: '#000000'
+  },
+  barcodeScannerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingBottom: 100
+  },
+  barcodeScannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20
+  },
+  barcodeScannerTitle: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 24,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: -1, height: 1 },
+    textShadowRadius: 10
+  },
+  barcodeScannerClose: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    margin: 0
+  },
+  barcodeScannerFrame: {
+    width: 300,
+    height: 200,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  barcodeScannerFrameCorner: {
+    width: '100%',
+    height: '100%',
+    borderWidth: 0,
+    borderColor: 'transparent'
+  },
+  barcodeScannerInstructions: {
+    color: '#FFFFFF',
+    textAlign: 'center',
+    paddingHorizontal: 40,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: -1, height: 1 },
+    textShadowRadius: 10
   }
 });
