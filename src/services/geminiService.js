@@ -93,3 +93,45 @@ export const convertImageToDescription = async (imageData) => {
     throw error;
   }
 };
+
+export const analyzeDietContext = async (dietContext, goal, biometrics) => {
+  console.log('🧠 Analyzing diet context with AI');
+
+  try {
+    const analyzeDiet = httpsCallable(functions, 'analyzeDietContext');
+    const result = await analyzeDiet({
+      dietContext,
+      goal,
+      biometrics
+    });
+
+    console.log('✅ analyzeDietContext response:', result.data);
+
+    if (result.data.success) {
+      return result.data.analysis;
+    } else {
+      // Fallback to basic calculation
+      return {
+        recommendedStrategy: 'CHALLENGING',
+        dailyCalories: Math.round(biometrics.tdee * 0.85),
+        protein: Math.round((biometrics.tdee * 0.85 * 0.30) / 4),
+        carbs: Math.round((biometrics.tdee * 0.85 * 0.40) / 4),
+        fat: Math.round((biometrics.tdee * 0.85 * 0.30) / 9),
+        reasoning: 'Balanced approach based on your activity level and goals',
+        weekendFlexibility: false
+      };
+    }
+  } catch (error) {
+    console.error('❌ Error calling analyzeDietContext function:', error);
+    // Return fallback
+    return {
+      recommendedStrategy: 'CHALLENGING',
+      dailyCalories: Math.round(biometrics.tdee * 0.85),
+      protein: Math.round((biometrics.tdee * 0.85 * 0.30) / 4),
+      carbs: Math.round((biometrics.tdee * 0.85 * 0.40) / 4),
+      fat: Math.round((biometrics.tdee * 0.85 * 0.30) / 9),
+      reasoning: 'Balanced approach based on your activity level and goals',
+      weekendFlexibility: false
+    };
+  }
+};

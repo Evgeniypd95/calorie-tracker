@@ -62,7 +62,7 @@ export default function WelcomeScreen({ navigation }) {
         <View style={styles.footer}>
           <Button
             mode="contained"
-            onPress={() => navigation.navigate('GoalSelection')}
+            onPress={() => navigation.navigate('ConversationalOnboarding')}
             style={styles.button}
             contentStyle={styles.buttonContent}
             labelStyle={styles.buttonLabel}
