@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
-import { TextInput, Button, Text, Surface, Chip, ActivityIndicator } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Animated } from 'react-native';
+import { Button, Text, Surface, Chip, ActivityIndicator, SegmentedButtons } from 'react-native-paper';
+import Slider from '@react-native-community/slider';
 import { useOnboarding } from '../../context/OnboardingContext';
-import { analyzeDietContext } from '../../services/geminiService';
 
 // Helper function to calculate TDEE
 const calculateTDEEForData = (data) => {
@@ -10,7 +10,7 @@ const calculateTDEEForData = (data) => {
 
   // Convert to metric if needed
   let weightKg = weightUnit === 'lbs' ? weight * 0.453592 : weight;
-  let heightCm = heightUnit === 'ft' ? height * 30.48 : height; // Convert feet to cm
+  let heightCm = heightUnit === 'ft' ? height * 30.48 : height;
 
   // Mifflin-St Jeor Equation
   let bmr;
@@ -29,201 +29,60 @@ const calculateTDEEForData = (data) => {
     VERY_ACTIVE: 1.9
   };
 
-  let tdee = bmr * activityMultipliers[activityLevel || 'MODERATE'];
-
-  return Math.round(tdee);
+  return Math.round(bmr * activityMultipliers[activityLevel || 'MODERATE']);
 };
 
 export default function ConversationalOnboardingScreen({ navigation }) {
   const { updateOnboardingData } = useOnboarding();
   const scrollViewRef = useRef(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      role: 'ai',
-      content: "Hey! 👋 I'm your AI nutrition coach. I'll help you create a personalized nutrition plan that actually fits your lifestyle.\n\nLet's start with the basics - what brings you here?",
-      timestamp: new Date()
-    }
-  ]);
-
-  const [inputText, setInputText] = useState('');
+  const [conversationStage, setConversationStage] = useState('GOAL');
+  const [collectedData, setCollectedData] = useState({
+    age: 30,
+    weight: 70,
+    weightUnit: 'kg',
+    height: 170,
+    heightUnit: 'cm',
+    gender: 'MALE'
+  });
   const [isProcessing, setIsProcessing] = useState(false);
-  const [conversationStage, setConversationStage] = useState('GOAL'); // GOAL, CONTEXT, BIOMETRICS, WORKOUTS, ANALYSIS, PLAN_REVIEW, FEEDBACK, COMPLETE
-  const [collectedData, setCollectedData] = useState({});
-  const [quickReplies, setQuickReplies] = useState([
-    { id: 'LOSE_WEIGHT', label: 'Lose weight', emoji: '🎯' },
-    { id: 'BUILD_MUSCLE', label: 'Build muscle', emoji: '💪' },
-    { id: 'MAINTAIN', label: 'Stay healthy', emoji: '⚖️' },
-    { id: 'EXPLORING', label: 'Just exploring', emoji: '🧭' }
-  ]);
   const [generatedPlan, setGeneratedPlan] = useState(null);
+  const [aiMessage, setAiMessage] = useState("Hey! 👋 I'm your AI nutrition coach. Let's create your personalized plan.\n\nWhat's your main goal?");
 
-  // Scroll to bottom when messages update
+  // Fade in when stage changes
   useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
-  }, [messages]);
+  }, [conversationStage, aiMessage]);
 
-  const addMessage = (role, content, options = {}) => {
-    const newMessage = {
-      id: Date.now() + Math.random(),
-      role,
-      content,
-      timestamp: new Date(),
-      ...options
-    };
-    setMessages(prev => [...prev, newMessage]);
-    return newMessage;
-  };
-
-  const handleQuickReply = async (value, label) => {
-    // Add user's selection as a message
-    addMessage('user', label || value);
-
-    // Clear quick replies
-    setQuickReplies([]);
-
-    // Process based on current stage
-    await processUserResponse(value, label);
-  };
-
-  const handleSendMessage = async () => {
-    const text = inputText.trim();
-    if (!text) return;
-
-    // Add user message
-    addMessage('user', text);
-    setInputText('');
-
-    // Process response
-    await processUserResponse(text);
-  };
-
-  const processUserResponse = async (input, displayText) => {
-    setIsProcessing(true);
-
-    try {
-      switch (conversationStage) {
-        case 'GOAL':
-          await handleGoalResponse(input);
-          break;
-        case 'CONTEXT':
-          await handleContextResponse(input);
-          break;
-        case 'BIOMETRICS':
-          await handleBiometricsResponse(input);
-          break;
-        case 'WORKOUTS':
-          await handleWorkoutsResponse(input);
-          break;
-        case 'FEEDBACK':
-          await handleFeedbackResponse(input);
-          break;
-        default:
-          break;
-      }
-    } catch (error) {
-      console.error('Error processing response:', error);
-      addMessage('ai', "Hmm, I didn't quite catch that. Could you try rephrasing?");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleGoalResponse = async (goal) => {
+  const handleGoalSelect = (goal) => {
     setCollectedData(prev => ({ ...prev, goal }));
 
-    let goalText = '';
-    switch (goal) {
-      case 'LOSE_WEIGHT':
-        goalText = 'lose weight';
-        break;
-      case 'BUILD_MUSCLE':
-        goalText = 'build muscle';
-        break;
-      case 'MAINTAIN':
-        goalText = 'maintain';
-        break;
-      case 'EXPLORING':
-        goalText = 'explore';
-        break;
-      default:
-        goalText = goal;
-    }
+    const goalMessages = {
+      'LOSE_WEIGHT': "Great! Let's create a sustainable plan to lose weight. 🎯",
+      'BUILD_MUSCLE': "Perfect! We'll focus on building muscle. 💪",
+      'MAINTAIN': "Awesome! Let's maintain your health. ⚖️",
+      'EXPLORING': "Cool! Let's explore what works for you. 🧭"
+    };
 
-    setTimeout(() => {
-      addMessage('ai', `Got it! So you want to ${goalText}. 💪\n\nTell me a bit about your current situation:\n• What's your typical diet like?\n• How active are you?\n• Any specific challenges you're facing?`);
-      setConversationStage('CONTEXT');
-    }, 800);
+    setAiMessage(goalMessages[goal] + "\n\nNow tell me about yourself:");
+    setConversationStage('BIOMETRICS');
   };
 
-  const handleContextResponse = async (context) => {
-    setCollectedData(prev => ({ ...prev, dietContext: context }));
-
-    setTimeout(() => {
-      addMessage('ai', "Thanks for sharing! That's really helpful context. 🙏\n\nNow let me get some numbers to calculate your personalized plan. Just give me rough estimates:\n\n• Age\n• Current weight (kg or lbs)\n• Height (cm or ft)\n• Gender");
-      setConversationStage('BIOMETRICS');
-    }, 1000);
+  const handleBiometricsComplete = () => {
+    setAiMessage("Perfect! One last thing - how active are you?");
+    setConversationStage('ACTIVITY');
   };
 
-  const handleBiometricsResponse = async (input) => {
-    // Parse biometrics from natural language using AI
-    addMessage('ai', '🤔 Let me process that...');
-
-    try {
-      // Extract numbers and info from the text
-      const ageMatch = input.match(/(\d+)\s*(years?|yrs?|yo)?/i);
-      const weightMatch = input.match(/(\d+\.?\d*)\s*(kg|lbs?|pounds?)/i);
-      const heightMatch = input.match(/(\d+\.?\d*)\s*(cm|ft|feet|'|"|inches?)/i);
-      const genderMatch = input.match(/(male|female|man|woman|m|f)/i);
-
-      if (!ageMatch || !weightMatch || !heightMatch) {
-        setMessages(prev => prev.slice(0, -1));
-        addMessage('ai', "I need all three: age, weight, and height. Try something like:\n\n'I'm 30 years old, weigh 70kg, and I'm 175cm tall'");
-        return;
-      }
-
-      const age = parseInt(ageMatch[1]);
-      const weight = parseFloat(weightMatch[1]);
-      const weightUnit = weightMatch[2].toLowerCase().includes('lb') || weightMatch[2].toLowerCase().includes('pound') ? 'lbs' : 'kg';
-      const height = parseFloat(heightMatch[1]);
-      const heightUnit = heightMatch[2].toLowerCase().includes('cm') ? 'cm' : 'ft';
-      const gender = genderMatch ? (genderMatch[1].toLowerCase().startsWith('f') || genderMatch[1].toLowerCase().includes('woman') ? 'FEMALE' : 'MALE') : 'MALE';
-
-      setCollectedData(prev => ({
-        ...prev,
-        age,
-        weight,
-        weightUnit,
-        height,
-        heightUnit,
-        gender
-      }));
-
-      setMessages(prev => prev.slice(0, -1));
-      setTimeout(() => {
-        addMessage('ai', `Perfect! So you're ${age} years old, ${weight}${weightUnit}, ${height}${heightUnit}. ✅\n\nOne more thing - how many times per week do you typically work out?`);
-        setQuickReplies([
-          { id: 0, label: 'None (sedentary)', emoji: '😴' },
-          { id: 1, label: '1-2 times', emoji: '🚶' },
-          { id: 3, label: '3-4 times', emoji: '🏃' },
-          { id: 5, label: '5-6 times', emoji: '🏋️' },
-          { id: 7, label: '7+ times', emoji: '⚡' }
-        ]);
-        setConversationStage('WORKOUTS');
-      }, 1000);
-    } catch (error) {
-      setMessages(prev => prev.slice(0, -1));
-      addMessage('ai', "Hmm, I couldn't parse that. Could you try formatting it like:\n\n'30 years old, 70kg, 175cm, male'");
-    }
-  };
-
-  const handleWorkoutsResponse = async (workoutsPerWeek) => {
-    const workouts = typeof workoutsPerWeek === 'string' ? parseInt(workoutsPerWeek) : workoutsPerWeek;
-
-    // Map workouts to activity level
+  const handleActivitySelect = async (workouts) => {
     let activityLevel = 'MODERATE';
     if (workouts === 0) activityLevel = 'SEDENTARY';
     else if (workouts <= 2) activityLevel = 'LIGHT';
@@ -231,32 +90,23 @@ export default function ConversationalOnboardingScreen({ navigation }) {
     else if (workouts <= 6) activityLevel = 'ACTIVE';
     else activityLevel = 'VERY_ACTIVE';
 
-    setCollectedData(prev => ({
-      ...prev,
+    const finalData = {
+      ...collectedData,
       workoutsPerWeek: workouts,
       activityLevel
-    }));
+    };
 
-    setQuickReplies([]);
+    setCollectedData(finalData);
+    setAiMessage("Analyzing your profile... 🧠");
+    setConversationStage('ANALYZING');
 
-    setTimeout(async () => {
-      addMessage('ai', "Awesome! 🎉 Give me a moment to analyze everything and create your personalized plan...");
-      setConversationStage('ANALYSIS');
-
-      // Generate plan
-      await generatePersonalizedPlan({
-        ...collectedData,
-        workoutsPerWeek: workouts,
-        activityLevel
-      });
-    }, 800);
+    await generatePersonalizedPlan(finalData);
   };
 
   const generatePersonalizedPlan = async (data) => {
     setIsProcessing(true);
 
     try {
-      // Update onboarding context with collected data
       await updateOnboardingData({
         goal: data.goal,
         age: data.age,
@@ -267,291 +117,285 @@ export default function ConversationalOnboardingScreen({ navigation }) {
         gender: data.gender,
         workoutsPerWeek: data.workoutsPerWeek,
         activityLevel: data.activityLevel,
-        bodyType: 'MESOMORPH' // Default
+        bodyType: 'MESOMORPH'
       });
 
-      // Calculate TDEE using a local function with the new data
       const tdee = calculateTDEEForData(data);
 
-      // Generate AI-powered analysis and recommendations
-      const aiAnalysis = await analyzeDietContext(data.dietContext, data.goal, {
-        age: data.age,
-        weight: data.weight,
-        height: data.height,
-        gender: data.gender,
-        activityLevel: data.activityLevel,
-        tdee
-      });
+      // Calculate plan based on goal
+      let dailyCalories = tdee;
+      if (data.goal === 'LOSE_WEIGHT') dailyCalories = Math.round(tdee * 0.85);
+      else if (data.goal === 'BUILD_MUSCLE') dailyCalories = Math.round(tdee * 1.10);
 
-      // Parse AI response to extract recommendations
-      const plan = {
-        tdee,
-        strategy: aiAnalysis.recommendedStrategy || 'CHALLENGING',
-        dailyCalories: aiAnalysis.dailyCalories || Math.round(tdee * 0.85),
-        protein: aiAnalysis.protein || Math.round((tdee * 0.85 * 0.30) / 4),
-        carbs: aiAnalysis.carbs || Math.round((tdee * 0.85 * 0.40) / 4),
-        fat: aiAnalysis.fat || Math.round((tdee * 0.85 * 0.30) / 9),
-        reasoning: aiAnalysis.reasoning || '',
-        weekendFlexibility: aiAnalysis.weekendFlexibility || false
-      };
-
-      setGeneratedPlan(plan);
-
-      // Remove "analyzing" message
-      setMessages(prev => prev.slice(0, -1));
-
-      // Present the plan
-      setTimeout(() => {
-        const goalEmoji = data.goal === 'LOSE_WEIGHT' ? '🎯' : data.goal === 'BUILD_MUSCLE' ? '💪' : '⚖️';
-
-        let planMessage = `${goalEmoji} Here's your personalized nutrition plan:\n\n`;
-        planMessage += `**Daily Calories:** ${plan.dailyCalories} cal\n`;
-        planMessage += `**Macros:**\n`;
-        planMessage += `• Protein: ${plan.protein}g\n`;
-        planMessage += `• Carbs: ${plan.carbs}g\n`;
-        planMessage += `• Fat: ${plan.fat}g\n\n`;
-
-        if (plan.reasoning) {
-          planMessage += `**Why this works for you:**\n${plan.reasoning}\n\n`;
-        }
-
-        planMessage += `This is based on your TDEE (maintenance calories) of ${tdee} cal/day.\n\n`;
-        planMessage += `What do you think? Does this feel right, or would you like me to adjust anything?`;
-
-        addMessage('ai', planMessage, { planData: plan });
-        setConversationStage('PLAN_REVIEW');
-        setQuickReplies([
-          { id: 'APPROVE', label: 'Looks perfect! ✨', emoji: '✅' },
-          { id: 'FEEDBACK', label: 'I want to adjust...', emoji: '🔧' }
-        ]);
-      }, 2000);
-    } catch (error) {
-      console.error('Error generating plan:', error);
-      setMessages(prev => prev.slice(0, -1));
-
-      // Fallback to basic calculation
-      const tdee = calculateTDEE();
       const plan = {
         tdee,
         strategy: 'CHALLENGING',
-        dailyCalories: Math.round(tdee * 0.85),
-        protein: Math.round((tdee * 0.85 * 0.30) / 4),
-        carbs: Math.round((tdee * 0.85 * 0.40) / 4),
-        fat: Math.round((tdee * 0.85 * 0.30) / 9),
-        reasoning: 'Balanced approach with moderate deficit/surplus',
+        dailyCalories,
+        protein: Math.round((dailyCalories * 0.30) / 4),
+        carbs: Math.round((dailyCalories * 0.40) / 4),
+        fat: Math.round((dailyCalories * 0.30) / 9),
         weekendFlexibility: false
       };
 
       setGeneratedPlan(plan);
 
-      addMessage('ai', `Here's your personalized plan:\n\n**Daily Calories:** ${plan.dailyCalories} cal\n**Protein:** ${plan.protein}g | **Carbs:** ${plan.carbs}g | **Fat:** ${plan.fat}g\n\nThis is based on your TDEE of ${tdee} cal/day.\n\nWhat do you think?`);
+      const goalEmoji = data.goal === 'LOSE_WEIGHT' ? '🎯' : data.goal === 'BUILD_MUSCLE' ? '💪' : '⚖️';
+      setAiMessage(`${goalEmoji} Here's your personalized plan:\n\nBased on your stats, your maintenance is ${tdee} cal/day.`);
       setConversationStage('PLAN_REVIEW');
-      setQuickReplies([
-        { id: 'APPROVE', label: 'Looks good!', emoji: '✅' },
-        { id: 'FEEDBACK', label: 'Let me adjust...', emoji: '🔧' }
-      ]);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handlePlanReview = async (action) => {
-    setQuickReplies([]);
-
-    if (action === 'APPROVE') {
-      // Save the plan to onboarding context
-      updateOnboardingData({
-        dailyCalorieTarget: generatedPlan.dailyCalories,
-        proteinTarget: generatedPlan.protein,
-        carbsTarget: generatedPlan.carbs,
-        fatTarget: generatedPlan.fat,
-        strategy: generatedPlan.strategy,
-        enableWeekendFlexibility: generatedPlan.weekendFlexibility
-      });
-
-      setTimeout(() => {
-        addMessage('ai', "Amazing! 🎉 Your plan is all set.\n\nLast step - let's create your account so you can start tracking!");
-        setConversationStage('COMPLETE');
-
-        setTimeout(() => {
-          navigation.navigate('Signup');
-        }, 2000);
-      }, 800);
-    } else if (action === 'FEEDBACK') {
-      addMessage('ai', "No problem! Tell me what you'd like to adjust. For example:\n\n• 'Make it more aggressive'\n• 'I want more protein'\n• 'Add weekend flexibility'\n• 'Lower the calories'");
-      setConversationStage('FEEDBACK');
-    }
-  };
-
-  const handleFeedbackResponse = async (feedback) => {
-    addMessage('ai', "Let me adjust that for you...");
-    setIsProcessing(true);
-
-    try {
-      // Use AI to interpret the feedback and adjust the plan
-      const adjustedPlan = await adjustPlanBasedOnFeedback(feedback, generatedPlan, collectedData);
-
-      setGeneratedPlan(adjustedPlan);
-      setMessages(prev => prev.slice(0, -1));
-
-      setTimeout(() => {
-        addMessage('ai', `Updated! ✨\n\n**Daily Calories:** ${adjustedPlan.dailyCalories} cal\n**Protein:** ${adjustedPlan.protein}g | **Carbs:** ${adjustedPlan.carbs}g | **Fat:** ${adjustedPlan.fat}g\n\nHow's this?`);
-        setConversationStage('PLAN_REVIEW');
-        setQuickReplies([
-          { id: 'APPROVE', label: 'Perfect now!', emoji: '✅' },
-          { id: 'FEEDBACK', label: 'One more thing...', emoji: '🔧' }
-        ]);
-      }, 1500);
     } catch (error) {
-      console.error('Error adjusting plan:', error);
-      setMessages(prev => prev.slice(0, -1));
-      addMessage('ai', "Could you be more specific about what you'd like to adjust?");
+      console.error('Error generating plan:', error);
+      setAiMessage("Let me try that again...");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const adjustPlanBasedOnFeedback = async (feedback, currentPlan, userData) => {
-    // Simple rule-based adjustments (can be enhanced with AI)
-    let adjustedPlan = { ...currentPlan };
-    const feedbackLower = feedback.toLowerCase();
+  const handlePlanApprove = () => {
+    updateOnboardingData({
+      dailyCalorieTarget: generatedPlan.dailyCalories,
+      proteinTarget: generatedPlan.protein,
+      carbsTarget: generatedPlan.carbs,
+      fatTarget: generatedPlan.fat,
+      strategy: generatedPlan.strategy
+    });
 
-    if (feedbackLower.includes('aggressive') || feedbackLower.includes('faster') || feedbackLower.includes('more deficit')) {
-      adjustedPlan.dailyCalories = Math.round(currentPlan.tdee * 0.80);
-      adjustedPlan.strategy = 'AGGRESSIVE';
-    } else if (feedbackLower.includes('comfortable') || feedbackLower.includes('slower') || feedbackLower.includes('easier')) {
-      adjustedPlan.dailyCalories = Math.round(currentPlan.tdee * 0.90);
-      adjustedPlan.strategy = 'COMFORTABLE';
-    }
-
-    if (feedbackLower.includes('more protein') || feedbackLower.includes('higher protein')) {
-      adjustedPlan.protein = Math.round((adjustedPlan.dailyCalories * 0.35) / 4);
-      adjustedPlan.carbs = Math.round((adjustedPlan.dailyCalories * 0.35) / 4);
-      adjustedPlan.fat = Math.round((adjustedPlan.dailyCalories * 0.30) / 9);
-    } else if (feedbackLower.includes('more carbs') || feedbackLower.includes('higher carbs')) {
-      adjustedPlan.protein = Math.round((adjustedPlan.dailyCalories * 0.25) / 4);
-      adjustedPlan.carbs = Math.round((adjustedPlan.dailyCalories * 0.50) / 4);
-      adjustedPlan.fat = Math.round((adjustedPlan.dailyCalories * 0.25) / 9);
-    }
-
-    if (feedbackLower.includes('weekend') || feedbackLower.includes('flexibility')) {
-      adjustedPlan.weekendFlexibility = true;
-    }
-
-    if (feedbackLower.includes('lower calories') || feedbackLower.includes('less calories')) {
-      adjustedPlan.dailyCalories = Math.round(adjustedPlan.dailyCalories * 0.95);
-    } else if (feedbackLower.includes('more calories') || feedbackLower.includes('higher calories')) {
-      adjustedPlan.dailyCalories = Math.round(adjustedPlan.dailyCalories * 1.05);
-    }
-
-    return adjustedPlan;
+    setAiMessage("Perfect! Let's create your account. 🎉");
+    setTimeout(() => {
+      navigation.navigate('Signup');
+    }, 1500);
   };
 
-  const renderMessage = (message) => {
-    const isUser = message.role === 'user';
-
-    return (
-      <View key={message.id} style={[
-        styles.messageContainer,
-        isUser ? styles.userMessageContainer : styles.aiMessageContainer
-      ]}>
-        <Surface style={[
-          styles.messageBubble,
-          isUser ? styles.userBubble : styles.aiBubble
-        ]}>
-          <Text style={[
-            styles.messageText,
-            isUser ? styles.userMessageText : styles.aiMessageText
-          ]}>
-            {message.content}
-          </Text>
-        </Surface>
-      </View>
-    );
+  const adjustCalories = (amount) => {
+    const adjusted = {
+      ...generatedPlan,
+      dailyCalories: generatedPlan.dailyCalories + amount,
+      protein: Math.round(((generatedPlan.dailyCalories + amount) * 0.30) / 4),
+      carbs: Math.round(((generatedPlan.dailyCalories + amount) * 0.40) / 4),
+      fat: Math.round(((generatedPlan.dailyCalories + amount) * 0.30) / 9),
+    };
+    setGeneratedPlan(adjusted);
   };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={90}
     >
-      {/* Messages */}
       <ScrollView
         ref={scrollViewRef}
-        style={styles.messagesContainer}
-        contentContainerStyle={styles.messagesContent}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
       >
-        {messages.map(renderMessage)}
+        {/* AI Message */}
+        <Animated.View style={[styles.aiMessageContainer, { opacity: fadeAnim }]}>
+          <Surface style={styles.aiMessageBubble}>
+            <Text style={styles.aiMessageText}>{aiMessage}</Text>
+          </Surface>
+        </Animated.View>
 
-        {isProcessing && (
-          <View style={[styles.messageContainer, styles.aiMessageContainer]}>
-            <Surface style={[styles.messageBubble, styles.aiBubble]}>
-              <ActivityIndicator size="small" color="#6366F1" />
-            </Surface>
-          </View>
-        )}
-
-        {/* Quick Replies */}
-        {quickReplies.length > 0 && (
-          <View style={styles.quickRepliesContainer}>
-            {quickReplies.map((reply) => (
+        {/* Goal Selection */}
+        {conversationStage === 'GOAL' && (
+          <Animated.View style={[styles.interactionContainer, { opacity: fadeAnim }]}>
+            <View style={styles.quickReplies}>
               <Chip
-                key={reply.id}
                 mode="outlined"
-                onPress={() => handleQuickReply(reply.id, reply.label)}
-                style={styles.quickReply}
+                onPress={() => handleGoalSelect('LOSE_WEIGHT')}
+                style={styles.goalChip}
+                textStyle={styles.chipText}
               >
-                {reply.emoji} {reply.label}
+                🎯 Lose weight
               </Chip>
-            ))}
+              <Chip
+                mode="outlined"
+                onPress={() => handleGoalSelect('BUILD_MUSCLE')}
+                style={styles.goalChip}
+                textStyle={styles.chipText}
+              >
+                💪 Build muscle
+              </Chip>
+              <Chip
+                mode="outlined"
+                onPress={() => handleGoalSelect('MAINTAIN')}
+                style={styles.goalChip}
+                textStyle={styles.chipText}
+              >
+                ⚖️ Stay healthy
+              </Chip>
+              <Chip
+                mode="outlined"
+                onPress={() => handleGoalSelect('EXPLORING')}
+                style={styles.goalChip}
+                textStyle={styles.chipText}
+              >
+                🧭 Just exploring
+              </Chip>
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Biometrics Selection */}
+        {conversationStage === 'BIOMETRICS' && (
+          <Animated.View style={[styles.interactionContainer, { opacity: fadeAnim }]}>
+            <Surface style={styles.inputCard}>
+              {/* Gender */}
+              <View style={styles.section}>
+                <Text style={styles.label}>Gender</Text>
+                <SegmentedButtons
+                  value={collectedData.gender}
+                  onValueChange={(value) => setCollectedData(prev => ({ ...prev, gender: value }))}
+                  buttons={[
+                    { value: 'MALE', label: 'Male' },
+                    { value: 'FEMALE', label: 'Female' }
+                  ]}
+                  style={styles.segmentedButtons}
+                />
+              </View>
+
+              {/* Age */}
+              <View style={styles.section}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Age</Text>
+                  <Text style={styles.value}>{collectedData.age} years</Text>
+                </View>
+                <Slider
+                  value={collectedData.age}
+                  onValueChange={(val) => setCollectedData(prev => ({ ...prev, age: Math.round(val) }))}
+                  minimumValue={18}
+                  maximumValue={80}
+                  minimumTrackTintColor="#6366F1"
+                  maximumTrackTintColor="#CBD5E1"
+                  thumbTintColor="#6366F1"
+                  step={1}
+                />
+              </View>
+
+              {/* Weight */}
+              <View style={styles.section}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Weight</Text>
+                  <Text style={styles.value}>{collectedData.weight} {collectedData.weightUnit}</Text>
+                </View>
+                <Slider
+                  value={collectedData.weight}
+                  onValueChange={(val) => setCollectedData(prev => ({ ...prev, weight: Math.round(val) }))}
+                  minimumValue={collectedData.weightUnit === 'kg' ? 40 : 90}
+                  maximumValue={collectedData.weightUnit === 'kg' ? 150 : 330}
+                  minimumTrackTintColor="#6366F1"
+                  maximumTrackTintColor="#CBD5E1"
+                  thumbTintColor="#6366F1"
+                  step={1}
+                />
+              </View>
+
+              {/* Height */}
+              <View style={styles.section}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Height</Text>
+                  <Text style={styles.value}>{collectedData.height} {collectedData.heightUnit}</Text>
+                </View>
+                <Slider
+                  value={collectedData.height}
+                  onValueChange={(val) => setCollectedData(prev => ({ ...prev, height: Math.round(val) }))}
+                  minimumValue={collectedData.heightUnit === 'cm' ? 140 : 4.5}
+                  maximumValue={collectedData.heightUnit === 'cm' ? 220 : 7.5}
+                  minimumTrackTintColor="#6366F1"
+                  maximumTrackTintColor="#CBD5E1"
+                  thumbTintColor="#6366F1"
+                  step={collectedData.heightUnit === 'cm' ? 1 : 0.1}
+                />
+              </View>
+
+              <Button
+                mode="contained"
+                onPress={handleBiometricsComplete}
+                style={styles.continueButton}
+              >
+                Continue
+              </Button>
+            </Surface>
+          </Animated.View>
+        )}
+
+        {/* Activity Selection */}
+        {conversationStage === 'ACTIVITY' && (
+          <Animated.View style={[styles.interactionContainer, { opacity: fadeAnim }]}>
+            <View style={styles.quickReplies}>
+              <Chip mode="outlined" onPress={() => handleActivitySelect(0)} style={styles.activityChip}>
+                😴 None
+              </Chip>
+              <Chip mode="outlined" onPress={() => handleActivitySelect(2)} style={styles.activityChip}>
+                🚶 1-2 times/week
+              </Chip>
+              <Chip mode="outlined" onPress={() => handleActivitySelect(4)} style={styles.activityChip}>
+                🏃 3-4 times/week
+              </Chip>
+              <Chip mode="outlined" onPress={() => handleActivitySelect(6)} style={styles.activityChip}>
+                🏋️ 5-6 times/week
+              </Chip>
+              <Chip mode="outlined" onPress={() => handleActivitySelect(7)} style={styles.activityChip}>
+                ⚡ Every day
+              </Chip>
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Loading */}
+        {conversationStage === 'ANALYZING' && isProcessing && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#6366F1" />
           </View>
         )}
 
-        {/* Plan Review Actions */}
-        {conversationStage === 'PLAN_REVIEW' && quickReplies.length > 0 && (
-          <View style={styles.planReviewActions}>
-            {quickReplies.map((reply) => (
+        {/* Plan Review */}
+        {conversationStage === 'PLAN_REVIEW' && generatedPlan && (
+          <Animated.View style={[styles.interactionContainer, { opacity: fadeAnim }]}>
+            <Surface style={styles.planCard}>
+              <View style={styles.planStats}>
+                <View style={styles.planStat}>
+                  <Text style={styles.planStatValue}>{generatedPlan.dailyCalories}</Text>
+                  <Text style={styles.planStatLabel}>Daily Calories</Text>
+                </View>
+                <View style={styles.planDivider} />
+                <View style={styles.macrosContainer}>
+                  <View style={styles.macroItem}>
+                    <Text style={styles.macroValue}>{generatedPlan.protein}g</Text>
+                    <Text style={styles.macroLabel}>Protein</Text>
+                  </View>
+                  <View style={styles.macroItem}>
+                    <Text style={styles.macroValue}>{generatedPlan.carbs}g</Text>
+                    <Text style={styles.macroLabel}>Carbs</Text>
+                  </View>
+                  <View style={styles.macroItem}>
+                    <Text style={styles.macroValue}>{generatedPlan.fat}g</Text>
+                    <Text style={styles.macroLabel}>Fat</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.adjustments}>
+                <Text style={styles.adjustLabel}>Need adjustments?</Text>
+                <View style={styles.adjustButtons}>
+                  <Button mode="outlined" onPress={() => adjustCalories(-100)} style={styles.adjustButton}>
+                    -100 cal
+                  </Button>
+                  <Button mode="outlined" onPress={() => adjustCalories(100)} style={styles.adjustButton}>
+                    +100 cal
+                  </Button>
+                </View>
+              </View>
+
               <Button
-                key={reply.id}
-                mode={reply.id === 'APPROVE' ? 'contained' : 'outlined'}
-                onPress={() => handlePlanReview(reply.id)}
-                style={styles.planReviewButton}
+                mode="contained"
+                onPress={handlePlanApprove}
+                style={styles.approveButton}
+                icon="check-circle"
               >
-                {reply.label}
+                Looks perfect!
               </Button>
-            ))}
-          </View>
+            </Surface>
+          </Animated.View>
         )}
       </ScrollView>
-
-      {/* Input Bar - Hide when showing quick replies for certain stages */}
-      {conversationStage !== 'PLAN_REVIEW' && (
-        <Surface style={styles.inputContainer} elevation={4}>
-          <View style={styles.inputRow}>
-            <TextInput
-              mode="outlined"
-              placeholder="Type your response..."
-              value={inputText}
-              onChangeText={setInputText}
-              style={styles.textInput}
-              multiline
-              maxLength={500}
-              disabled={isProcessing || quickReplies.length > 0}
-              onSubmitEditing={handleSendMessage}
-            />
-            <Button
-              mode="contained"
-              onPress={handleSendMessage}
-              disabled={!inputText.trim() || isProcessing}
-              style={styles.sendButton}
-              icon="send"
-            >
-              Send
-            </Button>
-          </View>
-        </Surface>
-      )}
     </KeyboardAvoidingView>
   );
 }
@@ -561,89 +405,160 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F1F5F9'
   },
-  messagesContainer: {
+  scrollView: {
     flex: 1
   },
-  messagesContent: {
-    padding: 16,
-    paddingBottom: 24
-  },
-  messageContainer: {
-    marginBottom: 12,
-    maxWidth: '80%'
-  },
-  userMessageContainer: {
-    alignSelf: 'flex-end',
-    alignItems: 'flex-end'
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40
   },
   aiMessageContainer: {
-    alignSelf: 'flex-start',
-    alignItems: 'flex-start'
+    marginBottom: 24
   },
-  messageBubble: {
+  aiMessageBubble: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 12,
-    paddingHorizontal: 16,
+    padding: 16,
+    borderBottomLeftRadius: 4,
     ...Platform.select({
       web: {
         boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
       },
     }),
   },
-  userBubble: {
-    backgroundColor: '#6366F1',
-    borderBottomRightRadius: 4
-  },
-  aiBubble: {
-    backgroundColor: '#FFFFFF',
-    borderBottomLeftRadius: 4
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 22
-  },
-  userMessageText: {
-    color: '#FFFFFF'
-  },
   aiMessageText: {
+    fontSize: 16,
+    lineHeight: 24,
     color: '#1E293B'
   },
-  quickRepliesContainer: {
+  interactionContainer: {
+    marginBottom: 20
+  },
+  quickReplies: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-    marginBottom: 8
+    gap: 10
   },
-  quickReply: {
-    marginBottom: 8
+  goalChip: {
+    marginBottom: 10,
+    minWidth: '45%'
   },
-  planReviewActions: {
-    marginTop: 20,
-    gap: 12
+  activityChip: {
+    marginBottom: 10,
+    width: '100%'
   },
-  planReviewButton: {
-    marginBottom: 8
-  },
-  inputContainer: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0'
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8
-  },
-  textInput: {
-    flex: 1,
-    maxHeight: 100,
-    backgroundColor: '#F8FAFC',
+  chipText: {
     fontSize: 15
   },
-  sendButton: {
+  inputCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 12px rgba(0, 0, 0, 0.08)',
+      },
+    }),
+  },
+  section: {
+    marginBottom: 24
+  },
+  label: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 12
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  value: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#6366F1'
+  },
+  segmentedButtons: {
+    backgroundColor: 'transparent'
+  },
+  continueButton: {
+    marginTop: 8
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center'
+  },
+  planCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 12px rgba(0, 0, 0, 0.08)',
+      },
+    }),
+  },
+  planStats: {
+    marginBottom: 24
+  },
+  planStat: {
+    alignItems: 'center',
+    marginBottom: 20
+  },
+  planStatValue: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#6366F1',
     marginBottom: 4
+  },
+  planStatLabel: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600'
+  },
+  planDivider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginBottom: 20
+  },
+  macrosContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around'
+  },
+  macroItem: {
+    alignItems: 'center'
+  },
+  macroValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 4
+  },
+  macroLabel: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600'
+  },
+  adjustments: {
+    marginBottom: 20
+  },
+  adjustLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 12,
+    textAlign: 'center'
+  },
+  adjustButtons: {
+    flexDirection: 'row',
+    gap: 12
+  },
+  adjustButton: {
+    flex: 1
+  },
+  approveButton: {
+    paddingVertical: 6
   }
 });
