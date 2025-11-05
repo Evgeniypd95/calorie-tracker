@@ -2,11 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Easing } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { useOnboarding } from '../../context/OnboardingContext';
-import { useAuth } from '../../context/AuthContext';
 
 export default function SuccessScreen({ navigation }) {
-  const { onboardingData, completeOnboarding } = useOnboarding();
-  const { userProfile } = useAuth();
+  const { onboardingData } = useOnboarding();
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -27,9 +25,9 @@ export default function SuccessScreen({ navigation }) {
     ]).start();
   }, []);
 
-  const handleGetStarted = async () => {
-    await completeOnboarding();
-    // Navigation will be handled automatically by App.js when onboardingCompleted becomes true
+  const handleGetStarted = () => {
+    // Navigate to Signup to create account
+    navigation.navigate('Signup');
   };
 
   const getGoalMessage = () => {
@@ -103,12 +101,12 @@ export default function SuccessScreen({ navigation }) {
             style={styles.mainButton}
             contentStyle={styles.buttonContent}
             labelStyle={styles.buttonLabel}
-            icon="food"
+            icon="account-plus"
           >
-            Log My First Meal 🍽️
+            Create Account
           </Button>
           <Text style={styles.footerText}>
-            Join thousands tracking smarter 💪
+            One last step to start your journey 🚀
           </Text>
         </View>
       </Animated.View>

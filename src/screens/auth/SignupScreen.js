@@ -1,9 +1,18 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { TextInput, Button, Text, Snackbar } from 'react-native-paper';
-import { authService } from '../../services/firebase';
+import { authService, userService } from '../../services/firebase';
+import { useOnboarding } from '../../context/OnboardingContext';
+
+// Helper to calculate next check-in date
+const getNextCheckInDate = (daysFromNow) => {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  return date;
+};
 
 export default function SignupScreen({ navigation }) {
+  const { onboardingData, calculateTargetCalories } = useOnboarding();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -32,8 +41,53 @@ export default function SignupScreen({ navigation }) {
 
     setLoading(true);
     try {
-      await authService.signup(email, password);
-      // Navigation to onboarding will be handled by the root navigator
+      // Create auth account
+      const userCredential = await authService.signup(email, password);
+      const userId = userCredential.user.uid;
+
+      // Calculate daily calorie target if not set
+      const dailyCalorieTarget = onboardingData.dailyCalorieTarget || calculateTargetCalories();
+
+      // Save all onboarding data to user profile
+      const profileData = {
+        email,
+        onboardingCompleted: true,
+        goal: onboardingData.goal,
+        age: onboardingData.age,
+        weight: onboardingData.weight,
+        height: onboardingData.height,
+        desiredWeight: onboardingData.desiredWeight,
+        weightUnit: onboardingData.weightUnit,
+        heightUnit: onboardingData.heightUnit,
+        gender: onboardingData.gender,
+        bodyType: onboardingData.bodyType,
+        activityLevel: onboardingData.activityLevel,
+        workoutsPerWeek: onboardingData.workoutsPerWeek,
+        strategy: onboardingData.strategy,
+        strategyMultiplier: onboardingData.strategyMultiplier,
+        enableWeekendFlexibility: onboardingData.enableWeekendFlexibility,
+        weekendOption: onboardingData.weekendOption,
+        weekendBonusCalories: onboardingData.weekendBonusCalories,
+        weekdayCalories: onboardingData.weekdayCalories,
+        weekendCalories: onboardingData.weekendCalories,
+        dailyCalorieTarget,
+        proteinTarget: onboardingData.proteinTarget,
+        carbsTarget: onboardingData.carbsTarget,
+        fatTarget: onboardingData.fatTarget,
+        preferredInputMethod: onboardingData.preferredInputMethod,
+        isPublic: onboardingData.isPublic,
+        notificationsEnabled: onboardingData.notificationsEnabled,
+        notificationTimes: onboardingData.notificationTimes,
+        onboardingCompletedAt: new Date(),
+        createdAt: new Date(),
+        // Initialize check-in tracking
+        nextCheckInDate: getNextCheckInDate(1), // First check-in after 1 day
+        checkInHistory: []
+      };
+
+      await userService.updateUserProfile(userId, profileData);
+
+      // Navigation to main app will be handled automatically by App.js
     } catch (error) {
       console.error('Signup error:', error);
       setError(error.message);

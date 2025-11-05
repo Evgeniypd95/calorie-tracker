@@ -40,12 +40,16 @@ function AppContent() {
     );
   }
 
-  // Not authenticated - show auth screens
+  // Not authenticated - show auth screens with onboarding
   if (!user) {
-    return <AuthNavigator />;
+    return (
+      <OnboardingProvider>
+        <AuthNavigator />
+      </OnboardingProvider>
+    );
   }
 
-  // Authenticated but onboarding not completed
+  // Authenticated but onboarding not completed (shouldn't happen with new flow, but keep for safety)
   if (user && userProfile && !userProfile.onboardingCompleted) {
     return (
       <OnboardingProvider>
