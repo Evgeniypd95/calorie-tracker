@@ -18,12 +18,24 @@ export const OnboardingProvider = ({ children }) => {
     age: 30,
     weight: 70, // kg
     height: 170, // cm
+    desiredWeight: null, // kg
     activityLevel: 'MODERATE', // 'SEDENTARY' | 'LIGHT' | 'MODERATE' | 'ACTIVE' | 'VERY_ACTIVE'
+    workoutsPerWeek: 3, // 0-7
     weightUnit: 'kg', // 'kg' | 'lbs'
     heightUnit: 'cm', // 'cm' | 'ft'
     gender: 'MALE', // 'MALE' | 'FEMALE' | 'OTHER'
     bodyType: 'MESOMORPH', // 'ECTOMORPH' | 'MESOMORPH' | 'ENDOMORPH'
+    strategy: 'CHALLENGING', // 'COMFORTABLE' | 'CHALLENGING' | 'AGGRESSIVE'
+    strategyMultiplier: 0.85, // Deficit/surplus multiplier
+    enableWeekendFlexibility: false,
+    weekendOption: 'SAT_SUN', // 'FRI_SAT_SUN' | 'SAT_SUN' | 'FRI_SAT'
+    weekendBonusCalories: 300,
+    weekdayCalories: null,
+    weekendCalories: null,
     dailyCalorieTarget: null,
+    proteinTarget: null,
+    carbsTarget: null,
+    fatTarget: null,
     preferredInputMethod: null, // 'voice' | 'photo' | 'barcode'
     isPublic: false,
     notificationsEnabled: false,
@@ -116,12 +128,24 @@ export const OnboardingProvider = ({ children }) => {
       age: onboardingData.age,
       weight: onboardingData.weight,
       height: onboardingData.height,
+      desiredWeight: onboardingData.desiredWeight,
       weightUnit: onboardingData.weightUnit,
       heightUnit: onboardingData.heightUnit,
       gender: onboardingData.gender,
       bodyType: onboardingData.bodyType,
       activityLevel: onboardingData.activityLevel,
+      workoutsPerWeek: onboardingData.workoutsPerWeek,
+      strategy: onboardingData.strategy,
+      strategyMultiplier: onboardingData.strategyMultiplier,
+      enableWeekendFlexibility: onboardingData.enableWeekendFlexibility,
+      weekendOption: onboardingData.weekendOption,
+      weekendBonusCalories: onboardingData.weekendBonusCalories,
+      weekdayCalories: onboardingData.weekdayCalories,
+      weekendCalories: onboardingData.weekendCalories,
       dailyCalorieTarget,
+      proteinTarget: onboardingData.proteinTarget,
+      carbsTarget: onboardingData.carbsTarget,
+      fatTarget: onboardingData.fatTarget,
       preferredInputMethod: onboardingData.preferredInputMethod,
       isPublic: onboardingData.isPublic,
       notificationsEnabled: onboardingData.notificationsEnabled,

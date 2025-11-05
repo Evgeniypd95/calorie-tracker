@@ -4,12 +4,12 @@ import { Text, Button, SegmentedButtons, TextInput as PaperInput } from 'react-n
 import Slider from '@react-native-community/slider';
 import { useOnboarding } from '../../context/OnboardingContext';
 
-const ACTIVITY_LEVELS = [
-  { value: 'SEDENTARY', emoji: '🛋️', label: 'Sedentary' },
-  { value: 'LIGHT', emoji: '🚶', label: 'Light' },
-  { value: 'MODERATE', emoji: '🏃', label: 'Moderate' },
-  { value: 'ACTIVE', emoji: '🏋️', label: 'Active' },
-  { value: 'VERY_ACTIVE', emoji: '⚡', label: 'Very Active' },
+const WORKOUTS_PER_WEEK = [
+  { value: 0, emoji: '😴', label: 'None', activityLevel: 'SEDENTARY' },
+  { value: 1, emoji: '🚶', label: '1-2', activityLevel: 'LIGHT' },
+  { value: 3, emoji: '🏃', label: '3-4', activityLevel: 'MODERATE' },
+  { value: 5, emoji: '🏋️', label: '5-6', activityLevel: 'ACTIVE' },
+  { value: 7, emoji: '⚡', label: '7+', activityLevel: 'VERY_ACTIVE' },
 ];
 
 export default function StatsScreen({ navigation }) {
@@ -18,8 +18,10 @@ export default function StatsScreen({ navigation }) {
   const [age, setAge] = useState(onboardingData.age || 30);
   const [weight, setWeight] = useState(onboardingData.weight || 70);
   const [height, setHeight] = useState(onboardingData.height || 170);
+  const [desiredWeight, setDesiredWeight] = useState(onboardingData.desiredWeight || weight);
   const [weightUnit, setWeightUnit] = useState(onboardingData.weightUnit || 'kg');
   const [heightUnit, setHeightUnit] = useState(onboardingData.heightUnit || 'cm');
+  const [workoutsPerWeek, setWorkoutsPerWeek] = useState(onboardingData.workoutsPerWeek || 3);
   const [activityLevel, setActivityLevel] = useState(onboardingData.activityLevel || 'MODERATE');
   const [calculatedTarget, setCalculatedTarget] = useState(null);
 
@@ -60,14 +62,16 @@ export default function StatsScreen({ navigation }) {
       age,
       weight,
       height,
+      desiredWeight,
       weightUnit,
       heightUnit,
+      workoutsPerWeek,
       activityLevel,
     });
 
     const target = calculateTargetCalories();
     setCalculatedTarget(target);
-  }, [gender, age, weight, height, weightUnit, heightUnit, activityLevel]);
+  }, [gender, age, weight, height, desiredWeight, weightUnit, heightUnit, workoutsPerWeek, activityLevel]);
 
   const handleWeightUnitChange = (newUnit) => {
     const convertedWeight = convertWeight(weight, weightUnit, newUnit);
@@ -131,10 +135,10 @@ export default function StatsScreen({ navigation }) {
           />
         </View>
 
-        {/* Weight Slider */}
+        {/* Current Weight Slider */}
         <View style={styles.section}>
           <View style={styles.labelRow}>
-            <Text style={styles.label}>Weight</Text>
+            <Text style={styles.label}>Current Weight</Text>
             <View style={styles.unitToggle}>
               <Text style={styles.value}>
                 {weight} {weightUnit}
@@ -161,6 +165,29 @@ export default function StatsScreen({ navigation }) {
             thumbTintColor="#6366F1"
           />
         </View>
+
+        {/* Desired Weight Slider */}
+        {onboardingData.goal !== 'MAINTAIN' && onboardingData.goal !== 'EXPLORING' && (
+          <View style={styles.section}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Goal Weight</Text>
+              <Text style={styles.value}>
+                {desiredWeight} {weightUnit}
+              </Text>
+            </View>
+            <Slider
+              style={styles.slider}
+              minimumValue={weightUnit === 'kg' ? 40 : 88}
+              maximumValue={weightUnit === 'kg' ? 150 : 330}
+              step={1}
+              value={desiredWeight}
+              onValueChange={setDesiredWeight}
+              minimumTrackTintColor="#10B981"
+              maximumTrackTintColor="#E2E8F0"
+              thumbTintColor="#10B981"
+            />
+          </View>
+        )}
 
         {/* Height Slider */}
         <View style={styles.section}>
@@ -191,41 +218,36 @@ export default function StatsScreen({ navigation }) {
           />
         </View>
 
-        {/* Activity Level */}
+        {/* Workouts Per Week */}
         <View style={styles.section}>
-          <Text style={styles.label}>Activity Level</Text>
+          <Text style={styles.label}>How many times do you work out per week?</Text>
           <View style={styles.activityContainer}>
-            {ACTIVITY_LEVELS.map((level) => (
+            {WORKOUTS_PER_WEEK.map((option) => (
               <TouchableOpacity
-                key={level.value}
-                onPress={() => setActivityLevel(level.value)}
+                key={option.value}
+                onPress={() => {
+                  setWorkoutsPerWeek(option.value);
+                  setActivityLevel(option.activityLevel);
+                }}
                 style={[
                   styles.activityButton,
-                  activityLevel === level.value && styles.activityButtonSelected,
+                  workoutsPerWeek === option.value && styles.activityButtonSelected,
                 ]}
               >
-                <Text style={styles.activityEmoji}>{level.emoji}</Text>
+                <Text style={styles.activityEmoji}>{option.emoji}</Text>
                 <Text
                   style={[
                     styles.activityLabel,
-                    activityLevel === level.value && styles.activityLabelSelected,
+                    workoutsPerWeek === option.value && styles.activityLabelSelected,
                   ]}
                 >
-                  {level.label}
+                  {option.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {/* Calculated Target */}
-        {calculatedTarget && (
-          <View style={styles.targetContainer}>
-            <Text style={styles.targetLabel}>Your daily target:</Text>
-            <Text style={styles.targetValue}>{calculatedTarget} calories</Text>
-            <Text style={styles.targetNote}>(You can adjust this anytime)</Text>
-          </View>
-        )}
       </ScrollView>
 
       {/* Footer */}
@@ -308,7 +330,7 @@ const styles = StyleSheet.create({
     height: 40,
   },
   segmentedButtons: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
   },
   activityContainer: {
     flexDirection: 'row',

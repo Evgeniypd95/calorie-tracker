@@ -1,14 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
+import { View, StyleSheet, Animated, Easing, TouchableOpacity } from 'react-native';
 import { Text, Button } from 'react-native-paper';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
 
 export default function WelcomeScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
-  const icon1Anim = useRef(new Animated.Value(0)).current;
-  const icon2Anim = useRef(new Animated.Value(0)).current;
-  const icon3Anim = useRef(new Animated.Value(0)).current;
+  const { signOut } = useAuth();
 
   useEffect(() => {
     // Fade in main content
@@ -25,28 +23,12 @@ export default function WelcomeScreen({ navigation }) {
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Animate icons sequentially
-    setTimeout(() => {
-      Animated.sequence([
-        Animated.timing(icon1Anim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(icon2Anim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(icon3Anim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, 500);
   }, []);
+
+  const handleSignIn = async () => {
+    // User wants to sign in with different account
+    await signOut();
+  };
 
   return (
     <View style={styles.container}>
@@ -59,83 +41,40 @@ export default function WelcomeScreen({ navigation }) {
           },
         ]}
       >
-        {/* Logo/Title */}
+        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.emoji}>🍽️</Text>
-          <Text style={styles.title}>Calorie Tracker</Text>
-          <Text style={styles.subtitle}>Track nutrition in seconds with AI 🚀</Text>
+          <Text style={styles.title}>Track nutrition{'\n'}in seconds</Text>
+          <Text style={styles.subtitle}>AI-powered tracking that actually works</Text>
         </View>
 
-        {/* Feature Icons */}
+        {/* Video Placeholder */}
+        <View style={styles.videoContainer}>
+          <View style={styles.phoneMockup}>
+            <View style={styles.phoneScreen}>
+              <Text style={styles.videoPlaceholder}>📹</Text>
+              <Text style={styles.videoText}>Demo Video Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Feature Highlights */}
         <View style={styles.featuresContainer}>
-          <Animated.View
-            style={[
-              styles.featureItem,
-              {
-                opacity: icon1Anim,
-                transform: [
-                  {
-                    scale: icon1Anim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.5, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <View style={styles.iconCircle}>
-              <MaterialCommunityIcons name="microphone" size={32} color="#6366F1" />
-            </View>
-            <Text style={styles.featureText}>Voice Input</Text>
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.featureItem,
-              {
-                opacity: icon2Anim,
-                transform: [
-                  {
-                    scale: icon2Anim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.5, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <View style={styles.iconCircle}>
-              <MaterialCommunityIcons name="camera" size={32} color="#6366F1" />
-            </View>
-            <Text style={styles.featureText}>Photo Scan</Text>
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.featureItem,
-              {
-                opacity: icon3Anim,
-                transform: [
-                  {
-                    scale: icon3Anim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.5, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <View style={styles.iconCircle}>
-              <MaterialCommunityIcons name="barcode-scan" size={32} color="#6366F1" />
-            </View>
-            <Text style={styles.featureText}>Barcode</Text>
-          </Animated.View>
+          <View style={styles.featureRow}>
+            <Text style={styles.featureIcon}>🎤</Text>
+            <Text style={styles.featureText}>Voice logging</Text>
+          </View>
+          <View style={styles.featureRow}>
+            <Text style={styles.featureIcon}>📸</Text>
+            <Text style={styles.featureText}>Photo scanning</Text>
+          </View>
+          <View style={styles.featureRow}>
+            <Text style={styles.featureIcon}>💬</Text>
+            <Text style={styles.featureText}>Chat with AI</Text>
+          </View>
         </View>
 
-        {/* CTA Button */}
+        {/* CTA Buttons */}
         <View style={styles.footer}>
           <Button
             mode="contained"
@@ -144,11 +83,11 @@ export default function WelcomeScreen({ navigation }) {
             contentStyle={styles.buttonContent}
             labelStyle={styles.buttonLabel}
           >
-            Get Started
+            Continue
           </Button>
-          <Text style={styles.footerText}>
-            Join thousands tracking smarter 💪
-          </Text>
+          <TouchableOpacity onPress={handleSignIn} style={styles.signInButton}>
+            <Text style={styles.signInText}>Already have an account? Sign in</Text>
+          </TouchableOpacity>
         </View>
       </Animated.View>
     </View>
@@ -162,71 +101,106 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 60,
+    paddingTop: 80,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
   },
   emoji: {
-    fontSize: 80,
+    fontSize: 64,
     marginBottom: 16,
   },
   title: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '800',
     color: '#1E293B',
     marginBottom: 12,
+    textAlign: 'center',
+    lineHeight: 42,
   },
   subtitle: {
     fontSize: 18,
     color: '#64748B',
     textAlign: 'center',
   },
-  featuresContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginVertical: 40,
-  },
-  featureItem: {
+  videoContainer: {
     alignItems: 'center',
+    marginVertical: 24,
   },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#EEF2FF',
+  phoneMockup: {
+    width: 280,
+    height: 480,
+    backgroundColor: '#1E293B',
+    borderRadius: 32,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  phoneScreen: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+  },
+  videoPlaceholder: {
+    fontSize: 80,
+    marginBottom: 16,
+  },
+  videoText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  featuresContainer: {
+    width: '100%',
+    gap: 16,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  featureIcon: {
+    fontSize: 24,
   },
   featureText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#475569',
+    color: '#1E293B',
   },
   footer: {
     width: '100%',
     alignItems: 'center',
+    gap: 12,
   },
   button: {
     width: '100%',
     borderRadius: 12,
-    marginBottom: 16,
   },
   buttonContent: {
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
   buttonLabel: {
     fontSize: 18,
     fontWeight: '700',
   },
-  footerText: {
-    fontSize: 14,
-    color: '#94A3B8',
-    textAlign: 'center',
+  signInButton: {
+    paddingVertical: 8,
+  },
+  signInText: {
+    fontSize: 15,
+    color: '#6366F1',
+    fontWeight: '600',
   },
 });

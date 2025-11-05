@@ -10,6 +10,7 @@ const GOALS = [
     title: 'Lose Weight',
     description: 'Sustainable deficit, high satiety',
     color: '#EF4444',
+    userCount: '2.4k',
   },
   {
     id: 'BUILD_MUSCLE',
@@ -17,6 +18,7 @@ const GOALS = [
     title: 'Build Muscle',
     description: 'Surplus + high protein focus',
     color: '#8B5CF6',
+    userCount: '1.8k',
   },
   {
     id: 'MAINTAIN',
@@ -24,6 +26,7 @@ const GOALS = [
     title: 'Maintain Health',
     description: 'Balanced nutrition, feel great',
     color: '#10B981',
+    userCount: '1.2k',
   },
   {
     id: 'EXPLORING',
@@ -31,6 +34,7 @@ const GOALS = [
     title: 'Just Exploring',
     description: "I'll set goals later",
     color: '#94A3B8',
+    userCount: '890',
   },
 ];
 
@@ -85,6 +89,9 @@ export default function GoalSelectionScreen({ navigation }) {
                 <Text style={styles.goalEmoji}>{goal.emoji}</Text>
                 <Text style={styles.goalTitle}>{goal.title}</Text>
                 <Text style={styles.goalDescription}>{goal.description}</Text>
+                <View style={styles.socialProof}>
+                  <Text style={styles.socialProofText}>👥 {goal.userCount} users</Text>
+                </View>
               </Surface>
             </TouchableOpacity>
           ))}
@@ -177,6 +184,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#64748B',
     textAlign: 'center',
+    marginBottom: 12,
+  },
+  socialProof: {
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  socialProofText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6366F1',
   },
   footer: {
     position: 'absolute',

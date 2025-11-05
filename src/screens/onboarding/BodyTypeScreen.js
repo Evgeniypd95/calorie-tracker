@@ -56,14 +56,14 @@ export default function BodyTypeScreen({ navigation }) {
 
   const handleContinue = () => {
     if (selectedType) {
-      navigation.navigate('InteractiveDemo');
+      navigation.navigate('Strategy');
     }
   };
 
   const handleSkip = () => {
     // Default to mesomorph (average)
     updateOnboardingData({ bodyType: 'MESOMORPH' });
-    navigation.navigate('InteractiveDemo');
+    navigation.navigate('Strategy');
   };
 
   return (

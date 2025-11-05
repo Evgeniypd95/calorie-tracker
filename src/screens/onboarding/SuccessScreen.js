@@ -151,7 +151,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 60,
+    paddingTop: 80,
+    paddingBottom: 100,
   },
   confetti: {
     fontSize: 100,

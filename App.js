@@ -31,7 +31,8 @@ const theme = {
 function AppContent() {
   const { user, userProfile, loading } = useAuth();
 
-  if (loading) {
+  if (loading || (user && !userProfile)) {
+    // Show loading while auth is initializing OR user exists but profile not loaded yet
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6366F1" />
