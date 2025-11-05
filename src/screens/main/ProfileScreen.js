@@ -6,13 +6,21 @@ import { useAuth } from '../../context/AuthContext';
 import { userService, socialService } from '../../services/firebase';
 
 export default function ProfileScreen({ navigation }) {
-  const { user } = useAuth();
+  const { user, refreshUserProfile } = useAuth();
   const [userProfile, setUserProfile] = useState(null);
   const [shareCode, setShareCode] = useState('');
   const [newConnectionCode, setNewConnectionCode] = useState('');
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
+
+  // Nutrition targets state
+  const [editingTargets, setEditingTargets] = useState(false);
+  const [weekdayCalories, setWeekdayCalories] = useState('');
+  const [weekendCalories, setWeekendCalories] = useState('');
+  const [protein, setProtein] = useState('');
+  const [carbs, setCarbs] = useState('');
+  const [fat, setFat] = useState('');
 
   useEffect(() => {
     loadProfile();
@@ -26,6 +34,13 @@ export default function ProfileScreen({ navigation }) {
         setUserProfile(profile);
         setShareCode(profile.personalCode || '');
         setIsPublic(profile.isPublic || false);
+
+        // Load nutrition targets
+        setWeekdayCalories(String(profile.weekdayCalories || profile.dailyCalorieTarget || '2000'));
+        setWeekendCalories(String(profile.weekendCalories || profile.dailyCalorieTarget || '2000'));
+        setProtein(String(profile.proteinTarget || '150'));
+        setCarbs(String(profile.carbsTarget || '200'));
+        setFat(String(profile.fatTarget || '65'));
       } else {
         console.log('No profile found, may need to create one');
         // Profile might not exist yet
@@ -133,8 +148,180 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const handleEditTargets = () => {
+    setEditingTargets(true);
+  };
+
+  const handleSaveTargets = async () => {
+    try {
+      await userService.updateUserProfile(user.uid, {
+        weekdayCalories: parseInt(weekdayCalories),
+        weekendCalories: parseInt(weekendCalories),
+        dailyCalorieTarget: parseInt(weekdayCalories),
+        proteinTarget: parseInt(protein),
+        carbsTarget: parseInt(carbs),
+        fatTarget: parseInt(fat),
+      });
+      await refreshUserProfile();
+      setEditingTargets(false);
+      showAlert('Success', 'Nutrition targets updated!');
+    } catch (error) {
+      console.error('Error updating targets:', error);
+      showAlert('Error', 'Failed to update targets');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    // Reset to current values
+    if (userProfile) {
+      setWeekdayCalories(String(userProfile.weekdayCalories || userProfile.dailyCalorieTarget || '2000'));
+      setWeekendCalories(String(userProfile.weekendCalories || userProfile.dailyCalorieTarget || '2000'));
+      setProtein(String(userProfile.proteinTarget || '150'));
+      setCarbs(String(userProfile.carbsTarget || '200'));
+      setFat(String(userProfile.fatTarget || '65'));
+    }
+    setEditingTargets(false);
+  };
+
   return (
     <ScrollView style={styles.container}>
+      {/* Nutrition Targets Section */}
+      {userProfile && (
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.sectionHeader}>
+              <Text variant="titleMedium" style={styles.sectionTitle}>
+                Nutrition Targets
+              </Text>
+              {!editingTargets && (
+                <IconButton
+                  icon="pencil"
+                  size={20}
+                  onPress={handleEditTargets}
+                />
+              )}
+            </View>
+
+            {editingTargets ? (
+              <>
+                <View style={styles.targetEditRow}>
+                  <Text style={styles.targetLabel}>Weekday Calories:</Text>
+                  <TextInput
+                    value={weekdayCalories}
+                    onChangeText={setWeekdayCalories}
+                    keyboardType="number-pad"
+                    style={styles.targetInput}
+                    mode="outlined"
+                    dense
+                  />
+                </View>
+
+                {userProfile.enableWeekendFlexibility && (
+                  <View style={styles.targetEditRow}>
+                    <Text style={styles.targetLabel}>Weekend Calories:</Text>
+                    <TextInput
+                      value={weekendCalories}
+                      onChangeText={setWeekendCalories}
+                      keyboardType="number-pad"
+                      style={styles.targetInput}
+                      mode="outlined"
+                      dense
+                    />
+                  </View>
+                )}
+
+                <View style={styles.targetEditRow}>
+                  <Text style={styles.targetLabel}>Protein (g):</Text>
+                  <TextInput
+                    value={protein}
+                    onChangeText={setProtein}
+                    keyboardType="number-pad"
+                    style={styles.targetInput}
+                    mode="outlined"
+                    dense
+                  />
+                </View>
+
+                <View style={styles.targetEditRow}>
+                  <Text style={styles.targetLabel}>Carbs (g):</Text>
+                  <TextInput
+                    value={carbs}
+                    onChangeText={setCarbs}
+                    keyboardType="number-pad"
+                    style={styles.targetInput}
+                    mode="outlined"
+                    dense
+                  />
+                </View>
+
+                <View style={styles.targetEditRow}>
+                  <Text style={styles.targetLabel}>Fat (g):</Text>
+                  <TextInput
+                    value={fat}
+                    onChangeText={setFat}
+                    keyboardType="number-pad"
+                    style={styles.targetInput}
+                    mode="outlined"
+                    dense
+                  />
+                </View>
+
+                <View style={styles.buttonRow}>
+                  <Button
+                    mode="outlined"
+                    onPress={handleCancelEdit}
+                    style={styles.halfButton}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    mode="contained"
+                    onPress={handleSaveTargets}
+                    style={styles.halfButton}
+                  >
+                    Save
+                  </Button>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.targetRow}>
+                  <Text style={styles.targetLabel}>Weekday Calories:</Text>
+                  <Text style={styles.targetValue}>{weekdayCalories} cal</Text>
+                </View>
+
+                {userProfile.enableWeekendFlexibility && (
+                  <View style={styles.targetRow}>
+                    <Text style={styles.targetLabel}>Weekend Calories:</Text>
+                    <Text style={styles.targetValue}>{weekendCalories} cal</Text>
+                  </View>
+                )}
+
+                <Divider style={styles.targetDivider} />
+
+                <View style={styles.macrosGrid}>
+                  <View style={styles.macroItem}>
+                    <View style={[styles.macroIndicator, { backgroundColor: '#EF4444' }]} />
+                    <Text style={styles.macroLabel}>Protein</Text>
+                    <Text style={styles.macroValue}>{protein}g</Text>
+                  </View>
+                  <View style={styles.macroItem}>
+                    <View style={[styles.macroIndicator, { backgroundColor: '#10B981' }]} />
+                    <Text style={styles.macroLabel}>Carbs</Text>
+                    <Text style={styles.macroValue}>{carbs}g</Text>
+                  </View>
+                  <View style={styles.macroItem}>
+                    <View style={[styles.macroIndicator, { backgroundColor: '#F59E0B' }]} />
+                    <Text style={styles.macroLabel}>Fat</Text>
+                    <Text style={styles.macroValue}>{fat}g</Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </Card.Content>
+        </Card>
+      )}
+
       {/* Share Code Section */}
       <Card style={styles.card}>
         <Card.Content>
@@ -357,5 +544,65 @@ const styles = StyleSheet.create({
   toggleTextContainer: {
     flex: 1,
     marginRight: 16
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  targetRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12
+  },
+  targetLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#475569'
+  },
+  targetValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#6366F1'
+  },
+  targetDivider: {
+    marginVertical: 16
+  },
+  macrosGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around'
+  },
+  macroItem: {
+    alignItems: 'center',
+    gap: 8
+  },
+  macroIndicator: {
+    width: 4,
+    height: 32,
+    borderRadius: 2
+  },
+  macroLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    textTransform: 'uppercase'
+  },
+  macroValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B'
+  },
+  targetEditRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16
+  },
+  targetInput: {
+    flex: 1,
+    marginLeft: 16,
+    maxWidth: 120
   }
 });
