@@ -168,6 +168,65 @@ export const mealService = {
 
   deleteMeal: async (mealId) => {
     await deleteDoc(doc(db, 'meals', mealId));
+  },
+
+  toggleLike: async (mealId, userId) => {
+    const mealRef = doc(db, 'meals', mealId);
+    const mealDoc = await getDoc(mealRef);
+
+    if (!mealDoc.exists()) {
+      throw new Error('Meal not found');
+    }
+
+    const mealData = mealDoc.data();
+    const likes = mealData.likes || [];
+
+    // Toggle like
+    const updatedLikes = likes.includes(userId)
+      ? likes.filter(id => id !== userId)
+      : [...likes, userId];
+
+    await updateDoc(mealRef, { likes: updatedLikes });
+    return updatedLikes;
+  },
+
+  addComment: async (mealId, userId, userName, commentText) => {
+    const mealRef = doc(db, 'meals', mealId);
+    const mealDoc = await getDoc(mealRef);
+
+    if (!mealDoc.exists()) {
+      throw new Error('Meal not found');
+    }
+
+    const mealData = mealDoc.data();
+    const comments = mealData.comments || [];
+
+    const newComment = {
+      userId,
+      userName,
+      text: commentText,
+      timestamp: new Date()
+    };
+
+    const updatedComments = [...comments, newComment];
+    await updateDoc(mealRef, { comments: updatedComments });
+    return updatedComments;
+  },
+
+  deleteComment: async (mealId, commentIndex) => {
+    const mealRef = doc(db, 'meals', mealId);
+    const mealDoc = await getDoc(mealRef);
+
+    if (!mealDoc.exists()) {
+      throw new Error('Meal not found');
+    }
+
+    const mealData = mealDoc.data();
+    const comments = mealData.comments || [];
+    const updatedComments = comments.filter((_, index) => index !== commentIndex);
+
+    await updateDoc(mealRef, { comments: updatedComments });
+    return updatedComments;
   }
 };
 
@@ -334,6 +393,54 @@ export const socialService = {
     };
 
     return await mealService.logMeal(targetUserId, mealData);
+  },
+
+  // Get social feed (recent meals from connections, Instagram-style)
+  getSocialFeed: async (userId, limit = 20) => {
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (!userDoc.exists()) {
+      return [];
+    }
+
+    const userData = userDoc.data();
+    const following = userData?.following || [];
+
+    if (following.length === 0) return [];
+
+    // Get recent meals from all followed users
+    const mealsPromises = following.map(async (followedUserId) => {
+      const q = query(
+        collection(db, 'meals'),
+        where('userId', '==', followedUserId)
+      );
+
+      const querySnapshot = await getDocs(q);
+      const meals = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Get user info
+      const userDoc = await getDoc(doc(db, 'users', followedUserId));
+      const userData = userDoc.data();
+
+      return meals.map(meal => ({
+        ...meal,
+        userId: followedUserId,
+        userName: userData.email?.split('@')[0] || 'User',
+        userEmail: userData.email,
+        likes: meal.likes || [],
+        comments: meal.comments || []
+      }));
+    });
+
+    const allMeals = await Promise.all(mealsPromises);
+
+    // Sort by creation time, most recent first, and limit
+    return allMeals.flat()
+      .sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || 0;
+        const timeB = b.createdAt?.toMillis?.() || 0;
+        return timeB - timeA;
+      })
+      .slice(0, limit);
   }
 };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Platform, Share } from 'react-native';
-import { Text, Card, Button, TextInput, List, IconButton, Divider } from 'react-native-paper';
+import { Text, Card, Button, TextInput, List, IconButton, Divider, Switch } from 'react-native-paper';
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '../../context/AuthContext';
 import { userService, socialService } from '../../services/firebase';
@@ -12,6 +12,7 @@ export default function ProfileScreen({ navigation }) {
   const [newConnectionCode, setNewConnectionCode] = useState('');
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -24,10 +25,12 @@ export default function ProfileScreen({ navigation }) {
       if (profile) {
         setUserProfile(profile);
         setShareCode(profile.personalCode || '');
+        setIsPublic(profile.isPublic || false);
       } else {
         console.log('No profile found, may need to create one');
         // Profile might not exist yet
         setShareCode('');
+        setIsPublic(false);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -111,6 +114,17 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const handleTogglePublic = async (value) => {
+    setIsPublic(value);
+    try {
+      await userService.updateUserProfile(user.uid, { isPublic: value });
+    } catch (error) {
+      console.error('Error updating profile visibility:', error);
+      setIsPublic(!value); // Revert on error
+      showAlert('Error', 'Failed to update profile visibility');
+    }
+  };
+
   const showAlert = (title, message) => {
     if (Platform.OS === 'web') {
       window.alert(`${title}: ${message}`);
@@ -160,6 +174,25 @@ export default function ProfileScreen({ navigation }) {
             >
               Share
             </Button>
+          </View>
+        </Card.Content>
+      </Card>
+
+      {/* Profile Visibility Section */}
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleTextContainer}>
+              <Text variant="titleMedium" style={styles.sectionTitle}>
+                Public Profile
+              </Text>
+              <Text variant="bodySmall" style={styles.helpText}>
+                {isPublic
+                  ? 'Anyone can discover and follow you'
+                  : 'Only people with your share code can connect'}
+              </Text>
+            </View>
+            <Switch value={isPublic} onValueChange={handleTogglePublic} />
           </View>
         </Card.Content>
       </Card>
@@ -315,5 +348,14 @@ const styles = StyleSheet.create({
     padding: 24,
     fontSize: 15,
     lineHeight: 22
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  toggleTextContainer: {
+    flex: 1,
+    marginRight: 16
   }
 });

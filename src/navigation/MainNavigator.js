@@ -3,8 +3,8 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DashboardScreen from '../screens/main/DashboardScreen';
-import LogMealScreen from '../screens/main/LogMealScreen';
-import SharedMealsScreen from '../screens/main/SharedMealsScreen';
+import ChatLogMealScreen from '../screens/main/ChatLogMealScreen';
+import SocialFeedScreen from '../screens/main/SocialFeedScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import { IconButton, Icon } from 'react-native-paper';
 import { authService } from '../services/firebase';
@@ -26,9 +26,9 @@ function DashboardStack() {
       />
       <Stack.Screen
         name="LogMeal"
-        component={LogMealScreen}
+        component={ChatLogMealScreen}
         options={{
-          title: 'Log Meal',
+          title: 'Chat with AI',
           headerBackTitle: 'Back'
         }}
       />
@@ -41,9 +41,9 @@ function SharedMealsStack() {
     <Stack.Navigator>
       <Stack.Screen
         name="SharedMealsMain"
-        component={SharedMealsScreen}
+        component={SocialFeedScreen}
         options={{
-          title: 'Shared Meals',
+          title: 'Feed',
           headerShown: true,
           headerStyle: { backgroundColor: '#FFFFFF', elevation: 0, shadowOpacity: 0, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }
         }}
@@ -113,9 +113,9 @@ export default function MainNavigator() {
         name="SharedMeals"
         component={SharedMealsStack}
         options={{
-          tabBarLabel: 'Shared',
+          tabBarLabel: 'Feed',
           tabBarIcon: ({ color, size }) => (
-            <Icon source="account-group" size={size} color={color} />
+            <Icon source="home-outline" size={size} color={color} />
           ),
         }}
       />
