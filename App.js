@@ -3,8 +3,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { ActivityIndicator, View, StyleSheet, Platform } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { OnboardingProvider } from './src/context/OnboardingContext';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
+import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 
 const theme = {
   ...MD3LightTheme,
@@ -27,7 +29,7 @@ const theme = {
 };
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
 
   if (loading) {
     return (
@@ -42,7 +44,16 @@ function AppContent() {
     return <AuthNavigator />;
   }
 
-  // Authenticated - show main app
+  // Authenticated but onboarding not completed
+  if (user && userProfile && !userProfile.onboardingCompleted) {
+    return (
+      <OnboardingProvider>
+        <OnboardingNavigator />
+      </OnboardingProvider>
+    );
+  }
+
+  // Authenticated and onboarded - show main app
   return <MainNavigator />;
 }
 
