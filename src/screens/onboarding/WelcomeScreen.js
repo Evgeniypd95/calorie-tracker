@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Animated, Easing, TouchableOpacity, ScrollView } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 
 export default function WelcomeScreen({ navigation }) {
@@ -29,64 +29,69 @@ export default function WelcomeScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Animated.View
-        style={[
-          styles.content,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
-        ]}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.emoji}>🍽️</Text>
-          <Text style={styles.title}>Track nutrition{'\n'}in seconds</Text>
-          <Text style={styles.subtitle}>AI-powered tracking that actually works</Text>
-        </View>
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.emoji}>🍽️</Text>
+            <Text style={styles.title}>Track nutrition{'\n'}in seconds</Text>
+            <Text style={styles.subtitle}>AI-powered tracking that actually works</Text>
+          </View>
 
-        {/* Video Placeholder */}
-        <View style={styles.videoContainer}>
-          <View style={styles.phoneMockup}>
-            <View style={styles.phoneScreen}>
-              <Text style={styles.videoPlaceholder}>📹</Text>
-              <Text style={styles.videoText}>Demo Video Coming Soon</Text>
+          {/* Video Placeholder */}
+          <View style={styles.videoContainer}>
+            <View style={styles.phoneMockup}>
+              <View style={styles.phoneScreen}>
+                <Text style={styles.videoPlaceholder}>📹</Text>
+                <Text style={styles.videoText}>Demo Video Coming Soon</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Feature Highlights */}
-        <View style={styles.featuresContainer}>
-          <View style={styles.featureRow}>
-            <Text style={styles.featureIcon}>🎤</Text>
-            <Text style={styles.featureText}>Voice logging</Text>
+          {/* Feature Highlights */}
+          <View style={styles.featuresContainer}>
+            <View style={styles.featureRow}>
+              <Text style={styles.featureIcon}>🎤</Text>
+              <Text style={styles.featureText}>Voice logging</Text>
+            </View>
+            <View style={styles.featureRow}>
+              <Text style={styles.featureIcon}>📸</Text>
+              <Text style={styles.featureText}>Photo scanning</Text>
+            </View>
+            <View style={styles.featureRow}>
+              <Text style={styles.featureIcon}>💬</Text>
+              <Text style={styles.featureText}>Chat with AI</Text>
+            </View>
           </View>
-          <View style={styles.featureRow}>
-            <Text style={styles.featureIcon}>📸</Text>
-            <Text style={styles.featureText}>Photo scanning</Text>
-          </View>
-          <View style={styles.featureRow}>
-            <Text style={styles.featureIcon}>💬</Text>
-            <Text style={styles.featureText}>Chat with AI</Text>
-          </View>
-        </View>
 
-        {/* CTA Buttons */}
-        <View style={styles.footer}>
-          <Button
-            mode="contained"
-            onPress={() => navigation.navigate('Signup')}
-            style={styles.button}
-            contentStyle={styles.buttonContent}
-            labelStyle={styles.buttonLabel}
-          >
-            Continue
-          </Button>
-          <TouchableOpacity onPress={handleSignIn} style={styles.signInButton}>
-            <Text style={styles.signInText}>Already have an account? Sign in</Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
+          {/* CTA Buttons */}
+          <View style={styles.footer}>
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate('Signup')}
+              style={styles.button}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
+            >
+              Continue
+            </Button>
+            <TouchableOpacity onPress={handleSignIn} style={styles.signInButton}>
+              <Text style={styles.signInText}>Already have an account? Sign in</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </ScrollView>
     </View>
   );
 }
@@ -96,16 +101,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F1F5F9',
   },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 40,
+  },
   content: {
-    flex: 1,
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 80,
-    paddingBottom: 40,
+    paddingTop: 60,
   },
   header: {
     alignItems: 'center',
+    marginBottom: 32,
   },
   emoji: {
     fontSize: 64,
@@ -126,11 +133,11 @@ const styles = StyleSheet.create({
   },
   videoContainer: {
     alignItems: 'center',
-    marginVertical: 24,
+    marginBottom: 32,
   },
   phoneMockup: {
-    width: 280,
-    height: 480,
+    width: 240,
+    height: 380,
     backgroundColor: '#1E293B',
     borderRadius: 32,
     padding: 12,
@@ -159,6 +166,7 @@ const styles = StyleSheet.create({
   featuresContainer: {
     width: '100%',
     gap: 16,
+    marginBottom: 32,
   },
   featureRow: {
     flexDirection: 'row',
@@ -180,6 +188,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     gap: 12,
+    marginBottom: 20,
   },
   button: {
     width: '100%',
