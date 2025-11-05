@@ -37,6 +37,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [recentMeals, setRecentMeals] = useState([]);
+  const [showRecentMeals, setShowRecentMeals] = useState(false);
 
   // Load recent meals on mount
   useEffect(() => {
@@ -57,28 +58,42 @@ export default function ChatLogMealScreen({ navigation, route }) {
       });
 
       setRecentMeals(recentFiltered);
-
-      // Update initial message if we have recent meals
-      if (recentFiltered.length > 0) {
-        const mealsList = recentFiltered.slice(0, 5).map((meal, idx) => {
-          const mealDate = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
-          const daysAgo = Math.floor((new Date() - mealDate) / (1000 * 60 * 60 * 24));
-          const timeLabel = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo}d ago`;
-          return `${idx + 1}. ${meal.description.substring(0, 40)}${meal.description.length > 40 ? '...' : ''} (${timeLabel})`;
-        }).join('\n');
-
-        setMessages([
-          {
-            id: Date.now(),
-            role: 'ai',
-            content: `Hey! 👋 What did you eat?\n\nOr pick from your recent meals:\n${mealsList}\n\nJust tell me the number or describe something new!`,
-            timestamp: new Date()
-          }
-        ]);
-      }
     } catch (error) {
       console.error('Error loading recent meals:', error);
     }
+  };
+
+  const handleShowRecentMeals = () => {
+    if (recentMeals.length === 0) {
+      showAlert('No Recent Meals', 'You haven\'t logged any meals in the last 3 days.');
+      return;
+    }
+
+    setShowRecentMeals(true);
+  };
+
+  const handleSelectRecentMeal = (meal) => {
+    setShowRecentMeals(false);
+
+    // Use the selected meal's data
+    addMessage('ai', `Great choice! Using "${meal.description}"`);
+
+    setParsedData({
+      items: meal.items,
+      totals: meal.totals
+    });
+
+    // Show the nutrition breakdown
+    const totalCal = meal.totals.calories;
+    const itemsList = meal.items.map(item =>
+      `• ${item.quantity} ${item.food} (${item.calories} cal)`
+    ).join('\n');
+
+    const response = `Here's the breakdown:\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${meal.totals.protein}g | Carbs: ${meal.totals.carbs}g | Fat: ${meal.totals.fat}g\n\nPick a meal type below to save it!`;
+
+    setTimeout(() => {
+      addMessage('ai', response, { parsedData: { items: meal.items, totals: meal.totals } });
+    }, 500);
   };
 
   // Scroll to bottom when messages update
@@ -165,14 +180,16 @@ export default function ChatLogMealScreen({ navigation, route }) {
     return newMessage;
   };
 
+  const countdownIntervalRef = useRef(null);
+
   const startCountdown = () => {
     setShowCountdown(true);
     setCountdown(3);
 
-    const countdownInterval = setInterval(() => {
+    countdownIntervalRef.current = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
-          clearInterval(countdownInterval);
+          clearInterval(countdownIntervalRef.current);
           setShowCountdown(false);
           startVoiceRecording();
           return 3;
@@ -180,6 +197,14 @@ export default function ChatLogMealScreen({ navigation, route }) {
         return prev - 1;
       });
     }, 1000);
+  };
+
+  const skipCountdown = () => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+    }
+    setShowCountdown(false);
+    startVoiceRecording();
   };
 
   const startVoiceRecording = async () => {
@@ -401,35 +426,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
     // Initial meal description
     if (text) {
       addMessage('user', text);
-
-      // Check if user typed a number (selecting recent meal)
-      const mealIndex = parseInt(text);
-      if (!isNaN(mealIndex) && mealIndex >= 1 && mealIndex <= recentMeals.length) {
-        const selectedMeal = recentMeals[mealIndex - 1];
-
-        // Use the selected meal's data
-        addMessage('ai', `Great choice! Using "${selectedMeal.description}"`);
-
-        setParsedData({
-          items: selectedMeal.items,
-          totals: selectedMeal.totals
-        });
-
-        // Show the nutrition breakdown
-        const totalCal = selectedMeal.totals.calories;
-        const itemsList = selectedMeal.items.map(item =>
-          `• ${item.quantity} ${item.food} (${item.calories} cal)`
-        ).join('\n');
-
-        const response = `Here's the breakdown:\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${selectedMeal.totals.protein}g | Carbs: ${selectedMeal.totals.carbs}g | Fat: ${selectedMeal.totals.fat}g\n\nPick a meal type below to save it!`;
-
-        setTimeout(() => {
-          addMessage('ai', response, { parsedData: { items: selectedMeal.items, totals: selectedMeal.totals } });
-        }, 500);
-      } else {
-        // New meal description
-        await parseAndRespond(text);
-      }
+      await parseAndRespond(text);
     }
   };
 
@@ -535,15 +532,22 @@ export default function ChatLogMealScreen({ navigation, route }) {
     >
       {/* Countdown Modal */}
       {showCountdown && (
-        <View style={styles.countdownOverlay}>
+        <TouchableOpacity
+          style={styles.countdownOverlay}
+          onPress={skipCountdown}
+          activeOpacity={1}
+        >
           <View style={styles.countdownContent}>
             <Text style={styles.countdownNumber}>{countdown}</Text>
             <Text style={styles.countdownTitle}>Get ready!</Text>
             <Text style={styles.countdownSuggestion}>
               Try saying: "I just had a..."
             </Text>
+            <Text style={styles.countdownSkipHint}>
+              Tap to skip
+            </Text>
           </View>
-        </View>
+        </TouchableOpacity>
       )}
 
       {/* Messages */}
@@ -559,6 +563,48 @@ export default function ChatLogMealScreen({ navigation, route }) {
             <Surface style={[styles.messageBubble, styles.aiBubble]}>
               <ActivityIndicator size="small" color="#6366F1" />
             </Surface>
+          </View>
+        )}
+
+        {/* Recent Meals Bubbles */}
+        {showRecentMeals && (
+          <View style={styles.recentMealsContainer}>
+            <View style={[styles.messageContainer, styles.aiMessageContainer]}>
+              <Surface style={[styles.messageBubble, styles.aiBubble]}>
+                <Text style={styles.aiMessageText}>
+                  Pick a recent meal:
+                </Text>
+              </Surface>
+            </View>
+            {recentMeals.slice(0, 5).map((meal, index) => {
+              const mealDate = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
+              const daysAgo = Math.floor((new Date() - mealDate) / (1000 * 60 * 60 * 24));
+              const timeLabel = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo}d ago`;
+
+              return (
+                <TouchableOpacity
+                  key={meal.id}
+                  onPress={() => handleSelectRecentMeal(meal)}
+                  style={[styles.messageContainer, styles.aiMessageContainer]}
+                >
+                  <Surface style={[styles.messageBubble, styles.recentMealBubble]}>
+                    <Text style={styles.recentMealTitle}>
+                      {meal.description.substring(0, 50)}{meal.description.length > 50 ? '...' : ''}
+                    </Text>
+                    <Text style={styles.recentMealMeta}>
+                      {meal.totals.calories} cal • {timeLabel}
+                    </Text>
+                  </Surface>
+                </TouchableOpacity>
+              );
+            })}
+            <Button
+              mode="text"
+              onPress={() => setShowRecentMeals(false)}
+              style={styles.cancelRecentButton}
+            >
+              Cancel
+            </Button>
           </View>
         )}
 
@@ -614,6 +660,16 @@ export default function ChatLogMealScreen({ navigation, route }) {
       {/* Input Bar */}
       <Surface style={styles.inputContainer} elevation={4}>
         <View style={styles.inputRow}>
+          {!parsedData && (
+            <IconButton
+              icon="clock-outline"
+              size={24}
+              iconColor="#6366F1"
+              onPress={handleShowRecentMeals}
+              disabled={isProcessing}
+            />
+          )}
+
           <IconButton
             icon="camera"
             size={24}
@@ -624,7 +680,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
           <TextInput
             mode="outlined"
-            placeholder={parsedData ? "Want to adjust something?" : "Describe your meal..."}
+            placeholder={parsedData ? "Tell me what to improve..." : "Describe your meal..."}
             value={inputText}
             onChangeText={setInputText}
             style={styles.textInput}
@@ -828,6 +884,36 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    lineHeight: 26
+    lineHeight: 26,
+    marginBottom: 20
+  },
+  countdownSkipHint: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    fontStyle: 'italic'
+  },
+  recentMealsContainer: {
+    marginVertical: 12
+  },
+  recentMealBubble: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    borderBottomLeftRadius: 4
+  },
+  recentMealTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 4
+  },
+  recentMealMeta: {
+    fontSize: 13,
+    color: '#64748B'
+  },
+  cancelRecentButton: {
+    alignSelf: 'center',
+    marginTop: 12
   }
 });

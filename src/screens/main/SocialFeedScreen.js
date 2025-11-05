@@ -177,6 +177,41 @@ export default function SocialFeedScreen({ navigation }) {
 
     return (
       <Card key={meal.id} style={styles.mealCard}>
+        {/* 3-Dot Menu Dropdown */}
+        {menuVisible === meal.id && (
+          <View style={styles.menuOverlay}>
+            <Card style={styles.menuCard}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleMenuAction('breakdown', meal)}
+              >
+                <Text style={styles.menuText}>See full nutrition</Text>
+              </TouchableOpacity>
+              <Divider />
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleMenuAction('hide', meal)}
+              >
+                <Text style={styles.menuText}>Hide this post</Text>
+              </TouchableOpacity>
+              <Divider />
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleMenuAction('report', meal)}
+              >
+                <Text style={styles.menuText}>Report</Text>
+              </TouchableOpacity>
+              <Divider />
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleMenuAction('unfollow', meal)}
+              >
+                <Text style={[styles.menuText, styles.menuTextDanger]}>Unfollow {meal.userName}</Text>
+              </TouchableOpacity>
+            </Card>
+          </View>
+        )}
+
         {/* Header: User info */}
         <View style={styles.cardHeader}>
           <View style={styles.userInfo}>
@@ -231,39 +266,6 @@ export default function SocialFeedScreen({ navigation }) {
             onPress={() => handleCopyMeal(meal)}
           />
         </View>
-
-        {/* 3-Dot Menu */}
-        {menuVisible === meal.id && (
-          <Card style={styles.menuCard}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleMenuAction('breakdown', meal)}
-            >
-              <Text style={styles.menuText}>See full nutrition</Text>
-            </TouchableOpacity>
-            <Divider />
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleMenuAction('hide', meal)}
-            >
-              <Text style={styles.menuText}>Hide this post</Text>
-            </TouchableOpacity>
-            <Divider />
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleMenuAction('report', meal)}
-            >
-              <Text style={styles.menuText}>Report</Text>
-            </TouchableOpacity>
-            <Divider />
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleMenuAction('unfollow', meal)}
-            >
-              <Text style={[styles.menuText, styles.menuTextDanger]}>Unfollow {meal.userName}</Text>
-            </TouchableOpacity>
-          </Card>
-        )}
 
         {/* Like count */}
         {likesCount > 0 && (
@@ -432,6 +434,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: '#FFFFFF',
     borderRadius: 0,
+    position: 'relative',
+    overflow: 'visible',
     ...Platform.select({
       web: {
         boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.08)',
@@ -596,14 +600,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22
   },
-  menuCard: {
+  menuOverlay: {
     position: 'absolute',
-    top: 50,
-    right: 16,
+    top: 40,
+    right: 8,
+    zIndex: 1000
+  },
+  menuCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    minWidth: 200,
-    zIndex: 100,
+    minWidth: 220,
     ...Platform.select({
       web: {
         boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
