@@ -40,7 +40,6 @@ export default function WelcomeScreen({ navigation }) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.emoji}>🍽️</Text>
           <Text style={styles.title}>Track nutrition{'\n'}in seconds</Text>
           <Text style={styles.subtitle}>AI-powered tracking that actually works</Text>
         </View>
@@ -52,22 +51,6 @@ export default function WelcomeScreen({ navigation }) {
               <Text style={styles.videoPlaceholder}>📹</Text>
               <Text style={styles.videoText}>Demo Video Coming Soon</Text>
             </View>
-          </View>
-        </View>
-
-        {/* Feature Highlights */}
-        <View style={styles.featuresContainer}>
-          <View style={styles.featureRow}>
-            <Text style={styles.featureIcon}>🎤</Text>
-            <Text style={styles.featureText}>Voice logging</Text>
-          </View>
-          <View style={styles.featureRow}>
-            <Text style={styles.featureIcon}>📸</Text>
-            <Text style={styles.featureText}>Photo scanning</Text>
-          </View>
-          <View style={styles.featureRow}>
-            <Text style={styles.featureIcon}>💬</Text>
-            <Text style={styles.featureText}>Chat with AI</Text>
           </View>
         </View>
 
@@ -107,17 +90,13 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
   },
-  emoji: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     color: '#1E293B',
     marginBottom: 8,
     textAlign: 'center',
-    lineHeight: 34,
+    lineHeight: 30,
   },
   subtitle: {
     fontSize: 15,
@@ -154,26 +133,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#64748B',
-  },
-  featuresContainer: {
-    width: '100%',
-    gap: 10,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 10,
-    gap: 10,
-  },
-  featureIcon: {
-    fontSize: 20,
-  },
-  featureText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
   },
   footer: {
     width: '100%',
