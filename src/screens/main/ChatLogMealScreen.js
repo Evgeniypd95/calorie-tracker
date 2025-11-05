@@ -33,6 +33,9 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const [selectedMealType, setSelectedMealType] = useState(null);
   const [recognition, setRecognition] = useState(null);
   const textBeforeVoiceRef = useRef('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [showCountdown, setShowCountdown] = useState(false);
+  const [countdown, setCountdown] = useState(3);
 
   // Scroll to bottom when messages update
   useEffect(() => {
@@ -118,31 +121,64 @@ export default function ChatLogMealScreen({ navigation, route }) {
     return newMessage;
   };
 
-  const toggleVoiceInput = async () => {
+  const startCountdown = () => {
+    setShowCountdown(true);
+    setCountdown(3);
+
+    const countdownInterval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          setShowCountdown(false);
+          startVoiceRecording();
+          return 3;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const startVoiceRecording = async () => {
     if (Platform.OS === 'web') {
       if (!recognition) {
         showAlert('Not Supported', 'Speech recognition is not supported in this browser.');
         return;
       }
-      if (isListening) {
-        recognition.stop();
-      } else {
-        textBeforeVoiceRef.current = inputText;
-        recognition.start();
-        setIsListening(true);
-      }
+      textBeforeVoiceRef.current = inputText;
+      recognition.start();
+      setIsListening(true);
     } else {
       try {
-        if (isListening) {
-          await Voice.stop();
-        } else {
-          textBeforeVoiceRef.current = inputText;
-          await Voice.start('en-US');
-        }
+        textBeforeVoiceRef.current = inputText;
+        await Voice.start('en-US');
+        setIsListening(true);
       } catch (error) {
         console.error('Voice error:', error);
         showAlert('Error', 'Failed to start voice recognition.');
       }
+    }
+  };
+
+  const stopVoiceRecording = async () => {
+    if (Platform.OS === 'web') {
+      if (recognition) {
+        recognition.stop();
+      }
+    } else {
+      try {
+        await Voice.stop();
+      } catch (error) {
+        console.error('Error stopping voice:', error);
+      }
+    }
+    setIsListening(false);
+  };
+
+  const toggleVoiceInput = async () => {
+    if (isListening) {
+      await stopVoiceRecording();
+    } else {
+      startCountdown();
     }
   };
 
@@ -267,6 +303,11 @@ export default function ChatLogMealScreen({ navigation, route }) {
   };
 
   const handleSendMessage = async () => {
+    // Stop recording if it's active
+    if (isListening) {
+      await stopVoiceRecording();
+    }
+
     const text = inputText.trim();
     if (!text && !selectedImage) return;
 
@@ -318,6 +359,11 @@ export default function ChatLogMealScreen({ navigation, route }) {
       return;
     }
 
+    // Prevent duplicate saves
+    if (isSaving) return;
+
+    setIsSaving(true);
+
     try {
       const mealDate = selectedDate ? new Date(selectedDate) : new Date();
       if (selectedDate) {
@@ -340,11 +386,17 @@ export default function ChatLogMealScreen({ navigation, route }) {
       addMessage('ai', `Perfect! Your ${selectedMealType.toLowerCase()} has been logged. Keep up the great work! 💪`);
 
       setTimeout(() => {
-        navigation.goBack();
+        // Navigate back to Dashboard stack
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate('Dashboard', { screen: 'DashboardMain' });
+        }
       }, 1500);
     } catch (error) {
       console.error('Error saving meal:', error);
       showAlert('Error', 'Failed to save meal');
+      setIsSaving(false);
     }
   };
 
@@ -401,6 +453,19 @@ export default function ChatLogMealScreen({ navigation, route }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={90}
     >
+      {/* Countdown Modal */}
+      {showCountdown && (
+        <View style={styles.countdownOverlay}>
+          <View style={styles.countdownContent}>
+            <Text style={styles.countdownNumber}>{countdown}</Text>
+            <Text style={styles.countdownTitle}>Get ready!</Text>
+            <Text style={styles.countdownSuggestion}>
+              Try saying: "I just had a..."
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Messages */}
       <ScrollView
         ref={scrollViewRef}
@@ -455,8 +520,10 @@ export default function ChatLogMealScreen({ navigation, route }) {
                   onPress={handleSaveMeal}
                   style={styles.saveButton}
                   icon="check-circle"
+                  loading={isSaving}
+                  disabled={isSaving}
                 >
-                  Save Meal
+                  {isSaving ? 'Saving...' : 'Save Meal'}
                 </Button>
               </View>
             )}
@@ -649,5 +716,38 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontSize: 13,
     fontWeight: '600'
+  },
+  countdownOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(99, 102, 241, 0.98)',
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  countdownContent: {
+    alignItems: 'center',
+    padding: 40
+  },
+  countdownNumber: {
+    fontSize: 120,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 20
+  },
+  countdownTitle: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 16
+  },
+  countdownSuggestion: {
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    lineHeight: 26
   }
 });
