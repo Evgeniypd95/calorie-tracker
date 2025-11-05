@@ -4,6 +4,13 @@ import { useAuth } from './AuthContext';
 
 const OnboardingContext = createContext({});
 
+// Helper to calculate next check-in date
+const getNextCheckInDate = (daysFromNow) => {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  return date;
+};
+
 export const OnboardingProvider = ({ children }) => {
   const { user, refreshUserProfile } = useAuth();
   const [onboardingData, setOnboardingData] = useState({
@@ -15,6 +22,7 @@ export const OnboardingProvider = ({ children }) => {
     weightUnit: 'kg', // 'kg' | 'lbs'
     heightUnit: 'cm', // 'cm' | 'ft'
     gender: 'MALE', // 'MALE' | 'FEMALE' | 'OTHER'
+    bodyType: 'MESOMORPH', // 'ECTOMORPH' | 'MESOMORPH' | 'ENDOMORPH'
     dailyCalorieTarget: null,
     preferredInputMethod: null, // 'voice' | 'photo' | 'barcode'
     isPublic: false,
@@ -33,7 +41,7 @@ export const OnboardingProvider = ({ children }) => {
 
   // Calculate TDEE (Total Daily Energy Expenditure)
   const calculateTDEE = () => {
-    const { age, weight, height, gender, activityLevel } = onboardingData;
+    const { age, weight, height, gender, activityLevel, bodyType } = onboardingData;
 
     // Convert to metric if needed
     let weightKg = weight;
@@ -65,7 +73,16 @@ export const OnboardingProvider = ({ children }) => {
       VERY_ACTIVE: 1.9
     };
 
-    const tdee = Math.round(bmr * activityMultipliers[activityLevel]);
+    let tdee = bmr * activityMultipliers[activityLevel];
+
+    // Body type adjustment (affects metabolism)
+    const bodyTypeMultipliers = {
+      ECTOMORPH: 1.05,   // Fast metabolism: +5%
+      MESOMORPH: 1.0,    // Average metabolism: no change
+      ENDOMORPH: 0.95    // Slower metabolism: -5%
+    };
+
+    tdee = Math.round(tdee * bodyTypeMultipliers[bodyType || 'MESOMORPH']);
 
     return tdee;
   };
@@ -102,13 +119,17 @@ export const OnboardingProvider = ({ children }) => {
       weightUnit: onboardingData.weightUnit,
       heightUnit: onboardingData.heightUnit,
       gender: onboardingData.gender,
+      bodyType: onboardingData.bodyType,
       activityLevel: onboardingData.activityLevel,
       dailyCalorieTarget,
       preferredInputMethod: onboardingData.preferredInputMethod,
       isPublic: onboardingData.isPublic,
       notificationsEnabled: onboardingData.notificationsEnabled,
       notificationTimes: onboardingData.notificationTimes,
-      onboardingCompletedAt: new Date()
+      onboardingCompletedAt: new Date(),
+      // Initialize check-in tracking
+      nextCheckInDate: getNextCheckInDate(1), // First check-in after 1 day
+      checkInHistory: []
     };
 
     await userService.updateUserProfile(user.uid, profileUpdates);

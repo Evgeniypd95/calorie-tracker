@@ -2,8 +2,10 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
 import { Text, FAB, Card, Surface, IconButton } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { mealService } from '../../services/firebase';
+import { mealService, userService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { shouldShowCheckIn, getCheckInQuestions, calculateTargetAdjustment, getNextCheckInDate } from '../../services/checkInService';
+import CheckInModal from '../../components/CheckInModal';
 
 // Helper function to get a date range (7 days past, today, 7 days future)
 const getDateRange = () => {
@@ -33,11 +35,13 @@ const isSameDay = (date1, date2) => {
 };
 
 export default function DashboardScreen({ navigation }) {
-  const { user } = useAuth();
+  const { user, userProfile, refreshUserProfile } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [meals, setMeals] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const calendarRef = useRef(null);
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [checkInInfo, setCheckInInfo] = useState(null);
 
   const loadMeals = async (date = selectedDate) => {
     try {
@@ -51,7 +55,17 @@ export default function DashboardScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadMeals();
-    }, [selectedDate])
+
+      // Check if user needs check-in
+      if (userProfile) {
+        const checkIn = shouldShowCheckIn(userProfile);
+        if (checkIn) {
+          const questions = getCheckInQuestions(checkIn.type);
+          setCheckInInfo({ ...checkIn, ...questions });
+          setShowCheckInModal(true);
+        }
+      }
+    }, [selectedDate, userProfile])
   );
 
   const onRefresh = async () => {
@@ -62,6 +76,78 @@ export default function DashboardScreen({ navigation }) {
 
   const handleDateSelect = (date) => {
     setSelectedDate(date);
+  };
+
+  const handleCheckInComplete = async (feedback) => {
+    try {
+      const { newTarget, adjustment, reason } = calculateTargetAdjustment(
+        userProfile.dailyCalorieTarget,
+        feedback,
+        checkInInfo.type,
+        userProfile.goal
+      );
+
+      const nextCheckIn = getNextCheckInDate(checkInInfo.type);
+
+      await userService.updateUserProfile(user.uid, {
+        dailyCalorieTarget: newTarget,
+        nextCheckInDate: nextCheckIn,
+        checkInHistory: [
+          ...(userProfile.checkInHistory || []),
+          {
+            type: checkInInfo.type,
+            feedback,
+            oldTarget: userProfile.dailyCalorieTarget,
+            newTarget,
+            adjustment,
+            date: new Date()
+          }
+        ]
+      });
+
+      await refreshUserProfile();
+      setShowCheckInModal(false);
+
+      // Show success message with adjustment
+      if (adjustment !== 0) {
+        if (Platform.OS === 'web') {
+          window.alert(`Target Updated!\n\n${reason}\n\nNew daily target: ${newTarget} calories`);
+        } else {
+          Alert.alert('Target Updated!', `${reason}\n\nNew daily target: ${newTarget} calories`);
+        }
+      } else {
+        if (Platform.OS === 'web') {
+          window.alert('Great! We\'ll keep your current target.');
+        } else {
+          Alert.alert('Perfect!', 'We\'ll keep your current target.');
+        }
+      }
+    } catch (error) {
+      console.error('Error updating check-in:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to update target');
+      } else {
+        Alert.alert('Error', 'Failed to update target');
+      }
+    }
+  };
+
+  const handleCheckInSkip = async () => {
+    try {
+      // Postpone by 1 day
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      await userService.updateUserProfile(user.uid, {
+        nextCheckInDate: tomorrow
+      });
+
+      await refreshUserProfile();
+      setShowCheckInModal(false);
+    } catch (error) {
+      console.error('Error skipping check-in:', error);
+      setShowCheckInModal(false);
+    }
   };
 
   const handleDeleteMeal = (mealId, mealDescription) => {
@@ -328,6 +414,14 @@ export default function DashboardScreen({ navigation }) {
         style={styles.fab}
         color="#FFFFFF"
         onPress={() => navigation.navigate('LogMeal', { selectedDate: selectedDate.toISOString() })}
+      />
+
+      {/* Check-in Modal */}
+      <CheckInModal
+        visible={showCheckInModal}
+        checkInData={checkInInfo}
+        onComplete={handleCheckInComplete}
+        onSkip={handleCheckInSkip}
       />
     </View>
   );

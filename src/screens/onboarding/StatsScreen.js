@@ -82,7 +82,7 @@ export default function StatsScreen({ navigation }) {
   };
 
   const handleContinue = () => {
-    navigation.navigate('InteractiveDemo');
+    navigation.navigate('BodyType');
   };
 
   return (
