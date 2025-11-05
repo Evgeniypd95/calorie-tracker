@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform, Image, KeyboardAvoidingView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Platform, Image, KeyboardAvoidingView, TouchableOpacity, Modal } from 'react-native';
 import { TextInput, Button, Text, IconButton, ActivityIndicator, Card, Chip, Surface } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import Voice from '@react-native-voice/voice';
 import { parseMealDescription, convertImageToDescription } from '../../services/geminiService';
 import { mealService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { lookupBarcode, formatBarcodeProductForParsing } from '../../services/barcodeService';
 
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
@@ -45,6 +47,10 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const [countdown, setCountdown] = useState(3);
   const [recentMeals, setRecentMeals] = useState([]);
   const [showRecentMeals, setShowRecentMeals] = useState(false);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scannedBarcode, setScannedBarcode] = useState(null);
+  const [lookingUpBarcode, setLookingUpBarcode] = useState(false);
 
   // Load recent meals on mount
   useEffect(() => {
@@ -343,6 +349,89 @@ export default function ChatLogMealScreen({ navigation, route }) {
     }
   };
 
+  const openBarcodeScanner = async () => {
+    if (!permission) {
+      return;
+    }
+
+    if (!permission.granted) {
+      const result = await requestPermission();
+      if (!result.granted) {
+        showAlert('Permission Required', 'Camera permission is required to scan barcodes.');
+        return;
+      }
+    }
+
+    setScannedBarcode(null);
+    setShowBarcodeScanner(true);
+  };
+
+  const closeBarcodeScanner = () => {
+    setShowBarcodeScanner(false);
+    setScannedBarcode(null);
+  };
+
+  const handleBarcodeScanned = async ({ type, data }) => {
+    // Prevent multiple scans
+    if (scannedBarcode === data) return;
+
+    setScannedBarcode(data);
+    setShowBarcodeScanner(false);
+    setLookingUpBarcode(true);
+
+    addMessage('user', `🔍 Scanned barcode: ${data}`);
+    addMessage('ai', 'Looking up product...');
+
+    try {
+      // Look up the barcode in multiple databases
+      const result = await lookupBarcode(data);
+
+      // Remove the "looking up" message
+      setMessages(prev => prev.slice(0, -1));
+
+      if (result.found) {
+        const formattedProduct = formatBarcodeProductForParsing(result);
+
+        if (formattedProduct) {
+          const nutritionData = formattedProduct.nutritionData;
+          const servingSize = formattedProduct.servingSize;
+
+          // Create parsed data structure
+          const parsedResult = {
+            items: [{
+              food: result.product.name,
+              quantity: servingSize,
+              calories: Math.round(nutritionData.calories || 0),
+              protein: Math.round(nutritionData.protein || 0),
+              carbs: Math.round(nutritionData.carbs || 0),
+              fat: Math.round(nutritionData.fat || 0)
+            }],
+            totals: {
+              calories: Math.round(nutritionData.calories || 0),
+              protein: Math.round(nutritionData.protein || 0),
+              carbs: Math.round(nutritionData.carbs || 0),
+              fat: Math.round(nutritionData.fat || 0)
+            }
+          };
+
+          setParsedData(parsedResult);
+
+          const response = `Found it! 🎉\n\n• ${result.product.name}${result.product.brand ? ' (' + result.product.brand + ')' : ''}\n• Serving: ${servingSize}\n\nNutrition:\n• ${parsedResult.totals.calories} cal\n• Protein: ${parsedResult.totals.protein}g\n• Carbs: ${parsedResult.totals.carbs}g\n• Fat: ${parsedResult.totals.fat}g\n\nSource: ${result.source}\n\nPick a meal type below to save it!`;
+
+          addMessage('ai', response, { parsedData: parsedResult });
+        }
+      } else {
+        addMessage('ai', `Sorry, couldn't find that product in our databases. 😕\n\nBarcode: ${data}\n\nYou can still describe it manually!`);
+      }
+    } catch (error) {
+      console.error('Error looking up barcode:', error);
+      setMessages(prev => prev.slice(0, -1));
+      addMessage('ai', 'Oops, something went wrong looking up that barcode. Try again or enter manually!');
+    } finally {
+      setLookingUpBarcode(false);
+    }
+  };
+
   const processImage = async (image) => {
     setIsProcessing(true);
     addMessage('user', '📷 [Photo of meal]', { imageUri: image.uri });
@@ -588,6 +677,52 @@ export default function ChatLogMealScreen({ navigation, route }) {
         </TouchableOpacity>
       )}
 
+      {/* Barcode Scanner Modal */}
+      <Modal
+        visible={showBarcodeScanner}
+        animationType="slide"
+        onRequestClose={closeBarcodeScanner}
+      >
+        <View style={styles.barcodeContainer}>
+          <CameraView
+            style={styles.barcodeCamera}
+            facing="back"
+            barcodeScannerSettings={{
+              barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'qr', 'code_128', 'code_39']
+            }}
+            onBarcodeScanned={scannedBarcode ? undefined : handleBarcodeScanned}
+          >
+            <View style={styles.barcodeOverlay}>
+              <View style={styles.barcodeHeader}>
+                <IconButton
+                  icon="close"
+                  iconColor="#FFFFFF"
+                  size={28}
+                  onPress={closeBarcodeScanner}
+                  style={styles.closeButton}
+                />
+              </View>
+
+              <View style={styles.barcodeScanArea}>
+                <View style={styles.scanFrame}>
+                  <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
+                  <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
+                  <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
+                  <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
+                </View>
+              </View>
+
+              <View style={styles.barcodeInstructions}>
+                <Text style={styles.barcodeTitle}>Scan Barcode</Text>
+                <Text style={styles.barcodeSubtitle}>
+                  Position the barcode within the frame
+                </Text>
+              </View>
+            </View>
+          </CameraView>
+        </View>
+      </Modal>
+
       {/* Messages */}
       <ScrollView
         ref={scrollViewRef}
@@ -703,6 +838,14 @@ export default function ChatLogMealScreen({ navigation, route }) {
             size={24}
             iconColor="#6366F1"
             onPress={showImageOptions}
+            disabled={isProcessing}
+          />
+
+          <IconButton
+            icon="barcode-scan"
+            size={24}
+            iconColor="#6366F1"
+            onPress={openBarcodeScanner}
             disabled={isProcessing}
           />
 
@@ -950,5 +1093,86 @@ const styles = StyleSheet.create({
   },
   recentMealsButtonContent: {
     paddingVertical: 4
+  },
+  barcodeContainer: {
+    flex: 1,
+    backgroundColor: '#000000'
+  },
+  barcodeCamera: {
+    flex: 1
+  },
+  barcodeOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent'
+  },
+  barcodeHeader: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)'
+  },
+  closeButton: {
+    margin: 0
+  },
+  barcodeScanArea: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  scanFrame: {
+    width: 280,
+    height: 180,
+    position: 'relative'
+  },
+  scanCorner: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderColor: '#6366F1',
+    borderWidth: 4
+  },
+  scanCornerTopLeft: {
+    top: 0,
+    left: 0,
+    borderBottomWidth: 0,
+    borderRightWidth: 0
+  },
+  scanCornerTopRight: {
+    top: 0,
+    right: 0,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0
+  },
+  scanCornerBottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderTopWidth: 0,
+    borderRightWidth: 0
+  },
+  scanCornerBottomRight: {
+    bottom: 0,
+    right: 0,
+    borderTopWidth: 0,
+    borderLeftWidth: 0
+  },
+  barcodeInstructions: {
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    alignItems: 'center'
+  },
+  barcodeTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center'
+  },
+  barcodeSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    lineHeight: 22
   }
 });
