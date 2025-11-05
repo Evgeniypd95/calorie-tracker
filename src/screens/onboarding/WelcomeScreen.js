@@ -1,12 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Easing, TouchableOpacity } from 'react-native';
 import { Text, Button } from 'react-native-paper';
-import { useAuth } from '../../context/AuthContext';
 
 export default function WelcomeScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
-  const { signOut } = useAuth();
 
   useEffect(() => {
     // Fade in main content
@@ -25,9 +23,8 @@ export default function WelcomeScreen({ navigation }) {
     ]).start();
   }, []);
 
-  const handleSignIn = async () => {
-    // User wants to sign in with different account
-    await signOut();
+  const handleSignIn = () => {
+    navigation.navigate('Login');
   };
 
   return (
@@ -78,7 +75,7 @@ export default function WelcomeScreen({ navigation }) {
         <View style={styles.footer}>
           <Button
             mode="contained"
-            onPress={() => navigation.navigate('GoalSelection')}
+            onPress={() => navigation.navigate('Signup')}
             style={styles.button}
             contentStyle={styles.buttonContent}
             labelStyle={styles.buttonLabel}

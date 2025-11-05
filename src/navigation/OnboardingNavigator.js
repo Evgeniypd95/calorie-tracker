@@ -1,6 +1,5 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import WelcomeScreen from '../screens/onboarding/WelcomeScreen';
 import GoalSelectionScreen from '../screens/onboarding/GoalSelectionScreen';
 import StatsScreen from '../screens/onboarding/StatsScreen';
 import BodyTypeScreen from '../screens/onboarding/BodyTypeScreen';
@@ -21,8 +20,8 @@ export default function OnboardingNavigator() {
         cardStyle: { backgroundColor: '#F1F5F9' },
         animationEnabled: true,
       }}
+      initialRouteName="GoalSelection"
     >
-      <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
       <Stack.Screen name="Stats" component={StatsScreen} />
       <Stack.Screen name="BodyType" component={BodyTypeScreen} />
