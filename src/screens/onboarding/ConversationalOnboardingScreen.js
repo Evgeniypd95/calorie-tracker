@@ -13,7 +13,7 @@ export default function ConversationalOnboardingScreen({ navigation }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: "Hey! 👋 I'm your AI nutrition coach. Let's chat about your fitness goals.\n\nTell me about yourself - your body, your weight, your goals, and your current routine. You can type or use voice!"
+      content: "Hey! 👋 I'm your AI nutrition coach.\n\nWhat's your name? Then tell me your age, weight, height, gender, fitness goals, and how often you work out. You can type or use voice!"
     }
   ]);
   const [userInput, setUserInput] = useState('');

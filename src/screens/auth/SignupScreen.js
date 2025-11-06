@@ -65,43 +65,24 @@ export default function SignupScreen({ navigation }) {
       // Use onboarding data for calorie target
       const dailyCalorieTarget = onboardingData.dailyCalorieTarget;
 
-      // Save all onboarding data to user profile with defaults
+      // Save ONLY data captured in conversational onboarding
       const profileData = {
         email,
-        onboardingCompleted: true,
-        // Core data from conversational onboarding
-        goal: onboardingData.goal || 'MAINTAIN',
+        name: onboardingData.name || 'User',
         age: onboardingData.age,
         weight: onboardingData.weight,
         height: onboardingData.height,
         weightUnit: onboardingData.weightUnit || 'kg',
         heightUnit: onboardingData.heightUnit || 'cm',
-        gender: onboardingData.gender || 'OTHER',
-        activityLevel: onboardingData.activityLevel || 'MODERATE',
-        workoutsPerWeek: onboardingData.workoutsPerWeek || 3,
+        gender: onboardingData.gender,
+        goal: onboardingData.goal,
+        activityLevel: onboardingData.activityLevel,
+        workoutsPerWeek: onboardingData.workoutsPerWeek,
         dailyCalorieTarget,
         proteinTarget: onboardingData.proteinTarget,
         carbsTarget: onboardingData.carbsTarget,
         fatTarget: onboardingData.fatTarget,
-        // Optional fields from old onboarding (set defaults)
-        desiredWeight: onboardingData.desiredWeight || null,
-        bodyType: onboardingData.bodyType || null,
-        strategy: onboardingData.strategy || 'CHALLENGING',
-        strategyMultiplier: onboardingData.strategyMultiplier || 0.85,
-        enableWeekendFlexibility: onboardingData.enableWeekendFlexibility || false,
-        weekendOption: onboardingData.weekendOption || null,
-        weekendBonusCalories: onboardingData.weekendBonusCalories || 0,
-        weekdayCalories: onboardingData.weekdayCalories || dailyCalorieTarget,
-        weekendCalories: onboardingData.weekendCalories || dailyCalorieTarget,
-        preferredInputMethod: onboardingData.preferredInputMethod || 'VOICE',
-        isPublic: onboardingData.isPublic !== undefined ? onboardingData.isPublic : false,
-        notificationsEnabled: onboardingData.notificationsEnabled || false,
-        notificationTimes: onboardingData.notificationTimes || [],
-        onboardingCompletedAt: new Date(),
-        createdAt: new Date(),
-        // Initialize check-in tracking
-        nextCheckInDate: getNextCheckInDate(1), // First check-in after 1 day
-        checkInHistory: []
+        createdAt: new Date()
       };
 
       await userService.createUserProfile(userId, profileData);

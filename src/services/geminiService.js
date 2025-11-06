@@ -173,6 +173,7 @@ export const chatOnboarding = async (conversationHistory, userMessage) => {
     let calculatedPlan = null;
 
     // Check if user provided all info at once
+    const hasName = /name is|i'm|i am|call me/i.test(userMessageLower);
     const hasAge = /(\d+)\s*(years?|y\.?o\.?|age)/i.test(userMessage);
     const hasWeight = /(\d+)\s*(kg|lbs?|pounds?)/i.test(userMessage);
     const hasHeight = /(\d+)\s*(cm|feet?|ft|inches?|in)/i.test(userMessage);
@@ -181,6 +182,14 @@ export const chatOnboarding = async (conversationHistory, userMessage) => {
     const hasActivity = /(workout|exercise|gym|active|sedentary)/i.test(userMessageLower);
 
     // Extract basic data
+    if (hasName) {
+      // Try to extract name from patterns like "I'm John", "My name is John", "Call me John"
+      const nameMatch = userMessage.match(/(?:name is|i'm|i am|call me)\s+([a-zA-Z]+)/i);
+      if (nameMatch) {
+        extractedData.name = nameMatch[1];
+      }
+    }
+
     if (hasAge) {
       const ageMatch = userMessage.match(/(\d+)\s*(years?|y\.?o\.?|age)/i);
       extractedData.age = parseInt(ageMatch[1]);
@@ -281,12 +290,14 @@ export const chatOnboarding = async (conversationHistory, userMessage) => {
       response = `Perfect! 🎯 Based on everything you've shared, I've calculated your personalized nutrition plan.\n\nYou'll be eating around ${targetCalories} calories per day. This ${allData.goal === 'LOSE_WEIGHT' ? 'creates a healthy deficit for weight loss' : allData.goal === 'BUILD_MUSCLE' ? 'provides a surplus to support muscle growth' : 'maintains your current weight'} while keeping your energy levels up!\n\nWhat do you think? Feel free to give me feedback or click "Finish & Create Account" when you're ready!`;
     } else {
       // Need more info
-      if (!allData.age || !allData.weight || !allData.height || !allData.gender) {
-        response = "Thanks for sharing! To create your plan, I need to know a bit more about you. Can you tell me your age, weight, height, and gender?";
+      if (!allData.name) {
+        response = "Nice to meet you! What's your name?";
+      } else if (!allData.age || !allData.weight || !allData.height || !allData.gender) {
+        response = `Thanks ${allData.name}! To create your plan, I need to know your age, weight, height, and gender.`;
       } else if (!allData.goal) {
-        response = "Got it! What's your main fitness goal? Are you looking to lose weight, build muscle, or maintain your current physique?";
+        response = "Got it! What's your main fitness goal? Are you looking to lose weight, build muscle, or maintain?";
       } else if (!allData.activityLevel) {
-        response = "Awesome! One more thing - how active are you? How many times per week do you typically work out or exercise?";
+        response = "Awesome! One more thing - how many times per week do you typically work out or exercise?";
       } else {
         response = "Thanks! Can you share more details so I can create the perfect plan for you?";
       }
