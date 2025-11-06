@@ -135,3 +135,31 @@ export const analyzeDietContext = async (dietContext, goal, biometrics) => {
     };
   }
 };
+
+export const chatOnboarding = async (conversationHistory, userMessage) => {
+  console.log('💬 Onboarding chat with AI');
+
+  try {
+    const chatOnboardingFn = httpsCallable(functions, 'chatOnboarding');
+    const result = await chatOnboardingFn({
+      conversationHistory,
+      userMessage
+    });
+
+    console.log('✅ chatOnboarding response:', result.data);
+
+    if (result.data.success) {
+      return {
+        response: result.data.response,
+        extractedData: result.data.extractedData,
+        isComplete: result.data.isComplete,
+        calculatedPlan: result.data.calculatedPlan
+      };
+    } else {
+      throw new Error('Chat failed');
+    }
+  } catch (error) {
+    console.error('❌ Error calling chatOnboarding function:', error);
+    throw error;
+  }
+};
