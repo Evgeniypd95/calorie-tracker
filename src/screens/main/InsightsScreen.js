@@ -157,7 +157,7 @@ export default function InsightsScreen() {
   };
 
   const getWeeklyChartData = () => {
-    if (!weeklyData) return null;
+    if (!weeklyData || weeklyData.length === 0) return null;
 
     const labels = weeklyData.map(d => {
       const day = d.date.toLocaleDateString('en-US', { weekday: 'short' });
@@ -166,10 +166,14 @@ export default function InsightsScreen() {
 
     const data = weeklyData.map(d => d.calories);
 
+    // Ensure we have at least some valid data
+    const hasData = data.some(val => val > 0);
+    if (!hasData) return null;
+
     return {
       labels,
       datasets: [{
-        data: data.length > 0 ? data : [0],
+        data: data,
         color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
         strokeWidth: 3
       }]
@@ -221,6 +225,8 @@ export default function InsightsScreen() {
   const chartConfig = {
     backgroundGradientFrom: theme.colors.surface,
     backgroundGradientTo: theme.colors.surface,
+    backgroundGradientFromOpacity: 0,
+    backgroundGradientToOpacity: 0,
     decimalPlaces: 0,
     color: (opacity = 1) => colorScheme === 'dark'
       ? `rgba(241, 245, 249, ${opacity})`
@@ -240,7 +246,8 @@ export default function InsightsScreen() {
       strokeDasharray: '',
       stroke: colorScheme === 'dark' ? '#334155' : '#E2E8F0',
       strokeWidth: 1
-    }
+    },
+    useShadowColorFromDataset: false
   };
 
   const weeklyChartData = getWeeklyChartData();
@@ -270,7 +277,7 @@ export default function InsightsScreen() {
       </View>
 
       {/* Weekly Calorie Chart */}
-      {weeklyChartData && (
+      {weeklyChartData && weeklyChartData.datasets && weeklyChartData.datasets[0].data.length > 0 && (
         <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
           <Card.Content>
             <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
@@ -293,6 +300,8 @@ export default function InsightsScreen() {
               withDots={true}
               withShadow={false}
               fromZero={true}
+              yAxisSuffix=""
+              yAxisInterval={1}
             />
           </Card.Content>
         </Card>
@@ -319,7 +328,8 @@ export default function InsightsScreen() {
                 paddingLeft="0"
                 center={[10, 0]}
                 hasLegend={true}
-                absolute={false}
+                absolute
+                avoidFalseZero
               />
             </View>
           </Card.Content>
