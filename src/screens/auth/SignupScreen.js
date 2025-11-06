@@ -22,6 +22,13 @@ export default function SignupScreen({ navigation }) {
   const [error, setError] = useState('');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
 
+  // Redirect to onboarding if not completed
+  React.useEffect(() => {
+    if (!onboardingData?.dailyCalorieTarget) {
+      navigation.replace('ConversationalOnboarding');
+    }
+  }, []);
+
   const handleSignup = async () => {
     if (!email || !password || !confirmPassword) {
       setError('Please fill in all fields');
@@ -41,14 +48,22 @@ export default function SignupScreen({ navigation }) {
       return;
     }
 
+    // Check if onboarding is completed
+    if (!onboardingData?.dailyCalorieTarget) {
+      setError('Please complete onboarding first');
+      setSnackbarVisible(true);
+      navigation.replace('ConversationalOnboarding');
+      return;
+    }
+
     setLoading(true);
     try {
       // Create auth account
       const userCredential = await authService.signup(email, password);
       const userId = userCredential.user.uid;
 
-      // Calculate daily calorie target if not set
-      const dailyCalorieTarget = onboardingData.dailyCalorieTarget || calculateTargetCalories();
+      // Use onboarding data for calorie target
+      const dailyCalorieTarget = onboardingData.dailyCalorieTarget;
 
       // Save all onboarding data to user profile
       const profileData = {
