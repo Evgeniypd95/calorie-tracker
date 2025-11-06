@@ -9,6 +9,7 @@ import SetCaloriesScreen from './src/screens/onboarding/SetCaloriesScreen';
 
 const lightTheme = {
   ...MD3LightTheme,
+  fonts: MD3LightTheme.fonts,
   colors: {
     ...MD3LightTheme.colors,
     primary: '#6366F1', // Modern indigo
@@ -30,6 +31,7 @@ const lightTheme = {
 
 const darkTheme = {
   ...MD3DarkTheme,
+  fonts: MD3DarkTheme.fonts,
   colors: {
     ...MD3DarkTheme.colors,
     primary: '#818CF8', // Lighter indigo for dark mode
@@ -106,7 +108,25 @@ export default function App() {
               text: darkTheme.colors.onBackground,
               border: darkTheme.colors.outline,
               notification: darkTheme.colors.primary,
-            }
+            },
+            fonts: {
+              regular: {
+                fontFamily: 'System',
+                fontWeight: '400',
+              },
+              medium: {
+                fontFamily: 'System',
+                fontWeight: '500',
+              },
+              bold: {
+                fontFamily: 'System',
+                fontWeight: '600',
+              },
+              heavy: {
+                fontFamily: 'System',
+                fontWeight: '700',
+              },
+            },
           } : {
             dark: false,
             colors: {
@@ -116,7 +136,25 @@ export default function App() {
               text: lightTheme.colors.onBackground,
               border: lightTheme.colors.outline,
               notification: lightTheme.colors.primary,
-            }
+            },
+            fonts: {
+              regular: {
+                fontFamily: 'System',
+                fontWeight: '400',
+              },
+              medium: {
+                fontFamily: 'System',
+                fontWeight: '500',
+              },
+              bold: {
+                fontFamily: 'System',
+                fontWeight: '600',
+              },
+              heavy: {
+                fontFamily: 'System',
+                fontWeight: '700',
+              },
+            },
           }}>
             <AppContent />
           </NavigationContainer>
