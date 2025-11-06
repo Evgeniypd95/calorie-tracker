@@ -372,9 +372,44 @@ export default function DashboardScreen({ navigation }) {
   const carbsTarget = userProfile?.carbsTarget || 200;
   const fatTarget = userProfile?.fatTarget || 65;
 
-  // Streak calculation
+  // Calculate weekly logs from actual data
+  const [weeklyMealsData, setWeeklyMealsData] = useState([]);
+
+  useEffect(() => {
+    const loadWeeklyData = async () => {
+      if (!user) return;
+
+      // Get last 7 days
+      const last7Days = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        last7Days.push(date);
+      }
+
+      // Get meals for each day
+      const allMeals = await mealService.getUserMeals(user.uid, 7);
+
+      const daysWithMeals = last7Days.map(date => {
+        const dayMeals = allMeals.filter(meal => {
+          const mealDate = meal.date?.toDate?.() || new Date(meal.date);
+          return (
+            mealDate.getDate() === date.getDate() &&
+            mealDate.getMonth() === date.getMonth() &&
+            mealDate.getFullYear() === date.getFullYear()
+          );
+        });
+        return dayMeals.length > 0;
+      });
+
+      setWeeklyMealsData(daysWithMeals);
+    };
+
+    loadWeeklyData();
+  }, [user, meals]); // Recalculate when meals change
+
+  const weeklyLogs = weeklyMealsData.filter(Boolean).length;
   const currentStreak = userProfile?.streakCount || 0;
-  const weeklyLogs = 5; // This should come from actual calculation
 
   // Right swipe actions (duplicate)
   const renderRightActions = (meal) => {
@@ -501,13 +536,18 @@ export default function DashboardScreen({ navigation }) {
                     This week: {weeklyLogs}/7 days
                   </Text>
                   <View style={styles.weeklyDots}>
-                    {[...Array(7)].map((_, i) => (
+                    {weeklyMealsData.length === 7 ? weeklyMealsData.map((hasLog, i) => (
                       <View
                         key={i}
                         style={[
                           styles.weeklyDot,
-                          i < weeklyLogs && styles.weeklyDotActive
+                          hasLog && styles.weeklyDotActive
                         ]}
+                      />
+                    )) : [...Array(7)].map((_, i) => (
+                      <View
+                        key={i}
+                        style={styles.weeklyDot}
                       />
                     ))}
                   </View>
