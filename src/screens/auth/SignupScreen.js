@@ -4,8 +4,9 @@ import { TextInput, Button, Text, Snackbar } from 'react-native-paper';
 import { authService, userService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 
-export default function SignupScreen({ navigation }) {
+export default function SignupScreen({ navigation, route }) {
   const { refreshUserProfile } = useAuth();
+  const onboardingData = route.params || {};
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -38,15 +39,33 @@ export default function SignupScreen({ navigation }) {
       const userCredential = await authService.signup(email, password);
       const userId = userCredential.user.uid;
 
-      // Create basic profile
+      // Create profile with onboarding data
       const profileData = {
         email,
-        createdAt: new Date()
+        createdAt: new Date(),
+        // Save onboarding data if available
+        ...(onboardingData.name && { name: onboardingData.name }),
+        ...(onboardingData.age && { age: onboardingData.age }),
+        ...(onboardingData.weight && { weight: onboardingData.weight }),
+        ...(onboardingData.weightUnit && { weightUnit: onboardingData.weightUnit }),
+        ...(onboardingData.height && { height: onboardingData.height }),
+        ...(onboardingData.heightUnit && { heightUnit: onboardingData.heightUnit }),
+        ...(onboardingData.gender && { gender: onboardingData.gender }),
+        ...(onboardingData.goal && { goal: onboardingData.goal }),
+        ...(onboardingData.activityLevel && { activityLevel: onboardingData.activityLevel }),
+        ...(onboardingData.workoutsPerWeek && { workoutsPerWeek: onboardingData.workoutsPerWeek }),
+        // Save calculated plan if available
+        ...(onboardingData.calculatedPlan && {
+          dailyCalorieTarget: onboardingData.calculatedPlan.dailyCalories,
+          proteinTarget: onboardingData.calculatedPlan.protein,
+          carbsTarget: onboardingData.calculatedPlan.carbs,
+          fatTarget: onboardingData.calculatedPlan.fat
+        })
       };
 
       await userService.createUserProfile(userId, profileData);
 
-      // Refresh profile - will show SetCaloriesScreen next
+      // Refresh profile
       setTimeout(async () => {
         await refreshUserProfile();
       }, 500);
