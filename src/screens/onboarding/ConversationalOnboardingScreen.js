@@ -17,6 +17,7 @@ const calculateTDEEForData = (data) => {
   if (gender === 'MALE') {
     bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) + 5;
   } else {
+    // Use female formula for FEMALE and OTHER
     bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) - 161;
   }
 
@@ -140,7 +141,7 @@ export default function ConversationalOnboardingScreen({ navigation }) {
       setGeneratedPlan(plan);
 
       const goalEmoji = data.goal === 'LOSE_WEIGHT' ? '🎯' : data.goal === 'BUILD_MUSCLE' ? '💪' : '⚖️';
-      setAiMessage(`${goalEmoji} Here's your personalized plan:\n\nBased on your stats, your maintenance is ${tdee} cal/day.`);
+      setAiMessage(`${goalEmoji} Here's your personalized plan:\n\nBased on your stats, your maintenance is ${tdee} cal/day (includes basal metabolism + exercise).`);
       setConversationStage('PLAN_REVIEW');
     } catch (error) {
       console.error('Error generating plan:', error);
@@ -270,7 +271,8 @@ export default function ConversationalOnboardingScreen({ navigation }) {
                   onValueChange={(value) => setCollectedData(prev => ({ ...prev, gender: value }))}
                   buttons={[
                     { value: 'MALE', label: 'Male' },
-                    { value: 'FEMALE', label: 'Female' }
+                    { value: 'FEMALE', label: 'Female' },
+                    { value: 'OTHER', label: 'Other' }
                   ]}
                   style={styles.segmentedButtons}
                 />
@@ -297,7 +299,7 @@ export default function ConversationalOnboardingScreen({ navigation }) {
               {/* Weight */}
               <View style={styles.section}>
                 <View style={styles.labelRow}>
-                  <Text style={styles.label}>Weight</Text>
+                  <Text style={styles.label}>Current Weight</Text>
                   <Text style={styles.value}>{collectedData.weight} {collectedData.weightUnit}</Text>
                 </View>
                 <Slider
@@ -479,6 +481,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingTop: 60,  // Add space for Dynamic Island
     paddingBottom: 40
   },
   aiMessageContainer: {
