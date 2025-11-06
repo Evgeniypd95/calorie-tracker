@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Animated } from 'react-native';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Animated, TextInput, Dimensions } from 'react-native';
 import { Button, Text, Surface, Chip, ActivityIndicator, SegmentedButtons } from 'react-native-paper';
 import Slider from '@react-native-community/slider';
 import { useOnboarding } from '../../context/OnboardingContext';
+
+const { width } = Dimensions.get('window');
 
 // Helper function to calculate TDEE
 const calculateTDEEForData = (data) => {
@@ -33,6 +35,43 @@ const calculateTDEEForData = (data) => {
   return Math.round(bmr * activityMultipliers[activityLevel || 'MODERATE']);
 };
 
+// Generate example meals based on calorie target
+const generateExampleMeals = (calories, protein, carbs, fat) => {
+  const breakfastCals = Math.round(calories * 0.25);
+  const lunchCals = Math.round(calories * 0.35);
+  const dinnerCals = Math.round(calories * 0.30);
+  const snackCals = Math.round(calories * 0.10);
+
+  return [
+    {
+      type: 'Breakfast',
+      calories: breakfastCals,
+      example: breakfastCals < 400
+        ? '2 eggs, whole wheat toast, avocado'
+        : '3 eggs, oatmeal with berries, Greek yogurt'
+    },
+    {
+      type: 'Lunch',
+      calories: lunchCals,
+      example: lunchCals < 500
+        ? 'Grilled chicken salad, quinoa'
+        : 'Chicken breast, brown rice, vegetables, olive oil'
+    },
+    {
+      type: 'Dinner',
+      calories: dinnerCals,
+      example: dinnerCals < 500
+        ? 'Salmon, sweet potato, broccoli'
+        : 'Steak, pasta, mixed vegetables, cheese'
+    },
+    {
+      type: 'Snack',
+      calories: snackCals,
+      example: 'Protein shake or nuts'
+    }
+  ];
+};
+
 export default function ConversationalOnboardingScreen({ navigation }) {
   const { updateOnboardingData } = useOnboarding();
   const scrollViewRef = useRef(null);
@@ -43,12 +82,17 @@ export default function ConversationalOnboardingScreen({ navigation }) {
     age: 30,
     weight: 70,
     weightUnit: 'kg',
+    targetWeight: null,
     height: 170,
     heightUnit: 'cm',
-    gender: 'MALE'
+    gender: 'MALE',
+    deadline: null
   });
+  const [customGoalText, setCustomGoalText] = useState('');
+  const [feedbackText, setFeedbackText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [generatedPlan, setGeneratedPlan] = useState(null);
+  const [exampleMeals, setExampleMeals] = useState([]);
   const [aiMessage, setAiMessage] = useState("Hey! 👋 I'm your AI nutrition coach. Let's create your personalized plan.\n\nWhat's your main goal?");
 
   // Fade in when stage changes
@@ -65,25 +109,65 @@ export default function ConversationalOnboardingScreen({ navigation }) {
   }, [conversationStage, aiMessage]);
 
   const handleGoalSelect = (goal) => {
+    if (goal === 'OTHER') {
+      setAiMessage("Tell me about your goal - what do you want to achieve? 💭");
+      setConversationStage('CUSTOM_GOAL');
+      return;
+    }
+
     setCollectedData(prev => ({ ...prev, goal }));
 
     const goalMessages = {
       'LOSE_WEIGHT': "Great! Let's create a sustainable plan to lose weight. 🎯",
       'BUILD_MUSCLE': "Perfect! We'll focus on building muscle. 💪",
-      'MAINTAIN': "Awesome! Let's maintain your health. ⚖️",
-      'EXPLORING': "Cool! Let's explore what works for you. 🧭"
+      'MAINTAIN': "Awesome! Let's maintain your health. ⚖️"
     };
 
     setAiMessage(goalMessages[goal] + "\n\nNow tell me about yourself:");
     setConversationStage('BIOMETRICS');
   };
 
+  const handleCustomGoalSubmit = () => {
+    if (!customGoalText.trim()) return;
+
+    // Simple parsing - look for keywords
+    let parsedGoal = 'MAINTAIN';
+    const lowerText = customGoalText.toLowerCase();
+
+    if (lowerText.includes('lose') || lowerText.includes('cut') || lowerText.includes('fat') || lowerText.includes('slim')) {
+      parsedGoal = 'LOSE_WEIGHT';
+    } else if (lowerText.includes('gain') || lowerText.includes('muscle') || lowerText.includes('bulk') || lowerText.includes('build')) {
+      parsedGoal = 'BUILD_MUSCLE';
+    }
+
+    setCollectedData(prev => ({ ...prev, goal: parsedGoal, customGoal: customGoalText }));
+    setAiMessage(`Got it! I'll help you with that. 💪\n\nNow tell me about yourself:`);
+    setConversationStage('BIOMETRICS');
+  };
+
   const handleBiometricsComplete = () => {
-    setAiMessage("Perfect! One last thing - how active are you?");
+    const needsTargetWeight = collectedData.goal === 'LOSE_WEIGHT' || collectedData.goal === 'BUILD_MUSCLE';
+
+    if (needsTargetWeight) {
+      const defaultTarget = collectedData.goal === 'LOSE_WEIGHT'
+        ? Math.round(collectedData.weight * 0.9)
+        : Math.round(collectedData.weight * 1.05);
+
+      setCollectedData(prev => ({ ...prev, targetWeight: defaultTarget }));
+      setAiMessage(`What's your target weight? 🎯`);
+      setConversationStage('TARGET_WEIGHT');
+    } else {
+      setAiMessage("Perfect! How active are you?");
+      setConversationStage('ACTIVITY');
+    }
+  };
+
+  const handleTargetWeightComplete = () => {
+    setAiMessage("Perfect! How active are you?");
     setConversationStage('ACTIVITY');
   };
 
-  const handleActivitySelect = async (workouts) => {
+  const handleActivitySelect = (workouts) => {
     let activityLevel = 'MODERATE';
     if (workouts === 0) activityLevel = 'SEDENTARY';
     else if (workouts <= 2) activityLevel = 'LIGHT';
@@ -91,16 +175,46 @@ export default function ConversationalOnboardingScreen({ navigation }) {
     else if (workouts <= 6) activityLevel = 'ACTIVE';
     else activityLevel = 'VERY_ACTIVE';
 
-    const finalData = {
-      ...collectedData,
-      workoutsPerWeek: workouts,
-      activityLevel
-    };
+    setCollectedData(prev => ({ ...prev, workoutsPerWeek: workouts, activityLevel }));
 
-    setCollectedData(finalData);
+    // Only show deadline if there's a target weight
+    if (collectedData.targetWeight) {
+      setAiMessage("When do you want to reach your goal? ⏰\n\nPick a deadline and see your success probability:");
+      setConversationStage('DEADLINE');
+    } else {
+      proceedToAnalyzing({ ...collectedData, workoutsPerWeek: workouts, activityLevel });
+    }
+  };
+
+  const calculateDeadlineProbability = (weeks) => {
+    const weightDiff = Math.abs(collectedData.weight - collectedData.targetWeight);
+    const weeklyChange = weightDiff / weeks;
+
+    // Healthy rate: 0.5-1kg per week for loss, 0.25-0.5kg per week for gain
+    const isLoss = collectedData.goal === 'LOSE_WEIGHT';
+    const healthyMin = isLoss ? 0.5 : 0.25;
+    const healthyMax = isLoss ? 1.0 : 0.5;
+    const aggressive = isLoss ? 1.5 : 0.75;
+
+    if (weeklyChange <= healthyMax) {
+      return { probability: 95, level: 'High', color: '#10B981', description: 'Sustainable & realistic' };
+    } else if (weeklyChange <= aggressive) {
+      return { probability: 70, level: 'Moderate', color: '#F59E0B', description: 'Challenging but possible' };
+    } else if (weeklyChange <= aggressive * 1.5) {
+      return { probability: 40, level: 'Low', color: '#EF4444', description: 'Very aggressive' };
+    } else {
+      return { probability: 10, level: 'Very Low', color: '#DC2626', description: 'Extremely difficult' };
+    }
+  };
+
+  const handleDeadlineSelect = (weeks) => {
+    setCollectedData(prev => ({ ...prev, deadline: weeks }));
+    proceedToAnalyzing({ ...collectedData, deadline: weeks });
+  };
+
+  const proceedToAnalyzing = async (finalData) => {
     setAiMessage("Analyzing your profile... 🧠");
     setConversationStage('ANALYZING');
-
     await generatePersonalizedPlan(finalData);
   };
 
@@ -110,23 +224,42 @@ export default function ConversationalOnboardingScreen({ navigation }) {
     try {
       await updateOnboardingData({
         goal: data.goal,
+        customGoal: data.customGoal,
         age: data.age,
         weight: data.weight,
+        targetWeight: data.targetWeight,
         height: data.height,
         weightUnit: data.weightUnit,
         heightUnit: data.heightUnit,
         gender: data.gender,
         workoutsPerWeek: data.workoutsPerWeek,
         activityLevel: data.activityLevel,
+        deadline: data.deadline,
         bodyType: 'MESOMORPH'
       });
 
       const tdee = calculateTDEEForData(data);
 
-      // Calculate plan based on goal
+      // Calculate plan based on goal and deadline
       let dailyCalories = tdee;
-      if (data.goal === 'LOSE_WEIGHT') dailyCalories = Math.round(tdee * 0.85);
-      else if (data.goal === 'BUILD_MUSCLE') dailyCalories = Math.round(tdee * 1.10);
+
+      if (data.targetWeight && data.deadline) {
+        const weightDiff = data.weight - data.targetWeight; // positive = need to lose
+        const totalWeeks = data.deadline;
+        const weeklyChange = weightDiff / totalWeeks; // kg per week
+        const dailyCalorieDeficit = (weeklyChange * 7700) / 7; // 7700 cal per kg of fat
+
+        dailyCalories = Math.round(tdee - dailyCalorieDeficit);
+
+        // Safety bounds
+        const minCalories = data.gender === 'MALE' ? 1500 : 1200;
+        const maxCalories = tdee * 1.2;
+        dailyCalories = Math.max(minCalories, Math.min(maxCalories, dailyCalories));
+      } else if (data.goal === 'LOSE_WEIGHT') {
+        dailyCalories = Math.round(tdee * 0.85);
+      } else if (data.goal === 'BUILD_MUSCLE') {
+        dailyCalories = Math.round(tdee * 1.10);
+      }
 
       const plan = {
         tdee,
@@ -140,6 +273,10 @@ export default function ConversationalOnboardingScreen({ navigation }) {
 
       setGeneratedPlan(plan);
 
+      // Generate example meals
+      const meals = generateExampleMeals(plan.dailyCalories, plan.protein, plan.carbs, plan.fat);
+      setExampleMeals(meals);
+
       const goalEmoji = data.goal === 'LOSE_WEIGHT' ? '🎯' : data.goal === 'BUILD_MUSCLE' ? '💪' : '⚖️';
       setAiMessage(`${goalEmoji} Here's your personalized plan:\n\nBased on your stats, your maintenance is ${tdee} cal/day (includes basal metabolism + exercise).`);
       setConversationStage('PLAN_REVIEW');
@@ -151,7 +288,21 @@ export default function ConversationalOnboardingScreen({ navigation }) {
     }
   };
 
-  const handlePlanApprove = () => {
+  const handlePlanContinue = () => {
+    setAiMessage("Here's what a typical day could look like: 🍽️");
+    setConversationStage('FOOD_PREVIEW');
+  };
+
+  const handleFoodPreviewContinue = () => {
+    setAiMessage("Any thoughts or adjustments you'd like to make? 💭");
+    setConversationStage('FEEDBACK');
+  };
+
+  const handleFeedbackSubmit = () => {
+    if (feedbackText.trim()) {
+      updateOnboardingData({ userFeedback: feedbackText });
+    }
+
     updateOnboardingData({
       dailyCalorieTarget: generatedPlan.dailyCalories,
       proteinTarget: generatedPlan.protein,
@@ -176,6 +327,10 @@ export default function ConversationalOnboardingScreen({ navigation }) {
       fat: Math.round((newCalories * 0.30) / 9),
     };
     setGeneratedPlan(adjusted);
+
+    // Update example meals
+    const meals = generateExampleMeals(adjusted.dailyCalories, adjusted.protein, adjusted.carbs, adjusted.fat);
+    setExampleMeals(meals);
   };
 
   const adjustProtein = (amount) => {
@@ -201,6 +356,15 @@ export default function ConversationalOnboardingScreen({ navigation }) {
     };
     setGeneratedPlan(adjusted);
   };
+
+  // Deadline options in weeks
+  const deadlineOptions = collectedData.targetWeight
+    ? [4, 8, 12, 16, 24, 36].map(weeks => ({
+        weeks,
+        label: weeks < 8 ? `${weeks} weeks` : `${Math.round(weeks/4)} months`,
+        ...calculateDeadlineProbability(weeks)
+      }))
+    : [];
 
   return (
     <KeyboardAvoidingView
@@ -249,13 +413,38 @@ export default function ConversationalOnboardingScreen({ navigation }) {
               </Chip>
               <Chip
                 mode="outlined"
-                onPress={() => handleGoalSelect('EXPLORING')}
+                onPress={() => handleGoalSelect('OTHER')}
                 style={styles.goalChip}
                 textStyle={styles.chipText}
               >
-                🧭 Just exploring
+                ✨ Other
               </Chip>
             </View>
+          </Animated.View>
+        )}
+
+        {/* Custom Goal Input */}
+        {conversationStage === 'CUSTOM_GOAL' && (
+          <Animated.View style={[styles.interactionContainer, { opacity: fadeAnim }]}>
+            <Surface style={styles.inputCard}>
+              <TextInput
+                style={styles.textInput}
+                placeholder="E.g., I want to lose belly fat and feel more energetic..."
+                multiline
+                numberOfLines={4}
+                value={customGoalText}
+                onChangeText={setCustomGoalText}
+                placeholderTextColor="#94A3B8"
+              />
+              <Button
+                mode="contained"
+                onPress={handleCustomGoalSubmit}
+                style={styles.continueButton}
+                disabled={!customGoalText.trim()}
+              >
+                Continue
+              </Button>
+            </Surface>
           </Animated.View>
         )}
 
@@ -343,6 +532,43 @@ export default function ConversationalOnboardingScreen({ navigation }) {
           </Animated.View>
         )}
 
+        {/* Target Weight */}
+        {conversationStage === 'TARGET_WEIGHT' && (
+          <Animated.View style={[styles.interactionContainer, { opacity: fadeAnim }]}>
+            <Surface style={styles.inputCard}>
+              <View style={styles.section}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Target Weight</Text>
+                  <Text style={styles.value}>{collectedData.targetWeight} {collectedData.weightUnit}</Text>
+                </View>
+                <Slider
+                  value={collectedData.targetWeight}
+                  onValueChange={(val) => setCollectedData(prev => ({ ...prev, targetWeight: Math.round(val) }))}
+                  minimumValue={collectedData.weightUnit === 'kg' ? 40 : 90}
+                  maximumValue={collectedData.weightUnit === 'kg' ? 150 : 330}
+                  minimumTrackTintColor="#6366F1"
+                  maximumTrackTintColor="#CBD5E1"
+                  thumbTintColor="#6366F1"
+                  step={1}
+                />
+                <Text style={styles.helperText}>
+                  {Math.abs(collectedData.weight - collectedData.targetWeight)} {collectedData.weightUnit} {
+                    collectedData.weight > collectedData.targetWeight ? 'to lose' : 'to gain'
+                  }
+                </Text>
+              </View>
+
+              <Button
+                mode="contained"
+                onPress={handleTargetWeightComplete}
+                style={styles.continueButton}
+              >
+                Continue
+              </Button>
+            </Surface>
+          </Animated.View>
+        )}
+
         {/* Activity Selection */}
         {conversationStage === 'ACTIVITY' && (
           <Animated.View style={[styles.interactionContainer, { opacity: fadeAnim }]}>
@@ -363,6 +589,44 @@ export default function ConversationalOnboardingScreen({ navigation }) {
                 ⚡ Every day
               </Chip>
             </View>
+          </Animated.View>
+        )}
+
+        {/* Deadline Selection with Probability Chart */}
+        {conversationStage === 'DEADLINE' && (
+          <Animated.View style={[styles.interactionContainer, { opacity: fadeAnim }]}>
+            <Surface style={styles.inputCard}>
+              {deadlineOptions.map((option, index) => (
+                <View key={index} style={styles.deadlineOption}>
+                  <View style={styles.deadlineHeader}>
+                    <Text style={styles.deadlineLabel}>{option.label}</Text>
+                    <Text style={[styles.deadlineProbability, { color: option.color }]}>
+                      {option.probability}% success
+                    </Text>
+                  </View>
+
+                  <View style={styles.progressBarContainer}>
+                    <View
+                      style={[
+                        styles.progressBar,
+                        { width: `${option.probability}%`, backgroundColor: option.color }
+                      ]}
+                    />
+                  </View>
+
+                  <Text style={styles.deadlineDescription}>{option.description}</Text>
+
+                  <Button
+                    mode={option.probability >= 70 ? "contained" : "outlined"}
+                    onPress={() => handleDeadlineSelect(option.weeks)}
+                    style={styles.deadlineButton}
+                    compact
+                  >
+                    Choose {option.label}
+                  </Button>
+                </View>
+              ))}
+            </Surface>
           </Animated.View>
         )}
 
@@ -457,11 +721,67 @@ export default function ConversationalOnboardingScreen({ navigation }) {
 
               <Button
                 mode="contained"
-                onPress={handlePlanApprove}
+                onPress={handlePlanContinue}
                 style={styles.approveButton}
-                icon="check-circle"
+                icon="arrow-right"
               >
-                Looks perfect!
+                See what I'll eat
+              </Button>
+            </Surface>
+          </Animated.View>
+        )}
+
+        {/* Food Preview */}
+        {conversationStage === 'FOOD_PREVIEW' && (
+          <Animated.View style={[styles.interactionContainer, { opacity: fadeAnim }]}>
+            <Surface style={styles.foodPreviewCard}>
+              {exampleMeals.map((meal, index) => (
+                <View key={index} style={styles.mealPreview}>
+                  <View style={styles.mealPreviewHeader}>
+                    <Text style={styles.mealPreviewType}>{meal.type}</Text>
+                    <Text style={styles.mealPreviewCalories}>{meal.calories} cal</Text>
+                  </View>
+                  <Text style={styles.mealPreviewExample}>{meal.example}</Text>
+                </View>
+              ))}
+
+              <View style={styles.foodPreviewNote}>
+                <Text style={styles.foodPreviewNoteText}>
+                  💡 These are examples - you can log any food that fits your targets!
+                </Text>
+              </View>
+
+              <Button
+                mode="contained"
+                onPress={handleFoodPreviewContinue}
+                style={styles.continueButton}
+                icon="arrow-right"
+              >
+                Continue
+              </Button>
+            </Surface>
+          </Animated.View>
+        )}
+
+        {/* Feedback Input */}
+        {conversationStage === 'FEEDBACK' && (
+          <Animated.View style={[styles.interactionContainer, { opacity: fadeAnim }]}>
+            <Surface style={styles.inputCard}>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Any preferences, restrictions, or thoughts? (Optional)"
+                multiline
+                numberOfLines={4}
+                value={feedbackText}
+                onChangeText={setFeedbackText}
+                placeholderTextColor="#94A3B8"
+              />
+              <Button
+                mode="contained"
+                onPress={handleFeedbackSubmit}
+                style={styles.continueButton}
+              >
+                {feedbackText.trim() ? 'Submit & Continue' : 'Skip'}
               </Button>
             </Surface>
           </Animated.View>
@@ -532,6 +852,16 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  textInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#1E293B',
+    marginBottom: 16,
+    minHeight: 100,
+    textAlignVertical: 'top'
+  },
   section: {
     marginBottom: 24
   },
@@ -552,11 +882,58 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#6366F1'
   },
+  helperText: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 8,
+    textAlign: 'center',
+    fontWeight: '600'
+  },
   segmentedButtons: {
     backgroundColor: 'transparent'
   },
   continueButton: {
     marginTop: 8
+  },
+  deadlineOption: {
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0'
+  },
+  deadlineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  deadlineLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B'
+  },
+  deadlineProbability: {
+    fontSize: 14,
+    fontWeight: '700'
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+    marginBottom: 8,
+    overflow: 'hidden'
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 4
+  },
+  deadlineDescription: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 12
+  },
+  deadlineButton: {
+    marginTop: 4
   },
   loadingContainer: {
     padding: 40,
@@ -641,5 +1018,53 @@ const styles = StyleSheet.create({
   },
   approveButton: {
     paddingVertical: 6
+  },
+  foodPreviewCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 12px rgba(0, 0, 0, 0.08)',
+      },
+    }),
+  },
+  mealPreview: {
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0'
+  },
+  mealPreviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  mealPreviewType: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B'
+  },
+  mealPreviewCalories: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6366F1'
+  },
+  mealPreviewExample: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20
+  },
+  foodPreviewNote: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16
+  },
+  foodPreviewNoteText: {
+    fontSize: 14,
+    color: '#0369A1',
+    lineHeight: 20
   }
 });
