@@ -70,7 +70,16 @@ function AppContent() {
     );
   }
 
-  // Authenticated - show main app
+  // User authenticated but hasn't completed onboarding (no calorie target)
+  if (user && userProfile && !userProfile.dailyCalorieTarget) {
+    return (
+      <OnboardingProvider>
+        <AuthNavigator />
+      </OnboardingProvider>
+    );
+  }
+
+  // Authenticated and onboarded - show main app
   return <MainNavigator />;
 }
 
