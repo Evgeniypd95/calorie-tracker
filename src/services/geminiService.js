@@ -290,10 +290,9 @@ export const chatOnboarding = async (conversationHistory, userMessage) => {
       response = `Perfect! 🎯 Based on everything you've shared, I've calculated your personalized nutrition plan.\n\nYou'll be eating around ${targetCalories} calories per day. This ${allData.goal === 'LOSE_WEIGHT' ? 'creates a healthy deficit for weight loss' : allData.goal === 'BUILD_MUSCLE' ? 'provides a surplus to support muscle growth' : 'maintains your current weight'} while keeping your energy levels up!\n\nWhat do you think? Feel free to give me feedback or click "Finish & Create Account" when you're ready!`;
     } else {
       // Need more info
-      if (!allData.name) {
-        response = "Nice to meet you! What's your name?";
-      } else if (!allData.age || !allData.weight || !allData.height || !allData.gender) {
-        response = `Thanks ${allData.name}! To create your plan, I need to know your age, weight, height, and gender.`;
+      if (!allData.age || !allData.weight || !allData.height || !allData.gender) {
+        const greeting = allData.name ? `Thanks ${allData.name}!` : "Thanks for sharing!";
+        response = `${greeting} To create your plan, I need to know your age, weight, height, and gender.`;
       } else if (!allData.goal) {
         response = "Got it! What's your main fitness goal? Are you looking to lose weight, build muscle, or maintain?";
       } else if (!allData.activityLevel) {

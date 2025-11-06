@@ -68,7 +68,7 @@ export default function SignupScreen({ navigation }) {
       // Save ONLY data captured in conversational onboarding
       const profileData = {
         email,
-        name: onboardingData.name || 'User',
+        name: onboardingData.name || null, // Name is optional
         age: onboardingData.age,
         weight: onboardingData.weight,
         height: onboardingData.height,
