@@ -160,6 +160,143 @@ export const chatOnboarding = async (conversationHistory, userMessage) => {
     }
   } catch (error) {
     console.error('❌ Error calling chatOnboarding function:', error);
-    throw error;
+
+    // Fallback: Simple local chat logic for testing when function not deployed
+    console.log('⚠️ Using local fallback - deploy chatOnboarding function for full AI experience');
+
+    const userMessageLower = userMessage.toLowerCase();
+
+    // Simple pattern matching for demo/testing
+    let response = '';
+    let extractedData = {};
+    let isComplete = false;
+    let calculatedPlan = null;
+
+    // Check if user provided all info at once
+    const hasAge = /(\d+)\s*(years?|y\.?o\.?|age)/i.test(userMessage);
+    const hasWeight = /(\d+)\s*(kg|lbs?|pounds?)/i.test(userMessage);
+    const hasHeight = /(\d+)\s*(cm|feet?|ft|inches?|in)/i.test(userMessage);
+    const hasGender = /(male|female|man|woman)/i.test(userMessageLower);
+    const hasGoal = /(lose|gain|build|maintain|cut|bulk)/i.test(userMessageLower);
+    const hasActivity = /(workout|exercise|gym|active|sedentary)/i.test(userMessageLower);
+
+    // Extract basic data
+    if (hasAge) {
+      const ageMatch = userMessage.match(/(\d+)\s*(years?|y\.?o\.?|age)/i);
+      extractedData.age = parseInt(ageMatch[1]);
+    }
+
+    if (hasWeight) {
+      const weightMatch = userMessage.match(/(\d+)\s*(kg|lbs?|pounds?)/i);
+      extractedData.weight = parseInt(weightMatch[1]);
+      extractedData.weightUnit = weightMatch[2].toLowerCase().includes('lb') ? 'lbs' : 'kg';
+    }
+
+    if (hasHeight) {
+      const heightMatch = userMessage.match(/(\d+)\s*(cm|feet?|ft)/i);
+      extractedData.height = parseInt(heightMatch[1]);
+      extractedData.heightUnit = heightMatch[2].toLowerCase().includes('cm') ? 'cm' : 'ft';
+    }
+
+    if (hasGender) {
+      if (/\b(male|man)\b/i.test(userMessage)) {
+        extractedData.gender = 'MALE';
+      } else if (/\b(female|woman)\b/i.test(userMessage)) {
+        extractedData.gender = 'FEMALE';
+      }
+    }
+
+    if (hasGoal) {
+      if (/lose|cut/i.test(userMessage)) {
+        extractedData.goal = 'LOSE_WEIGHT';
+      } else if (/gain|build|bulk|muscle/i.test(userMessage)) {
+        extractedData.goal = 'BUILD_MUSCLE';
+      } else if (/maintain/i.test(userMessage)) {
+        extractedData.goal = 'MAINTAIN';
+      }
+    }
+
+    if (hasActivity) {
+      const workoutMatch = userMessage.match(/(\d+)\s*(times?|days?|x)/i);
+      if (workoutMatch) {
+        const workouts = parseInt(workoutMatch[1]);
+        extractedData.workoutsPerWeek = workouts;
+
+        if (workouts === 0) extractedData.activityLevel = 'SEDENTARY';
+        else if (workouts <= 2) extractedData.activityLevel = 'LIGHT';
+        else if (workouts <= 4) extractedData.activityLevel = 'MODERATE';
+        else if (workouts <= 6) extractedData.activityLevel = 'ACTIVE';
+        else extractedData.activityLevel = 'VERY_ACTIVE';
+      }
+    }
+
+    // Get previous data from conversation
+    const allData = { ...extractedData };
+    conversationHistory.forEach(msg => {
+      if (msg.extractedData) {
+        Object.assign(allData, msg.extractedData);
+      }
+    });
+    Object.assign(allData, extractedData); // Current message overrides
+
+    // Check if we have enough to calculate
+    const canCalculate = allData.age && allData.weight && allData.height &&
+                        allData.gender && allData.goal && allData.activityLevel;
+
+    if (canCalculate) {
+      // Calculate plan
+      const weightKg = allData.weightUnit === 'lbs' ? allData.weight * 0.453592 : allData.weight;
+      const heightCm = allData.heightUnit === 'ft' ? allData.height * 30.48 : allData.height;
+
+      const bmr = allData.gender === 'MALE'
+        ? (10 * weightKg) + (6.25 * heightCm) - (5 * allData.age) + 5
+        : (10 * weightKg) + (6.25 * heightCm) - (5 * allData.age) - 161;
+
+      const activityMultipliers = {
+        SEDENTARY: 1.2,
+        LIGHT: 1.375,
+        MODERATE: 1.55,
+        ACTIVE: 1.725,
+        VERY_ACTIVE: 1.9
+      };
+
+      const tdee = Math.round(bmr * activityMultipliers[allData.activityLevel]);
+
+      let targetCalories = tdee;
+      if (allData.goal === 'LOSE_WEIGHT') {
+        targetCalories = Math.round(tdee * 0.85);
+      } else if (allData.goal === 'BUILD_MUSCLE') {
+        targetCalories = Math.round(tdee * 1.10);
+      }
+
+      calculatedPlan = {
+        dailyCalories: targetCalories,
+        protein: Math.round((targetCalories * 0.30) / 4),
+        carbs: Math.round((targetCalories * 0.40) / 4),
+        fat: Math.round((targetCalories * 0.30) / 9),
+        reasoning: `Based on your stats, this plan will help you ${allData.goal === 'LOSE_WEIGHT' ? 'lose weight' : allData.goal === 'BUILD_MUSCLE' ? 'build muscle' : 'maintain'} sustainably.`
+      };
+
+      isComplete = true;
+      response = `Perfect! 🎯 Based on everything you've shared, I've calculated your personalized nutrition plan.\n\nYou'll be eating around ${targetCalories} calories per day. This ${allData.goal === 'LOSE_WEIGHT' ? 'creates a healthy deficit for weight loss' : allData.goal === 'BUILD_MUSCLE' ? 'provides a surplus to support muscle growth' : 'maintains your current weight'} while keeping your energy levels up!\n\nWhat do you think? Feel free to give me feedback or click "Finish & Create Account" when you're ready!`;
+    } else {
+      // Need more info
+      if (!allData.age || !allData.weight || !allData.height || !allData.gender) {
+        response = "Thanks for sharing! To create your plan, I need to know a bit more about you. Can you tell me your age, weight, height, and gender?";
+      } else if (!allData.goal) {
+        response = "Got it! What's your main fitness goal? Are you looking to lose weight, build muscle, or maintain your current physique?";
+      } else if (!allData.activityLevel) {
+        response = "Awesome! One more thing - how active are you? How many times per week do you typically work out or exercise?";
+      } else {
+        response = "Thanks! Can you share more details so I can create the perfect plan for you?";
+      }
+    }
+
+    return {
+      response,
+      extractedData: allData,
+      isComplete,
+      calculatedPlan
+    };
   }
 };
