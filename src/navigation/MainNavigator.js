@@ -2,10 +2,12 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColorScheme } from 'react-native';
 import DashboardScreen from '../screens/main/DashboardScreen';
 import ChatLogMealScreen from '../screens/main/ChatLogMealScreen';
 import SocialFeedScreen from '../screens/main/SocialFeedScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
+import InsightsScreen from '../screens/main/InsightsScreen';
 import { IconButton, Icon } from 'react-native-paper';
 import { authService } from '../services/firebase';
 
@@ -52,6 +54,21 @@ function SharedMealsStack() {
   );
 }
 
+function InsightsStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="InsightsMain"
+        component={InsightsScreen}
+        options={{
+          title: 'Insights',
+          headerShown: false
+        }}
+      />
+    </Stack.Navigator>
+  );
+}
+
 function ProfileStack() {
   const handleLogout = async () => {
     try {
@@ -82,17 +99,20 @@ function ProfileStack() {
 
 export default function MainNavigator() {
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
   
+  const isDark = colorScheme === 'dark';
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#6366F1',
-        tabBarInactiveTintColor: '#94A3B8',
+        tabBarInactiveTintColor: isDark ? '#64748B' : '#94A3B8',
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
           borderTopWidth: 1,
-          borderTopColor: '#E2E8F0',
+          borderTopColor: isDark ? '#334155' : '#E2E8F0',
           paddingTop: 8,
           paddingBottom: Math.max(8, insets.bottom),
           height: 64 + Math.max(0, insets.bottom - 8)
@@ -106,6 +126,16 @@ export default function MainNavigator() {
           tabBarLabel: 'My Meals',
           tabBarIcon: ({ color, size }) => (
             <Icon source="food" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Insights"
+        component={InsightsStack}
+        options={{
+          tabBarLabel: 'Insights',
+          tabBarIcon: ({ color, size }) => (
+            <Icon source="chart-line" size={size} color={color} />
           ),
         }}
       />

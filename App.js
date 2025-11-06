@@ -1,14 +1,14 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { PaperProvider, MD3LightTheme } from 'react-native-paper';
-import { ActivityIndicator, View, StyleSheet, Platform } from 'react-native';
+import { PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
+import { ActivityIndicator, View, StyleSheet, Platform, useColorScheme } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { OnboardingProvider } from './src/context/OnboardingContext';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
 import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 
-const theme = {
+const lightTheme = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
@@ -23,8 +23,30 @@ const theme = {
     onSecondary: '#FFFFFF',
     onSurface: '#1E293B',
     onSurfaceVariant: '#64748B',
+    onBackground: '#1E293B',
     outline: '#E2E8F0',
     outlineVariant: '#F1F5F9',
+  },
+};
+
+const darkTheme = {
+  ...MD3DarkTheme,
+  colors: {
+    ...MD3DarkTheme.colors,
+    primary: '#818CF8', // Lighter indigo for dark mode
+    secondary: '#A78BFA', // Lighter purple
+    tertiary: '#F472B6', // Lighter pink
+    surface: '#1E293B',
+    surfaceVariant: '#334155',
+    background: '#0F172A',
+    error: '#F87171',
+    onPrimary: '#0F172A',
+    onSecondary: '#0F172A',
+    onSurface: '#F1F5F9',
+    onSurfaceVariant: '#94A3B8',
+    onBackground: '#F1F5F9',
+    outline: '#475569',
+    outlineVariant: '#334155',
   },
 };
 
@@ -63,11 +85,34 @@ function AppContent() {
 }
 
 export default function App() {
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+
   return (
-    <View style={styles.appContainer}>
+    <View style={[styles.appContainer, { backgroundColor: theme.colors.background }]}>
       <PaperProvider theme={theme}>
         <AuthProvider>
-          <NavigationContainer>
+          <NavigationContainer theme={colorScheme === 'dark' ? {
+            dark: true,
+            colors: {
+              primary: darkTheme.colors.primary,
+              background: darkTheme.colors.background,
+              card: darkTheme.colors.surface,
+              text: darkTheme.colors.onBackground,
+              border: darkTheme.colors.outline,
+              notification: darkTheme.colors.primary,
+            }
+          } : {
+            dark: false,
+            colors: {
+              primary: lightTheme.colors.primary,
+              background: lightTheme.colors.background,
+              card: lightTheme.colors.surface,
+              text: lightTheme.colors.onBackground,
+              border: lightTheme.colors.outline,
+              notification: lightTheme.colors.primary,
+            }
+          }}>
             <AppContent />
           </NavigationContainer>
         </AuthProvider>

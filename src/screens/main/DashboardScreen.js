@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert, Platform, Animated } from 'react-native';
-import { Text, FAB, Card, Surface, IconButton, Portal, Modal, TextInput as PaperTextInput, Button, Menu } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert, Platform, Animated, useColorScheme } from 'react-native';
+import { Text, FAB, Card, Surface, IconButton, Portal, Modal, TextInput as PaperTextInput, Button, Menu, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { mealService, userService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -9,6 +9,8 @@ import CheckInModal from '../../components/CheckInModal';
 import { scoreMeal } from '../../services/mealScoringService';
 import MealGradeCard from '../../components/MealGradeCard';
 import { Swipeable } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
+import ConfettiCannon from 'react-native-confetti-cannon';
 
 // Helper function to get a date range (7 days past, today, 7 days future)
 const getDateRange = () => {
@@ -73,10 +75,13 @@ const ProgressBar = ({ current, target, color, label }) => {
 
 export default function DashboardScreen({ navigation }) {
   const { user, userProfile, refreshUserProfile } = useAuth();
+  const theme = useTheme();
+  const colorScheme = useColorScheme();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [meals, setMeals] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const calendarRef = useRef(null);
+  const confettiRef = useRef(null);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [checkInInfo, setCheckInInfo] = useState(null);
   const [editingMeal, setEditingMeal] = useState(null);
@@ -84,6 +89,7 @@ export default function DashboardScreen({ navigation }) {
   const [editDescription, setEditDescription] = useState('');
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
   const [smartSuggestions, setSmartSuggestions] = useState([]);
+  const [showGoalConfetti, setShowGoalConfetti] = useState(false);
 
   const loadMeals = async (date = selectedDate) => {
     try {
@@ -93,6 +99,24 @@ export default function DashboardScreen({ navigation }) {
       // Generate smart suggestions
       if (dayMeals.length > 0) {
         generateSmartSuggestions(dayMeals);
+      }
+
+      // Check if goal hit and trigger confetti
+      if (userProfile?.dailyCalorieTarget && dayMeals.length > 0) {
+        const totals = dayMeals.reduce((acc, meal) => ({
+          calories: acc.calories + (meal.totals?.calories || 0)
+        }), { calories: 0 });
+
+        // Hit goal within 50 calories
+        if (Math.abs(totals.calories - userProfile.dailyCalorieTarget) <= 50 && !showGoalConfetti) {
+          setShowGoalConfetti(true);
+          if (confettiRef.current) {
+            confettiRef.current.start();
+          }
+          if (Platform.OS !== 'web') {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading meals:', error);
@@ -167,7 +191,11 @@ export default function DashboardScreen({ navigation }) {
   };
 
   const handleDateSelect = (date) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
     setSelectedDate(date);
+    setShowGoalConfetti(false); // Reset confetti for new date
   };
 
   const handleCheckInComplete = async (feedback) => {
@@ -388,9 +416,20 @@ export default function DashboardScreen({ navigation }) {
   }, []);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Confetti for hitting goals */}
+      {showGoalConfetti && (
+        <ConfettiCannon
+          count={200}
+          origin={{x: -10, y: 0}}
+          autoStart={false}
+          ref={confettiRef}
+          fadeOut={true}
+        />
+      )}
+
       {/* Calendar Ribbon */}
-      <Surface style={styles.calendarRibbon} elevation={2}>
+      <Surface style={[styles.calendarRibbon, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.outline }]} elevation={2}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -544,11 +583,28 @@ export default function DashboardScreen({ navigation }) {
           </Text>
 
           {meals.length === 0 ? (
-            <Card style={styles.emptyCard}>
-              <Card.Content>
-                <Text style={styles.emptyText}>
-                  No meals logged yet. Tap + to add your first meal!
+            <Card style={[styles.emptyCard, { backgroundColor: theme.colors.surface }]}>
+              <Card.Content style={styles.emptyContent}>
+                <Text style={styles.emptyIcon}>🍽️</Text>
+                <Text variant="titleLarge" style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
+                  No meals today
                 </Text>
+                <Text variant="bodyMedium" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+                  Time to fuel up! Start tracking your nutrition.
+                </Text>
+                <Button
+                  mode="contained"
+                  onPress={() => {
+                    if (Platform.OS !== 'web') {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    }
+                    navigation.navigate('LogMeal', { selectedDate: selectedDate.toISOString() });
+                  }}
+                  style={styles.emptyButton}
+                  icon="plus"
+                >
+                  Log your first meal
+                </Button>
               </Card.Content>
             </Card>
           ) : (
@@ -927,7 +983,6 @@ const styles = StyleSheet.create({
   },
   emptyCard: {
     marginBottom: 16,
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     ...Platform.select({
       web: {
@@ -935,12 +990,28 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  emptyContent: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16
+  },
+  emptyTitle: {
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center'
+  },
   emptyText: {
     textAlign: 'center',
-    color: '#94A3B8',
     fontSize: 15,
     lineHeight: 22,
-    paddingVertical: 8
+    marginBottom: 24
+  },
+  emptyButton: {
+    paddingHorizontal: 24
   },
   mealCard: {
     marginBottom: 16,
