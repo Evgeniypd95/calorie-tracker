@@ -13,8 +13,7 @@ import {
   where,
   getDocs,
   updateDoc,
-  deleteDoc,
-  serverTimestamp
+  deleteDoc
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase.config';
 
@@ -48,15 +47,19 @@ export const userService = {
       followers: [],
       streakCount: 0,
       lastLogDate: null,
-      createdAt: serverTimestamp()
+      createdAt: new Date()
     };
 
     console.log('💾 Saving to Firestore:', dataToSave);
 
-    await setDoc(doc(db, 'users', userId), dataToSave);
-
-    console.log('✅ Profile saved successfully. Personal code:', personalCode);
-    return personalCode;
+    try {
+      await setDoc(doc(db, 'users', userId), dataToSave);
+      console.log('✅ Profile saved successfully. Personal code:', personalCode);
+      return personalCode;
+    } catch (error) {
+      console.error('❌ Error saving profile to Firestore:', error);
+      throw error;
+    }
   },
 
   getUserProfile: async (userId) => {
@@ -79,16 +82,21 @@ export const userService = {
 
 export const mealService = {
   logMeal: async (userId, mealData) => {
-    const mealRef = await addDoc(collection(db, 'meals'), {
-      userId,
-      ...mealData,
-      createdAt: serverTimestamp()
-    });
+    try {
+      const mealRef = await addDoc(collection(db, 'meals'), {
+        userId,
+        ...mealData,
+        createdAt: new Date()
+      });
 
-    // Update streak
-    await updateStreak(userId);
+      // Update streak
+      await updateStreak(userId);
 
-    return mealRef.id;
+      return mealRef.id;
+    } catch (error) {
+      console.error('❌ Error logging meal:', error);
+      throw error;
+    }
   },
 
   getTodaysMeals: async (userId) => {
@@ -238,7 +246,7 @@ export const mealService = {
       items: meal.items,
       totals: meal.totals,
       date: targetDate,
-      createdAt: serverTimestamp()
+      createdAt: new Date()
     };
 
     const mealRef = await addDoc(collection(db, 'meals'), duplicatedMeal);
