@@ -22,7 +22,7 @@ const genAI = new GoogleGenerativeAI(
  * Convert meal image to text description using Gemini Vision
  * Requires authentication
  */
-export const imageToDescription = onCall(async (request) => {
+export const imageToDescription = onCall(async (request: any) => {
   console.log("🔐 imageToDescription called");
   console.log("Auth object:", JSON.stringify(request.auth, null, 2));
   console.log("Has auth?", !!request.auth);
@@ -95,7 +95,7 @@ DO NOT include:
  * Parse meal description using Gemini AI
  * Requires authentication
  */
-export const parseMeal = onCall(async (request) => {
+export const parseMeal = onCall(async (request: any) => {
   console.log("🔐 parseMeal called");
   console.log("Auth object:", JSON.stringify(request.auth, null, 2));
   console.log("Has auth?", !!request.auth);
@@ -223,33 +223,24 @@ Use metric measurements:
 interface Message {
   role: string;
   content: string;
-}
-
-interface ExtractedData {
-  age?: number;
-  weight?: number;
-  weightUnit?: string;
-  height?: number;
-  heightUnit?: string;
-  gender?: string;
-  goal?: string;
-  activityLevel?: string;
-  workoutsPerWeek?: number;
-}
-
-interface CalculatedPlan {
-  dailyCalories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  reasoning?: string;
+  extractedData?: {
+    age?: number;
+    weight?: number;
+    weightUnit?: string;
+    height?: number;
+    heightUnit?: string;
+    gender?: string;
+    goal?: string;
+    activityLevel?: string;
+    workoutsPerWeek?: number;
+  };
 }
 
 /**
  * AI-powered conversational onboarding
  * Chats with users to gather fitness info and calculate personalized plans
  */
-export const chatOnboarding = onCall(async (request) => {
+export const chatOnboarding = onCall(async (request: any) => {
   console.log("💬 chatOnboarding called");
 
   const {conversationHistory, userMessage} = request.data;
