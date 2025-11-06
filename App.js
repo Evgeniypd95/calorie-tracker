@@ -6,7 +6,6 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { OnboardingProvider } from './src/context/OnboardingContext';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
-import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 
 const lightTheme = {
   ...MD3LightTheme,
@@ -71,16 +70,7 @@ function AppContent() {
     );
   }
 
-  // Authenticated but onboarding not completed (shouldn't happen with new flow, but keep for safety)
-  if (user && userProfile && !userProfile.onboardingCompleted) {
-    return (
-      <OnboardingProvider>
-        <OnboardingNavigator />
-      </OnboardingProvider>
-    );
-  }
-
-  // Authenticated and onboarded - show main app
+  // Authenticated - show main app
   return <MainNavigator />;
 }
 
