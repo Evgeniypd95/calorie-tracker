@@ -152,10 +152,11 @@ export default function ConversationalOnboardingScreen({ navigation }) {
         newUserMessage.content
       );
 
-      // Add AI response to messages
+      // Add AI response to messages WITH extracted data
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: response.response
+        content: response.response,
+        extractedData: response.extractedData // Preserve extracted data for next message
       }]);
 
       // If AI has calculated a plan, show it
