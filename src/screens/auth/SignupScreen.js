@@ -2,18 +2,9 @@ import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { TextInput, Button, Text, Snackbar } from 'react-native-paper';
 import { authService, userService } from '../../services/firebase';
-import { useOnboarding } from '../../context/OnboardingContext';
 import { useAuth } from '../../context/AuthContext';
 
-// Helper to calculate next check-in date
-const getNextCheckInDate = (daysFromNow) => {
-  const date = new Date();
-  date.setDate(date.getDate() + daysFromNow);
-  return date;
-};
-
 export default function SignupScreen({ navigation }) {
-  const { onboardingData, calculateTargetCalories } = useOnboarding();
   const { refreshUserProfile } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,13 +12,6 @@ export default function SignupScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
-
-  // Redirect to onboarding if not completed
-  React.useEffect(() => {
-    if (!onboardingData?.dailyCalorieTarget) {
-      navigation.replace('ConversationalOnboarding');
-    }
-  }, []);
 
   const handleSignup = async () => {
     if (!email || !password || !confirmPassword) {
@@ -48,51 +32,25 @@ export default function SignupScreen({ navigation }) {
       return;
     }
 
-    // Check if onboarding is completed
-    if (!onboardingData?.dailyCalorieTarget) {
-      setError('Please complete onboarding first');
-      setSnackbarVisible(true);
-      navigation.replace('ConversationalOnboarding');
-      return;
-    }
-
     setLoading(true);
     try {
       // Create auth account
       const userCredential = await authService.signup(email, password);
       const userId = userCredential.user.uid;
 
-      // Use onboarding data for calorie target
-      const dailyCalorieTarget = onboardingData.dailyCalorieTarget;
-
-      // Save ONLY data captured in conversational onboarding
+      // Create basic profile
       const profileData = {
         email,
-        name: onboardingData.name || null, // Name is optional
-        age: onboardingData.age,
-        weight: onboardingData.weight,
-        height: onboardingData.height,
-        weightUnit: onboardingData.weightUnit || 'kg',
-        heightUnit: onboardingData.heightUnit || 'cm',
-        gender: onboardingData.gender,
-        goal: onboardingData.goal,
-        activityLevel: onboardingData.activityLevel,
-        workoutsPerWeek: onboardingData.workoutsPerWeek,
-        dailyCalorieTarget,
-        proteinTarget: onboardingData.proteinTarget,
-        carbsTarget: onboardingData.carbsTarget,
-        fatTarget: onboardingData.fatTarget,
         createdAt: new Date()
       };
 
       await userService.createUserProfile(userId, profileData);
 
-      // Wait a moment for AuthContext to update, then refresh the profile
+      // Refresh profile - will show SetCaloriesScreen next
       setTimeout(async () => {
         await refreshUserProfile();
       }, 500);
 
-      // Navigation to main app will be handled automatically by App.js
     } catch (error) {
       console.error('Signup error:', error);
       setError(error.message);

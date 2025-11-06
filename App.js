@@ -3,9 +3,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { ActivityIndicator, View, StyleSheet, Platform, useColorScheme } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
-import { OnboardingProvider } from './src/context/OnboardingContext';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
+import SetCaloriesScreen from './src/screens/onboarding/SetCaloriesScreen';
 
 const lightTheme = {
   ...MD3LightTheme,
@@ -61,25 +61,17 @@ function AppContent() {
     );
   }
 
-  // Not authenticated - show auth screens with onboarding
+  // Not authenticated - show login/signup
   if (!user) {
-    return (
-      <OnboardingProvider>
-        <AuthNavigator />
-      </OnboardingProvider>
-    );
+    return <AuthNavigator />;
   }
 
-  // User authenticated but hasn't completed onboarding (no calorie target)
+  // User authenticated but hasn't set calorie target
   if (user && userProfile && !userProfile.dailyCalorieTarget) {
-    return (
-      <OnboardingProvider>
-        <AuthNavigator />
-      </OnboardingProvider>
-    );
+    return <SetCaloriesScreen />;
   }
 
-  // Authenticated and onboarded - show main app
+  // Authenticated and has calorie target - show main app
   return <MainNavigator />;
 }
 
