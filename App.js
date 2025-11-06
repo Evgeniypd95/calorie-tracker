@@ -52,8 +52,13 @@ const darkTheme = {
 function AppContent() {
   const { user, userProfile, loading } = useAuth();
 
-  if (loading || (user && !userProfile)) {
-    // Show loading while auth is initializing OR user exists but profile not loaded yet
+  console.log('AppContent - user:', !!user, 'userProfile:', !!userProfile, 'loading:', loading);
+  if (userProfile) {
+    console.log('Profile has dailyCalorieTarget:', !!userProfile.dailyCalorieTarget);
+  }
+
+  if (loading) {
+    // Show loading while auth is initializing
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6366F1" />
@@ -64,6 +69,15 @@ function AppContent() {
   // Not authenticated - show login/signup
   if (!user) {
     return <AuthNavigator />;
+  }
+
+  // User exists but profile not loaded yet
+  if (user && !userProfile) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6366F1" />
+      </View>
+    );
   }
 
   // User authenticated but hasn't set calorie target
