@@ -299,16 +299,74 @@ export default function ConversationalOnboardingScreen({ navigation }) {
   };
 
   const handleFeedbackSubmit = () => {
+    let adjustedPlan = { ...generatedPlan };
+
     if (feedbackText.trim()) {
       updateOnboardingData({ userFeedback: feedbackText });
+
+      // Parse feedback and adjust plan
+      const feedback = feedbackText.toLowerCase();
+
+      // Protein adjustments
+      if (feedback.includes('more protein') || feedback.includes('high protein') || feedback.includes('increase protein')) {
+        adjustedPlan.protein = Math.round(adjustedPlan.protein * 1.3);
+        adjustedPlan.carbs = Math.round(adjustedPlan.carbs * 0.85);
+      } else if (feedback.includes('less protein') || feedback.includes('lower protein') || feedback.includes('reduce protein')) {
+        adjustedPlan.protein = Math.round(adjustedPlan.protein * 0.7);
+        adjustedPlan.carbs = Math.round(adjustedPlan.carbs * 1.15);
+      }
+
+      // Carb adjustments
+      if (feedback.includes('more carbs') || feedback.includes('high carb') || feedback.includes('increase carbs')) {
+        adjustedPlan.carbs = Math.round(adjustedPlan.carbs * 1.3);
+        adjustedPlan.fat = Math.round(adjustedPlan.fat * 0.85);
+      } else if (feedback.includes('less carbs') || feedback.includes('low carb') || feedback.includes('reduce carbs') || feedback.includes('keto')) {
+        adjustedPlan.carbs = Math.round(adjustedPlan.carbs * 0.5);
+        adjustedPlan.fat = Math.round(adjustedPlan.fat * 1.4);
+      }
+
+      // Fat adjustments
+      if (feedback.includes('more fat') || feedback.includes('high fat') || feedback.includes('increase fat')) {
+        adjustedPlan.fat = Math.round(adjustedPlan.fat * 1.3);
+        adjustedPlan.carbs = Math.round(adjustedPlan.carbs * 0.85);
+      } else if (feedback.includes('less fat') || feedback.includes('low fat') || feedback.includes('reduce fat')) {
+        adjustedPlan.fat = Math.round(adjustedPlan.fat * 0.7);
+        adjustedPlan.carbs = Math.round(adjustedPlan.carbs * 1.15);
+      }
+
+      // Calorie adjustments
+      if (feedback.includes('more calories') || feedback.includes('increase calories') || feedback.includes('eat more')) {
+        adjustedPlan.dailyCalories = Math.round(adjustedPlan.dailyCalories * 1.1);
+        adjustedPlan.protein = Math.round((adjustedPlan.dailyCalories * 0.30) / 4);
+        adjustedPlan.carbs = Math.round((adjustedPlan.dailyCalories * 0.40) / 4);
+        adjustedPlan.fat = Math.round((adjustedPlan.dailyCalories * 0.30) / 9);
+      } else if (feedback.includes('less calories') || feedback.includes('reduce calories') || feedback.includes('eat less')) {
+        adjustedPlan.dailyCalories = Math.round(adjustedPlan.dailyCalories * 0.9);
+        adjustedPlan.protein = Math.round((adjustedPlan.dailyCalories * 0.30) / 4);
+        adjustedPlan.carbs = Math.round((adjustedPlan.dailyCalories * 0.40) / 4);
+        adjustedPlan.fat = Math.round((adjustedPlan.dailyCalories * 0.30) / 9);
+      }
+
+      // Special diets
+      if (feedback.includes('vegetarian') || feedback.includes('vegan') || feedback.includes('plant-based')) {
+        updateOnboardingData({ dietaryRestrictions: 'vegetarian' });
+      }
+
+      setGeneratedPlan(adjustedPlan);
+
+      // Show the updated plan
+      setAiMessage("Got it! I've adjusted your plan based on your feedback. Here's the updated version:");
+      setConversationStage('PLAN_REVIEW');
+      return;
     }
 
+    // If no feedback, proceed to signup
     updateOnboardingData({
-      dailyCalorieTarget: generatedPlan.dailyCalories,
-      proteinTarget: generatedPlan.protein,
-      carbsTarget: generatedPlan.carbs,
-      fatTarget: generatedPlan.fat,
-      strategy: generatedPlan.strategy
+      dailyCalorieTarget: adjustedPlan.dailyCalories,
+      proteinTarget: adjustedPlan.protein,
+      carbsTarget: adjustedPlan.carbs,
+      fatTarget: adjustedPlan.fat,
+      strategy: adjustedPlan.strategy
     });
 
     setAiMessage("Perfect! Let's create your account. 🎉");
