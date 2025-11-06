@@ -418,11 +418,12 @@ export default function DashboardScreen({ navigation }) {
                           Fat
                         </Text>
                         <Text variant="titleSmall">{Math.round(meal.totals.fat)}g</Text>
+                      </View>
                     </View>
-                  </View>
-                </Card.Content>
-              </Card>
-            ))
+                  </Card.Content>
+                </Card>
+              );
+            })
           )}
         </View>
 
