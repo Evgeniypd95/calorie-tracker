@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TextInput as RNTextInput, TouchableOpacity, Animated } from 'react';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TextInput as RNTextInput, TouchableOpacity, Animated } from 'react-native';
 import { Button, Text, Surface, ActivityIndicator, IconButton } from 'react-native-paper';
 import Voice from '@react-native-voice/voice';
 import { chatOnboarding } from '../../services/geminiService';
