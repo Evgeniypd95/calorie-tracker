@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
-import { Text, FAB, Card, Surface, IconButton } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert, Platform, Animated } from 'react-native';
+import { Text, FAB, Card, Surface, IconButton, Portal, Modal, TextInput as PaperTextInput, Button, Menu } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { mealService, userService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +8,7 @@ import { shouldShowCheckIn, getCheckInQuestions, calculateTargetAdjustment, getN
 import CheckInModal from '../../components/CheckInModal';
 import { scoreMeal } from '../../services/mealScoringService';
 import MealGradeCard from '../../components/MealGradeCard';
+import { Swipeable } from 'react-native-gesture-handler';
 
 // Helper function to get a date range (7 days past, today, 7 days future)
 const getDateRange = () => {
@@ -36,6 +37,40 @@ const isSameDay = (date1, date2) => {
          date1.getFullYear() === date2.getFullYear();
 };
 
+// Progress bar component
+const ProgressBar = ({ current, target, color, label }) => {
+  const percentage = Math.min((current / target) * 100, 100);
+  const isOver = current > target;
+  const isNear = percentage >= 90 && !isOver;
+
+  let barColor = color;
+  if (isOver) barColor = '#EF4444'; // Red
+  else if (isNear) barColor = '#F59E0B'; // Yellow
+  else barColor = '#10B981'; // Green
+
+  return (
+    <View style={styles.progressBarContainer}>
+      <View style={styles.progressBarHeader}>
+        <Text variant="labelSmall" style={styles.progressLabel}>{label}</Text>
+        <Text variant="labelSmall" style={[styles.progressValue, { color: barColor }]}>
+          {Math.round(current)} / {Math.round(target)}{label === 'Calories' ? '' : 'g'}
+        </Text>
+      </View>
+      <View style={styles.progressBarTrack}>
+        <Animated.View
+          style={[
+            styles.progressBarFill,
+            { width: `${percentage}%`, backgroundColor: barColor }
+          ]}
+        />
+      </View>
+      <Text variant="bodySmall" style={styles.progressPercentage}>
+        {Math.round(percentage)}%
+      </Text>
+    </View>
+  );
+};
+
 export default function DashboardScreen({ navigation }) {
   const { user, userProfile, refreshUserProfile } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -44,13 +79,67 @@ export default function DashboardScreen({ navigation }) {
   const calendarRef = useRef(null);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [checkInInfo, setCheckInInfo] = useState(null);
+  const [editingMeal, setEditingMeal] = useState(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editDescription, setEditDescription] = useState('');
+  const [fabMenuOpen, setFabMenuOpen] = useState(false);
+  const [smartSuggestions, setSmartSuggestions] = useState([]);
 
   const loadMeals = async (date = selectedDate) => {
     try {
       const dayMeals = await mealService.getMealsByDate(user.uid, date);
       setMeals(dayMeals);
+
+      // Generate smart suggestions
+      if (dayMeals.length > 0) {
+        generateSmartSuggestions(dayMeals);
+      }
     } catch (error) {
       console.error('Error loading meals:', error);
+    }
+  };
+
+  // Generate smart meal suggestions based on patterns
+  const generateSmartSuggestions = async (currentMeals) => {
+    try {
+      const suggestions = [];
+      const currentHour = new Date().getHours();
+
+      // Get all user's past meals
+      const allMeals = await mealService.getUserMeals(user.uid, 30); // Last 30 days
+
+      // Suggest based on time of day
+      if (currentHour >= 6 && currentHour < 11 && !currentMeals.find(m => m.mealType === 'Breakfast')) {
+        const breakfasts = allMeals.filter(m => m.mealType === 'Breakfast');
+        if (breakfasts.length > 0) {
+          const mostCommon = breakfasts[0]; // Simplified - could use frequency analysis
+          suggestions.push({
+            type: 'time',
+            message: `You usually eat ${mostCommon.description.substring(0, 30)}... for breakfast. Log it now?`,
+            meal: mostCommon
+          });
+        }
+      }
+
+      // Check protein goal
+      const totals = calculateTotals();
+      if (userProfile?.proteinTarget && totals.protein < userProfile.proteinTarget * 0.5) {
+        const highProteinMeals = allMeals
+          .filter(m => m.totals.protein > 30)
+          .slice(0, 3);
+
+        if (highProteinMeals.length > 0) {
+          suggestions.push({
+            type: 'protein',
+            message: `You haven't hit your protein goal. Try: ${highProteinMeals[0].description.substring(0, 40)}...`,
+            meals: highProteinMeals
+          });
+        }
+      }
+
+      setSmartSuggestions(suggestions);
+    } catch (error) {
+      console.error('Error generating suggestions:', error);
     }
   };
 
@@ -73,6 +162,7 @@ export default function DashboardScreen({ navigation }) {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadMeals();
+    await refreshUserProfile();
     setRefreshing(false);
   };
 
@@ -194,6 +284,45 @@ export default function DashboardScreen({ navigation }) {
     }
   };
 
+  const handleEditMeal = (meal) => {
+    setEditingMeal(meal);
+    setEditDescription(meal.description);
+    setEditModalVisible(true);
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      // Re-parse the edited description
+      navigation.navigate('LogMeal', {
+        editingMeal: { ...editingMeal, description: editDescription },
+        reparse: true
+      });
+      setEditModalVisible(false);
+    } catch (error) {
+      console.error('Error saving edit:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to save changes');
+      } else {
+        Alert.alert('Error', 'Failed to save changes');
+      }
+    }
+  };
+
+  const handleDuplicateMeal = async (meal, targetDate) => {
+    try {
+      await mealService.duplicateMeal(user.uid, meal, targetDate || selectedDate);
+      await loadMeals();
+
+      if (Platform.OS === 'web') {
+        window.alert('Meal duplicated successfully!');
+      } else {
+        Alert.alert('Success', 'Meal duplicated successfully!');
+      }
+    } catch (error) {
+      console.error('Error duplicating meal:', error);
+    }
+  };
+
   // Calculate totals for the day
   const calculateTotals = () => {
     return meals.reduce((acc, meal) => {
@@ -208,6 +337,42 @@ export default function DashboardScreen({ navigation }) {
 
   const totals = calculateTotals();
   const days = getDateRange();
+
+  // Get targets from user profile
+  const calorieTarget = userProfile?.dailyCalorieTarget || 2000;
+  const proteinTarget = userProfile?.proteinTarget || 150;
+  const carbsTarget = userProfile?.carbsTarget || 200;
+  const fatTarget = userProfile?.fatTarget || 65;
+
+  // Streak calculation
+  const currentStreak = userProfile?.streakCount || 0;
+  const weeklyLogs = 5; // This should come from actual calculation
+
+  // Right swipe actions (duplicate)
+  const renderRightActions = (meal) => {
+    return (
+      <TouchableOpacity
+        style={styles.swipeActionDuplicate}
+        onPress={() => handleDuplicateMeal(meal)}
+      >
+        <IconButton icon="content-copy" iconColor="#FFFFFF" size={24} />
+        <Text style={styles.swipeActionText}>Duplicate</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  // Left swipe actions (delete)
+  const renderLeftActions = (meal) => {
+    return (
+      <TouchableOpacity
+        style={styles.swipeActionDelete}
+        onPress={() => handleDeleteMeal(meal.id, meal.description)}
+      >
+        <IconButton icon="delete" iconColor="#FFFFFF" size={24} />
+        <Text style={styles.swipeActionText}>Delete</Text>
+      </TouchableOpacity>
+    );
+  };
 
   // Auto-scroll calendar ribbon to today on first render
   useEffect(() => {
@@ -276,59 +441,98 @@ export default function DashboardScreen({ navigation }) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Metrics Card */}
-        <Card style={styles.metricsCard} elevation={3}>
+        {/* Streak & Gamification Card */}
+        {currentStreak > 0 && (
+          <Card style={styles.streakCard} elevation={2}>
+            <Card.Content>
+              <View style={styles.streakContainer}>
+                <View style={styles.streakLeft}>
+                  <Text style={styles.streakEmoji}>🔥</Text>
+                  <View>
+                    <Text variant="headlineMedium" style={styles.streakNumber}>
+                      {currentStreak} days
+                    </Text>
+                    <Text variant="bodySmall" style={styles.streakLabel}>
+                      Current Streak
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.streakRight}>
+                  <Text variant="bodySmall" style={styles.weeklyLabel}>
+                    This week: {weeklyLogs}/7 days
+                  </Text>
+                  <View style={styles.weeklyDots}>
+                    {[...Array(7)].map((_, i) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.weeklyDot,
+                          i < weeklyLogs && styles.weeklyDotActive
+                        ]}
+                      />
+                    ))}
+                  </View>
+                </View>
+              </View>
+            </Card.Content>
+          </Card>
+        )}
+
+        {/* Smart Suggestions */}
+        {smartSuggestions.length > 0 && (
+          <Card style={styles.suggestionCard} elevation={1}>
+            <Card.Content>
+              <View style={styles.suggestionHeader}>
+                <Text variant="titleSmall" style={styles.suggestionTitle}>💡 Smart Suggestion</Text>
+              </View>
+              <Text variant="bodyMedium" style={styles.suggestionText}>
+                {smartSuggestions[0].message}
+              </Text>
+            </Card.Content>
+          </Card>
+        )}
+
+        {/* Hero Progress Card */}
+        <Card style={styles.heroCard} elevation={3}>
           <Card.Content>
-            <Text variant="titleLarge" style={styles.metricsTitle}>
-              Daily Summary
+            <Text variant="titleLarge" style={styles.heroTitle}>
+              Today's Progress
             </Text>
 
-            {/* Calories Section */}
-            <View style={styles.caloriesSection}>
-              <Text
-                style={styles.caloriesNumber}
-                adjustsFontSizeToFit
-                numberOfLines={1}
-                allowFontScaling={false}
-              >
-                {totals.calories}
-              </Text>
-              <Text variant="bodyMedium" style={styles.caloriesLabel}>
-                calories
+            {/* Main Calorie Progress */}
+            <View style={styles.heroCaloriesSection}>
+              <View style={styles.calorieRing}>
+                <Text style={styles.calorieRingNumber}>{totals.calories}</Text>
+                <Text style={styles.calorieRingLabel}>/ {calorieTarget}</Text>
+              </View>
+              <Text variant="bodySmall" style={styles.calorieRingSubtext}>
+                {calorieTarget - totals.calories > 0
+                  ? `${calorieTarget - totals.calories} cal remaining`
+                  : `${totals.calories - calorieTarget} cal over`
+                }
               </Text>
             </View>
 
-            {/* Macros Section */}
-            <View style={styles.macrosContainer}>
-                    <View style={styles.macroItem}>
-                      <View style={[styles.macroIcon, { backgroundColor: '#EF4444' }]} />
-                      <View>
-                        <Text variant="bodySmall" style={styles.macroLabel}>Protein</Text>
-                        <Text variant="titleMedium" style={styles.macroValue}>
-                          {Math.round(totals.protein)}g
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.macroItem}>
-                      <View style={[styles.macroIcon, { backgroundColor: '#10B981' }]} />
-                      <View>
-                        <Text variant="bodySmall" style={styles.macroLabel}>Carbs</Text>
-                        <Text variant="titleMedium" style={styles.macroValue}>
-                          {Math.round(totals.carbs)}g
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.macroItem}>
-                      <View style={[styles.macroIcon, { backgroundColor: '#F59E0B' }]} />
-                      <View>
-                        <Text variant="bodySmall" style={styles.macroLabel}>Fat</Text>
-                        <Text variant="titleMedium" style={styles.macroValue}>
-                          {Math.round(totals.fat)}g
-                        </Text>
-                      </View>
-                    </View>
+            {/* Macro Progress Bars */}
+            <View style={styles.macroProgressSection}>
+              <ProgressBar
+                current={totals.protein}
+                target={proteinTarget}
+                color="#EF4444"
+                label="Protein"
+              />
+              <ProgressBar
+                current={totals.carbs}
+                target={carbsTarget}
+                color="#10B981"
+                label="Carbs"
+              />
+              <ProgressBar
+                current={totals.fat}
+                target={fatTarget}
+                color="#F59E0B"
+                label="Fat"
+              />
             </View>
           </Card.Content>
         </Card>
@@ -353,75 +557,86 @@ export default function DashboardScreen({ navigation }) {
               const gradeData = userProfile?.onboardingCompleted ? scoreMeal(meal, userProfile) : null;
 
               return (
-                <Card key={meal.id} style={styles.mealCard} elevation={1}>
-                  <Card.Content>
-                    <View style={styles.mealHeader}>
-                      <View style={styles.mealHeaderLeft}>
-                        <Text variant="titleMedium" style={styles.mealType}>
-                          {meal.mealType}
+                <Swipeable
+                  key={meal.id}
+                  renderRightActions={() => renderRightActions(meal)}
+                  renderLeftActions={() => renderLeftActions(meal)}
+                >
+                  <TouchableOpacity
+                    onLongPress={() => handleEditMeal(meal)}
+                    activeOpacity={0.7}
+                  >
+                    <Card style={styles.mealCard} elevation={1}>
+                      <Card.Content>
+                        <View style={styles.mealHeader}>
+                          <View style={styles.mealHeaderLeft}>
+                            <Text variant="titleMedium" style={styles.mealType}>
+                              {meal.mealType}
+                            </Text>
+                            <Text variant="bodySmall" style={styles.timeText}>
+                              {meal.date?.toDate?.()?.toLocaleTimeString?.('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}
+                            </Text>
+                          </View>
+                          <View style={styles.mealHeaderRight}>
+                            {gradeData && (
+                              <View style={[styles.gradeChip, { backgroundColor: gradeData.color }]}>
+                                <Text style={styles.gradeText}>{gradeData.grade}</Text>
+                              </View>
+                            )}
+                            <IconButton
+                              icon="pencil"
+                              size={20}
+                              iconColor="#6366F1"
+                              onPress={() => handleEditMeal(meal)}
+                            />
+                          </View>
+                        </View>
+                        <Text variant="bodyMedium" style={styles.descriptionText}>
+                          {meal.description}
                         </Text>
-                        <Text variant="bodySmall" style={styles.timeText}>
-                          {meal.date?.toDate?.()?.toLocaleTimeString?.('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit'
-                          })}
-                        </Text>
-                      </View>
-                      <View style={styles.mealHeaderRight}>
+
+                        {/* Show full grade card if available */}
                         {gradeData && (
-                          <View style={[styles.gradeChip, { backgroundColor: gradeData.color }]}>
-                            <Text style={styles.gradeText}>{gradeData.grade}</Text>
+                          <View style={styles.gradeCardContainer}>
+                            <MealGradeCard gradeData={gradeData} compact />
                           </View>
                         )}
-                        <IconButton
-                          icon="delete"
-                          size={20}
-                          iconColor="#EF4444"
-                          onPress={() => handleDeleteMeal(meal.id, meal.description)}
-                        />
-                      </View>
-                    </View>
-                    <Text variant="bodyMedium" style={styles.descriptionText}>
-                      {meal.description}
-                    </Text>
 
-                    {/* Show full grade card if available */}
-                    {gradeData && (
-                      <View style={styles.gradeCardContainer}>
-                        <MealGradeCard gradeData={gradeData} compact />
-                      </View>
-                    )}
-
-                    <View style={styles.nutrientsContainer}>
-                      <View style={styles.nutrientItem}>
-                        <Text variant="labelSmall" style={styles.nutrientLabel}>
-                          Calories
-                        </Text>
-                        <Text variant="titleSmall" style={styles.caloriesValue}>
-                          {meal.totals.calories}
-                        </Text>
-                      </View>
-                      <View style={styles.nutrientItem}>
-                        <Text variant="labelSmall" style={styles.nutrientLabel}>
-                          Protein
-                        </Text>
-                        <Text variant="titleSmall">{Math.round(meal.totals.protein)}g</Text>
-                      </View>
-                      <View style={styles.nutrientItem}>
-                        <Text variant="labelSmall" style={styles.nutrientLabel}>
-                          Carbs
-                        </Text>
-                        <Text variant="titleSmall">{Math.round(meal.totals.carbs)}g</Text>
-                      </View>
-                      <View style={styles.nutrientItem}>
-                        <Text variant="labelSmall" style={styles.nutrientLabel}>
-                          Fat
-                        </Text>
-                        <Text variant="titleSmall">{Math.round(meal.totals.fat)}g</Text>
-                      </View>
-                    </View>
-                  </Card.Content>
-                </Card>
+                        <View style={styles.nutrientsContainer}>
+                          <View style={styles.nutrientItem}>
+                            <Text variant="labelSmall" style={styles.nutrientLabel}>
+                              Calories
+                            </Text>
+                            <Text variant="titleSmall" style={styles.caloriesValue}>
+                              {meal.totals.calories}
+                            </Text>
+                          </View>
+                          <View style={styles.nutrientItem}>
+                            <Text variant="labelSmall" style={styles.nutrientLabel}>
+                              Protein
+                            </Text>
+                            <Text variant="titleSmall">{Math.round(meal.totals.protein)}g</Text>
+                          </View>
+                          <View style={styles.nutrientItem}>
+                            <Text variant="labelSmall" style={styles.nutrientLabel}>
+                              Carbs
+                            </Text>
+                            <Text variant="titleSmall">{Math.round(meal.totals.carbs)}g</Text>
+                          </View>
+                          <View style={styles.nutrientItem}>
+                            <Text variant="labelSmall" style={styles.nutrientLabel}>
+                              Fat
+                            </Text>
+                            <Text variant="titleSmall">{Math.round(meal.totals.fat)}g</Text>
+                          </View>
+                        </View>
+                      </Card.Content>
+                    </Card>
+                  </TouchableOpacity>
+                </Swipeable>
               );
             })
           )}
@@ -431,12 +646,43 @@ export default function DashboardScreen({ navigation }) {
         <View style={{ height: 80 }} />
       </ScrollView>
 
+      {/* FAB with Menu */}
       <FAB
         icon="plus"
         style={styles.fab}
         color="#FFFFFF"
         onPress={() => navigation.navigate('LogMeal', { selectedDate: selectedDate.toISOString() })}
       />
+
+      {/* Edit Meal Modal */}
+      <Portal>
+        <Modal
+          visible={editModalVisible}
+          onDismiss={() => setEditModalVisible(false)}
+          contentContainerStyle={styles.editModal}
+        >
+          <Text variant="titleLarge" style={styles.editModalTitle}>
+            Edit Meal
+          </Text>
+          <PaperTextInput
+            label="Description"
+            value={editDescription}
+            onChangeText={setEditDescription}
+            multiline
+            numberOfLines={4}
+            mode="outlined"
+            style={styles.editInput}
+          />
+          <View style={styles.editModalActions}>
+            <Button mode="outlined" onPress={() => setEditModalVisible(false)}>
+              Cancel
+            </Button>
+            <Button mode="contained" onPress={handleSaveEdit}>
+              Re-parse & Save
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
 
       {/* Check-in Modal */}
       <CheckInModal
@@ -512,8 +758,82 @@ const styles = StyleSheet.create({
     color: '#6366F1',
     fontWeight: '700'
   },
-  // Metrics Card Styles
-  metricsCard: {
+  // Streak Card Styles
+  streakCard: {
+    margin: 20,
+    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.08)',
+      },
+    }),
+  },
+  streakContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  streakLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  streakEmoji: {
+    fontSize: 48
+  },
+  streakNumber: {
+    fontWeight: '800',
+    color: '#EF4444',
+    letterSpacing: -1
+  },
+  streakLabel: {
+    color: '#64748B',
+    marginTop: 4
+  },
+  streakRight: {
+    alignItems: 'flex-end'
+  },
+  weeklyLabel: {
+    color: '#64748B',
+    marginBottom: 8
+  },
+  weeklyDots: {
+    flexDirection: 'row',
+    gap: 6
+  },
+  weeklyDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#E2E8F0'
+  },
+  weeklyDotActive: {
+    backgroundColor: '#10B981'
+  },
+  // Suggestion Card
+  suggestionCard: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#BAE6FD'
+  },
+  suggestionHeader: {
+    marginBottom: 8
+  },
+  suggestionTitle: {
+    color: '#0369A1',
+    fontWeight: '700'
+  },
+  suggestionText: {
+    color: '#075985',
+    lineHeight: 20
+  },
+  // Hero Card Styles
+  heroCard: {
     margin: 20,
     marginBottom: 16,
     backgroundColor: '#FFFFFF',
@@ -524,63 +844,75 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  metricsTitle: {
+  heroTitle: {
     marginBottom: 20,
     fontWeight: '700',
     color: '#1E293B',
     fontSize: 20,
     letterSpacing: -0.5
   },
-  caloriesSection: {
+  heroCaloriesSection: {
     alignItems: 'center',
-    paddingVertical: 28,
-    paddingHorizontal: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9'
+    paddingVertical: 20,
+    marginBottom: 24
   },
-  caloriesNumber: {
-    fontSize: 72,
+  calorieRing: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8
+  },
+  calorieRingNumber: {
+    fontSize: 56,
     fontWeight: '800',
     color: '#6366F1',
-    width: '100%',
-    textAlign: 'center',
-    minHeight: 80,
     letterSpacing: -2
   },
-  caloriesLabel: {
-    color: '#64748B',
-    marginTop: 8,
-    fontSize: 15,
-    fontWeight: '500'
-  },
-  macrosContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 24,
-    paddingBottom: 8
-  },
-  macroItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10
-  },
-  macroIcon: {
-    width: 4,
-    height: 48,
-    borderRadius: 2
-  },
-  macroLabel: {
+  calorieRingLabel: {
+    fontSize: 18,
     color: '#94A3B8',
-    marginBottom: 4,
-    fontSize: 12,
+    fontWeight: '600'
+  },
+  calorieRingSubtext: {
+    color: '#64748B',
+    fontSize: 13
+  },
+  macroProgressSection: {
+    gap: 16
+  },
+  // Progress Bar Styles
+  progressBarContainer: {
+    marginBottom: 8
+  },
+  progressBarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6
+  },
+  progressLabel: {
+    color: '#64748B',
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.5
+    fontSize: 11
   },
-  macroValue: {
+  progressValue: {
     fontWeight: '700',
-    color: '#1E293B',
-    fontSize: 18
+    fontSize: 12
+  },
+  progressBarTrack: {
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 4
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4
+  },
+  progressPercentage: {
+    textAlign: 'right',
+    color: '#94A3B8',
+    fontSize: 11
   },
   // Meals Section Styles
   mealsSection: {
@@ -695,6 +1027,51 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16
   },
+  // Swipe Actions
+  swipeActionDuplicate: {
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 100,
+    marginBottom: 16,
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20
+  },
+  swipeActionDelete: {
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 100,
+    marginBottom: 16,
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20
+  },
+  swipeActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  // Edit Modal
+  editModal: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    margin: 20,
+    borderRadius: 24
+  },
+  editModalTitle: {
+    fontWeight: '700',
+    marginBottom: 20,
+    color: '#1E293B'
+  },
+  editInput: {
+    marginBottom: 20
+  },
+  editModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12
+  },
+  // FAB
   fab: {
     position: 'absolute',
     margin: 20,

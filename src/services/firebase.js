@@ -227,6 +227,44 @@ export const mealService = {
 
     await updateDoc(mealRef, { comments: updatedComments });
     return updatedComments;
+  },
+
+  duplicateMeal: async (userId, meal, targetDate) => {
+    // Create a copy of the meal for the target date
+    const duplicatedMeal = {
+      userId,
+      description: meal.description,
+      mealType: meal.mealType,
+      items: meal.items,
+      totals: meal.totals,
+      date: targetDate,
+      createdAt: serverTimestamp()
+    };
+
+    const mealRef = await addDoc(collection(db, 'meals'), duplicatedMeal);
+    return mealRef.id;
+  },
+
+  getUserMeals: async (userId, daysBack = 30) => {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+    startDate.setHours(0, 0, 0, 0);
+
+    const q = query(
+      collection(db, 'meals'),
+      where('userId', '==', userId),
+      where('date', '>=', startDate)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const meals = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Sort by date descending
+    return meals.sort((a, b) => {
+      const timeA = a.date?.toMillis?.() || 0;
+      const timeB = b.date?.toMillis?.() || 0;
+      return timeB - timeA;
+    });
   }
 };
 
