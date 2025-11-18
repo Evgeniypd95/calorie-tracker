@@ -101,8 +101,9 @@ export const parseMeal = onCall(async (request: any) => {
   console.log("Has auth?", !!request.auth);
   console.log("User ID:", request.auth?.uid);
 
-  const {mealDescription} = request.data;
+  const {mealDescription, existingData} = request.data;
   console.log("📝 Meal description:", mealDescription);
+  console.log("📊 Existing data:", existingData);
 
   if (!mealDescription) {
     throw new HttpsError("invalid-argument", "Meal description is required");
@@ -111,35 +112,35 @@ export const parseMeal = onCall(async (request: any) => {
   try {
     const model = genAI.getGenerativeModel({model: "gemini-2.0-flash"});
 
-    // Check if this is a feedback/improvement request
-    const hasFeedback = mealDescription.includes("Additional info:");
-
     let prompt = "";
 
-    if (hasFeedback) {
-      // Split original description and additional info
-      const parts = mealDescription.split("\n\nAdditional info:");
-      const originalMeal = parts[0];
-      const additionalInfo = parts[1] || "";
+    if (existingData && existingData.items) {
+      // This is a refinement request - we have existing parsed data
+      const existingItemsList = existingData.items.map((item: any) =>
+        `${item.quantity} ${item.food} (${item.calories} cal, P:${item.protein}g, C:${item.carbs}g, F:${item.fat}g)`
+      ).join("\n");
 
-      prompt = `Re-analyze this meal with additional information.
+      prompt = `You are refining an existing meal based on user feedback.
 
-Original meal description: "${originalMeal}"
+CURRENT MEAL:
+${existingItemsList}
 
-Additional info: "${additionalInfo}"
+Current totals: ${existingData.totals.calories} cal, Protein: ${existingData.totals.protein}g, Carbs: ${existingData.totals.carbs}g, Fat: ${existingData.totals.fat}g
 
-The user is providing additional information about their meal. Consider this new information:
-- If they say "add X", include that item
-- If they say "X was Yg", update that quantity
-- If they say "remove X", exclude that item
-- If they mention missing items, add them
-- If they clarify cooking methods or specifics, use that information
+USER FEEDBACK: "${mealDescription}"
 
-Return ONLY valid JSON in this exact format (no markdown, no explanations):
+IMPORTANT - KEEP THE EXISTING MEAL AND MODIFY IT:
+- If they say "add X", ADD that item to the existing items
+- If they say "the X was Yg" or "change X to Yg", UPDATE that specific item's quantity
+- If they say "remove X", REMOVE only that item from the list
+- If they mention cooking method changes, update the affected item
+- PRESERVE all other items that weren't mentioned
+
+Return the COMPLETE meal (all items including unchanged ones) in valid JSON:
 {
   "items": [
     {
-      "food": "food name",
+      "food": "food name with cooking method",
       "quantity": "amount in metric (e.g., '170g', '250ml', '2 pieces')",
       "calories": number,
       "protein": number,
@@ -155,23 +156,41 @@ Return ONLY valid JSON in this exact format (no markdown, no explanations):
   }
 }
 
-Use metric measurements:
-- Weights in grams (g)
-- Liquids in milliliters (ml)
-- Counts as pieces/items`;
+Use metric measurements and recalculate totals for all items.`;
     } else {
       // Original parsing prompt
-      prompt = `Parse the following meal description and return a JSON
-object with nutritional information. Be as accurate as possible with
-calorie and macro estimates. Use METRIC units in quantities.
+      prompt = `You are a nutrition expert. Parse the following meal description and return accurate nutritional information.
 
 Meal: "${mealDescription}"
 
+CRITICAL ACCURACY RULES:
+1. Use REALISTIC portion sizes - don't overestimate
+   - A sandwich: 350-570 calories (not 700+)
+   - Chicken breast (170g): ~280 calories
+   - 2 eggs: ~140 calories
+   - 1 cup rice (cooked, 200g): ~200 calories
+   - 1 slice bread: ~70-90 calories
+
+2. Consider ACTUAL cooking methods and ingredients
+   - Grilled vs fried makes a BIG difference
+   - Sauce amounts matter (e.g., 30-60ml, not cups)
+   - Restaurant portions are typically larger
+
+3. Break down composite foods accurately
+   - Sandwich = bread + protein + spreads + vegetables
+   - Each component should have realistic calories
+
+4. Cross-check your totals
+   - If a simple meal exceeds 600 calories, verify each item
+   - Protein should be ~4 cal/g, carbs ~4 cal/g, fat ~9 cal/g
+
+5. Use standard USDA/nutritional database values when possible
+
 Return ONLY valid JSON in this exact format (no markdown, no explanations):
 {
   "items": [
     {
-      "food": "food name",
+      "food": "food name with cooking method",
       "quantity": "amount in metric (e.g., '170g', '250ml', '2 pieces')",
       "calories": number,
       "protein": number,
@@ -190,7 +209,9 @@ Return ONLY valid JSON in this exact format (no markdown, no explanations):
 Use metric measurements:
 - Weights in grams (g)
 - Liquids in milliliters (ml)
-- Counts as pieces/items`;
+- Counts as pieces/items
+
+REMEMBER: Be conservative with estimates. It's better to slightly underestimate than overestimate.`;
     }
 
     const result = await model.generateContent(prompt);
@@ -403,3 +424,8 @@ Response:
     );
   }
 });
+
+// Export gradeMeal, generateSuggestions, and generateInsights functions
+export {gradeMeal} from "./gradeMeal";
+export {generateSuggestions} from "./generateSuggestions";
+export {generateInsights} from "./generateInsights";

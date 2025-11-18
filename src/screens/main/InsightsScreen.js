@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, Dimensions, Platform, useColorScheme } fr
 import { Text, Card, Surface, useTheme } from 'react-native-paper';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { useAuth } from '../../context/AuthContext';
-import { mealService } from '../../services/firebase';
+import { generateInsightsBackend } from '../../services/geminiService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -11,215 +11,67 @@ export default function InsightsScreen() {
   const { user, userProfile } = useAuth();
   const theme = useTheme();
   const colorScheme = useColorScheme();
-  const [weeklyData, setWeeklyData] = useState(null);
+  const [weeklyChartData, setWeeklyChartData] = useState(null);
+  const [macroChartData, setMacroChartData] = useState([]);
   const [insights, setInsights] = useState([]);
+  const [hasEnoughData, setHasEnoughData] = useState(true);
+  const [daysWithData, setDaysWithData] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
+    if (user && userProfile) {
       loadAnalytics();
     }
-  }, [user]);
+  }, [user, userProfile]);
 
   const loadAnalytics = async () => {
     try {
       setLoading(true);
 
-      // Get last 7 days of meals
-      const meals = await mealService.getUserMeals(user.uid, 7);
+      // Call backend to generate insights
+      const result = await generateInsightsBackend(user.uid, userProfile);
 
-      // Group meals by day
-      const last7Days = [];
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        date.setHours(0, 0, 0, 0);
-        last7Days.push(date);
+      console.log('[Insights] Backend result:', result);
+
+      setHasEnoughData(result.hasEnoughData);
+      setDaysWithData(result.daysWithData);
+
+      if (result.hasEnoughData) {
+        setInsights(result.insights || []);
+        setWeeklyChartData(result.weeklyChartData);
+        setMacroChartData(result.macroChartData || []);
+      } else {
+        setInsights([]);
+        setWeeklyChartData(null);
+        setMacroChartData([]);
       }
-
-      const dailyTotals = last7Days.map(date => {
-        const dayMeals = meals.filter(meal => {
-          const mealDate = meal.date?.toDate?.() || new Date(meal.date);
-          return (
-            mealDate.getDate() === date.getDate() &&
-            mealDate.getMonth() === date.getMonth() &&
-            mealDate.getFullYear() === date.getFullYear()
-          );
-        });
-
-        const totals = dayMeals.reduce((acc, meal) => ({
-          calories: acc.calories + (meal.totals?.calories || 0),
-          protein: acc.protein + (meal.totals?.protein || 0),
-          carbs: acc.carbs + (meal.totals?.carbs || 0),
-          fat: acc.fat + (meal.totals?.fat || 0)
-        }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
-
-        return {
-          date,
-          ...totals,
-          mealCount: dayMeals.length
-        };
-      });
-
-      setWeeklyData(dailyTotals);
-
-      // Generate insights
-      generateInsights(dailyTotals);
 
     } catch (error) {
       console.error('Error loading analytics:', error);
+      setHasEnoughData(false);
+      setInsights([]);
+      setWeeklyChartData(null);
+      setMacroChartData([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const generateInsights = (dailyTotals) => {
-    const newInsights = [];
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-    // Find best and worst days
-    const daysWithCalories = dailyTotals.filter(d => d.calories > 0);
-    if (daysWithCalories.length > 0) {
-      const bestDay = daysWithCalories.reduce((min, day) =>
-        day.calories < min.calories ? day : min
-      );
-      const worstDay = daysWithCalories.reduce((max, day) =>
-        day.calories > max.calories ? day : max
-      );
-
-      const target = userProfile?.dailyCalorieTarget || 2000;
-
-      newInsights.push({
-        icon: '🏆',
-        title: 'Best Day',
-        description: `${dayNames[bestDay.date.getDay()]} - ${Math.round(bestDay.calories)} cal${
-          bestDay.calories <= target ? ' (under target!)' : ''
-        }`,
-        color: '#10B981'
-      });
-
-      if (worstDay.calories > target) {
-        newInsights.push({
-          icon: '⚠️',
-          title: 'Watch Out',
-          description: `You tend to overeat on ${dayNames[worstDay.date.getDay()]}s - ${Math.round(worstDay.calories)} cal`,
-          color: '#F59E0B'
-        });
-      }
-    }
-
-    // Average protein intake
-    const avgProtein = daysWithCalories.reduce((sum, day) => sum + day.protein, 0) / daysWithCalories.length || 0;
-    const proteinTarget = userProfile?.proteinTarget || 150;
-
-    if (avgProtein < proteinTarget * 0.8) {
-      newInsights.push({
-        icon: '💪',
-        title: 'Protein Opportunity',
-        description: `Your average protein intake is ${Math.round(avgProtein)}g. Target: ${proteinTarget}g`,
-        color: '#EF4444'
-      });
-    } else if (avgProtein >= proteinTarget) {
-      newInsights.push({
-        icon: '💪',
-        title: 'Protein Champion',
-        description: `Crushing your protein goals! Average: ${Math.round(avgProtein)}g`,
-        color: '#10B981'
-      });
-    }
-
-    // Consistency insight
-    const daysLogged = daysWithCalories.length;
-    if (daysLogged === 7) {
-      newInsights.push({
-        icon: '🔥',
-        title: 'Perfect Week',
-        description: 'You logged meals every day this week!',
-        color: '#EF4444'
-      });
-    } else if (daysLogged >= 5) {
-      newInsights.push({
-        icon: '✅',
-        title: 'Great Consistency',
-        description: `${daysLogged}/7 days logged this week`,
-        color: '#10B981'
-      });
-    } else if (daysLogged < 3) {
-      newInsights.push({
-        icon: '📝',
-        title: 'Log More Often',
-        description: 'Try to log meals at least 5 days a week for better insights',
-        color: '#94A3B8'
-      });
-    }
-
-    setInsights(newInsights);
-  };
-
-  const getWeeklyChartData = () => {
-    if (!weeklyData || weeklyData.length === 0) return null;
-
-    const labels = weeklyData.map(d => {
-      const day = d.date.toLocaleDateString('en-US', { weekday: 'short' });
-      return day.substring(0, 3);
-    });
-
-    const data = weeklyData.map(d => d.calories);
+  const getWeeklyChartDataForDisplay = () => {
+    if (!weeklyChartData || !weeklyChartData.labels || !weeklyChartData.data) return null;
 
     // Ensure we have at least some valid data
-    const hasData = data.some(val => val > 0);
+    const hasData = weeklyChartData.data.some(val => val > 0);
     if (!hasData) return null;
 
     return {
-      labels,
+      labels: weeklyChartData.labels,
       datasets: [{
-        data: data,
+        data: weeklyChartData.data,
         color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
         strokeWidth: 3
       }]
     };
-  };
-
-  const getMacroChartData = () => {
-    if (!weeklyData) return [];
-
-    const totals = weeklyData.reduce((acc, day) => ({
-      protein: acc.protein + day.protein,
-      carbs: acc.carbs + day.carbs,
-      fat: acc.fat + day.fat
-    }), { protein: 0, carbs: 0, fat: 0 });
-
-    // Convert to calories (protein=4, carbs=4, fat=9)
-    const proteinCal = totals.protein * 4;
-    const carbsCal = totals.carbs * 4;
-    const fatCal = totals.fat * 9;
-    const total = proteinCal + carbsCal + fatCal;
-
-    if (total === 0) return [];
-
-    return [
-      {
-        name: 'Protein',
-        population: proteinCal,
-        color: '#EF4444',
-        legendFontColor: colorScheme === 'dark' ? '#F1F5F9' : '#1E293B',
-        legendFontSize: 13
-      },
-      {
-        name: 'Carbs',
-        population: carbsCal,
-        color: '#10B981',
-        legendFontColor: colorScheme === 'dark' ? '#F1F5F9' : '#1E293B',
-        legendFontSize: 13
-      },
-      {
-        name: 'Fat',
-        population: fatCal,
-        color: '#F59E0B',
-        legendFontColor: colorScheme === 'dark' ? '#F1F5F9' : '#1E293B',
-        legendFontSize: 13
-      }
-    ];
   };
 
   const chartConfig = {
@@ -250,8 +102,7 @@ export default function InsightsScreen() {
     useShadowColorFromDataset: false
   };
 
-  const weeklyChartData = getWeeklyChartData();
-  const macroChartData = getMacroChartData();
+  const weeklyChartDataDisplay = getWeeklyChartDataForDisplay();
 
   if (loading) {
     return (
@@ -277,7 +128,7 @@ export default function InsightsScreen() {
       </View>
 
       {/* Weekly Calorie Chart */}
-      {weeklyChartData && weeklyChartData.datasets && weeklyChartData.datasets[0].data.length > 0 && (
+      {weeklyChartDataDisplay && weeklyChartDataDisplay.datasets && weeklyChartDataDisplay.datasets[0].data.length > 0 && (
         <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
           <Card.Content>
             <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
@@ -287,7 +138,7 @@ export default function InsightsScreen() {
               Last 7 days
             </Text>
             <LineChart
-              data={weeklyChartData}
+              data={weeklyChartDataDisplay}
               width={screenWidth - 80}
               height={220}
               chartConfig={chartConfig}
@@ -374,7 +225,7 @@ export default function InsightsScreen() {
       )}
 
       {/* Empty State */}
-      {!weeklyData || weeklyData.every(d => d.calories === 0) ? (
+      {!hasEnoughData ? (
         <Card style={[styles.emptyCard, { backgroundColor: theme.colors.surface }]}>
           <Card.Content style={styles.emptyContent}>
             <Text style={styles.emptyIcon}>📊</Text>
@@ -382,8 +233,13 @@ export default function InsightsScreen() {
               No data yet
             </Text>
             <Text variant="bodyMedium" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-              Log meals for a week to see your trends and insights!
+              Log meals for at least 5 days to see your trends and insights!
             </Text>
+            {daysWithData > 0 && (
+              <Text variant="bodySmall" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant, marginTop: 8 }]}>
+                You have {daysWithData} day{daysWithData !== 1 ? 's' : ''} logged. Keep it up!
+              </Text>
+            )}
           </Card.Content>
         </Card>
       ) : null}

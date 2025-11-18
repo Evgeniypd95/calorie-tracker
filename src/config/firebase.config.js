@@ -1,6 +1,13 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import {
+  initializeAuth,
+  getReactNativePersistence,
+  browserLocalPersistence,
+  getAuth
+} from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Firebase configuration using environment variables
 // Make sure to set these in your .env file with EXPO_PUBLIC_ prefix
@@ -24,7 +31,21 @@ if (missingKeys.length > 0) {
 
 const app = initializeApp(firebaseConfig);
 
-// Initialize Auth
-export const auth = getAuth(app);
+// Initialize Auth with platform-specific persistence
+// Web: use browserLocalPersistence (default, stores in localStorage)
+// Native (iOS/Android): use AsyncStorage persistence
+let auth;
+if (Platform.OS === 'web') {
+  // For web, use getAuth which defaults to browserLocalPersistence
+  auth = getAuth(app);
+  // Explicitly set to local persistence to ensure session persists across browser sessions
+  auth.setPersistence(browserLocalPersistence);
+} else {
+  // For native platforms (iOS/Android), use AsyncStorage
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage)
+  });
+}
 
+export { auth };
 export const db = getFirestore(app);

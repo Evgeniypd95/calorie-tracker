@@ -6,7 +6,7 @@ import { mealService, userService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { shouldShowCheckIn, getCheckInQuestions, calculateTargetAdjustment, getNextCheckInDate } from '../../services/checkInService';
 import CheckInModal from '../../components/CheckInModal';
-import { scoreMeal } from '../../services/mealScoringService';
+import { generateSuggestionsBackend } from '../../services/geminiService';
 import MealGradeCard from '../../components/MealGradeCard';
 import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
@@ -126,44 +126,27 @@ export default function DashboardScreen({ navigation }) {
   // Generate smart meal suggestions based on patterns
   const generateSmartSuggestions = async (currentMeals) => {
     try {
-      const suggestions = [];
-      const currentHour = new Date().getHours();
-
-      // Get all user's past meals
-      const allMeals = await mealService.getUserMeals(user.uid, 30); // Last 30 days
-
-      // Suggest based on time of day
-      if (currentHour >= 6 && currentHour < 11 && !currentMeals.find(m => m.mealType === 'Breakfast')) {
-        const breakfasts = allMeals.filter(m => m.mealType === 'Breakfast');
-        if (breakfasts.length > 0) {
-          const mostCommon = breakfasts[0]; // Simplified - could use frequency analysis
-          suggestions.push({
-            type: 'time',
-            message: `You usually eat ${mostCommon.description.substring(0, 30)}... for breakfast. Log it now?`,
-            meal: mostCommon
-          });
-        }
+      // Only generate suggestions if user has completed onboarding
+      if (!userProfile || !userProfile.onboardingCompleted) {
+        console.log('[SmartSuggestions] User has not completed onboarding');
+        setSmartSuggestions([]);
+        return;
       }
 
-      // Check protein goal
-      const totals = calculateTotals();
-      if (userProfile?.proteinTarget && totals.protein < userProfile.proteinTarget * 0.5) {
-        const highProteinMeals = allMeals
-          .filter(m => m.totals.protein > 30)
-          .slice(0, 3);
+      console.log('[SmartSuggestions] Calling backend to generate suggestions');
+      const result = await generateSuggestionsBackend(user.uid, userProfile);
 
-        if (highProteinMeals.length > 0) {
-          suggestions.push({
-            type: 'protein',
-            message: `You haven't hit your protein goal. Try: ${highProteinMeals[0].description.substring(0, 40)}...`,
-            meals: highProteinMeals
-          });
-        }
+      if (result.reason === 'insufficient_data') {
+        console.log(`[SmartSuggestions] Not enough data: ${result.daysWithData} days (need 10+)`);
+        setSmartSuggestions([]);
+        return;
       }
 
-      setSmartSuggestions(suggestions);
+      console.log('[SmartSuggestions] Received suggestions from backend:', result.suggestions);
+      setSmartSuggestions(result.suggestions || []);
     } catch (error) {
-      console.error('Error generating suggestions:', error);
+      console.error('[SmartSuggestions] Error generating suggestions:', error);
+      setSmartSuggestions([]);
     }
   };
 
@@ -558,18 +541,25 @@ export default function DashboardScreen({ navigation }) {
         )}
 
         {/* Smart Suggestions */}
-        {smartSuggestions.length > 0 && (
-          <Card style={styles.suggestionCard} elevation={1}>
+        {smartSuggestions.length > 0 && smartSuggestions.map((suggestion, index) => (
+          <Card key={index} style={styles.suggestionCard} elevation={1}>
             <Card.Content>
               <View style={styles.suggestionHeader}>
-                <Text variant="titleSmall" style={styles.suggestionTitle}>💡 Smart Suggestion</Text>
+                <Text variant="titleSmall" style={styles.suggestionTitle}>
+                  {suggestion.icon} {suggestion.title}
+                </Text>
               </View>
               <Text variant="bodyMedium" style={styles.suggestionText}>
-                {smartSuggestions[0].message}
+                {suggestion.description}
               </Text>
+              {suggestion.actionable && (
+                <Text variant="bodySmall" style={styles.suggestionActionable}>
+                  💡 {suggestion.actionable}
+                </Text>
+              )}
             </Card.Content>
           </Card>
-        )}
+        ))}
 
         {/* Hero Progress Card */}
         <Card style={styles.heroCard} elevation={3}>
@@ -649,8 +639,8 @@ export default function DashboardScreen({ navigation }) {
             </Card>
           ) : (
             meals.map((meal) => {
-              // Calculate meal grade if user has completed onboarding
-              const gradeData = userProfile?.onboardingCompleted ? scoreMeal(meal, userProfile) : null;
+              // Use gradeData stored in the meal document from backend
+              const gradeData = meal.gradeData || null;
 
               return (
                 <Swipeable
@@ -694,41 +684,42 @@ export default function DashboardScreen({ navigation }) {
                           {meal.description}
                         </Text>
 
-                        {/* Show full grade card if available */}
-                        {gradeData && (
-                          <View style={styles.gradeCardContainer}>
-                            <MealGradeCard gradeData={gradeData} compact />
-                          </View>
-                        )}
-
+                        {/* Calories and Macros - Show first */}
                         <View style={styles.nutrientsContainer}>
                           <View style={styles.nutrientItem}>
                             <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              Calories
+                              CALORIES
                             </Text>
-                            <Text variant="titleSmall" style={styles.caloriesValue}>
+                            <Text variant="titleLarge" style={styles.caloriesValue}>
                               {meal.totals.calories}
                             </Text>
                           </View>
                           <View style={styles.nutrientItem}>
                             <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              Protein
+                              PROTEIN
                             </Text>
-                            <Text variant="titleSmall">{Math.round(meal.totals.protein)}g</Text>
+                            <Text variant="titleMedium" style={styles.macroValue}>{Math.round(meal.totals.protein)}g</Text>
                           </View>
                           <View style={styles.nutrientItem}>
                             <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              Carbs
+                              CARBS
                             </Text>
-                            <Text variant="titleSmall">{Math.round(meal.totals.carbs)}g</Text>
+                            <Text variant="titleMedium" style={styles.macroValue}>{Math.round(meal.totals.carbs)}g</Text>
                           </View>
                           <View style={styles.nutrientItem}>
                             <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              Fat
+                              FAT
                             </Text>
-                            <Text variant="titleSmall">{Math.round(meal.totals.fat)}g</Text>
+                            <Text variant="titleMedium" style={styles.macroValue}>{Math.round(meal.totals.fat)}g</Text>
                           </View>
                         </View>
+
+                        {/* Show grade card AFTER calories/macros */}
+                        {gradeData && (
+                          <View style={styles.gradeCardContainer}>
+                            <MealGradeCard gradeData={gradeData} compact />
+                          </View>
+                        )}
                       </Card.Content>
                     </Card>
                   </TouchableOpacity>
@@ -738,17 +729,9 @@ export default function DashboardScreen({ navigation }) {
           )}
         </View>
 
-        {/* Bottom padding for FAB */}
-        <View style={{ height: 80 }} />
+        {/* Bottom padding */}
+        <View style={{ height: 20 }} />
       </ScrollView>
-
-      {/* FAB with Menu */}
-      <FAB
-        icon="plus"
-        style={styles.fab}
-        color="#FFFFFF"
-        onPress={() => navigation.navigate('LogMeal', { selectedDate: selectedDate.toISOString() })}
-      />
 
       {/* Edit Meal Modal */}
       <Portal>
@@ -927,6 +910,12 @@ const styles = StyleSheet.create({
   suggestionText: {
     color: '#075985',
     lineHeight: 20
+  },
+  suggestionActionable: {
+    color: '#0369A1',
+    marginTop: 8,
+    lineHeight: 18,
+    fontStyle: 'italic'
   },
   // Hero Card Styles
   heroCard: {
@@ -1117,7 +1106,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingTop: 16,
-    paddingBottom: 4,
+    paddingBottom: 12,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9'
   },
@@ -1126,17 +1115,22 @@ const styles = StyleSheet.create({
     flex: 1
   },
   nutrientLabel: {
-    color: '#94A3B8',
-    marginBottom: 6,
-    fontSize: 11,
-    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 4,
+    fontSize: 10,
+    fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.5
+    letterSpacing: 0.8
   },
   caloriesValue: {
     color: '#6366F1',
+    fontWeight: '800',
+    fontSize: 28
+  },
+  macroValue: {
+    color: '#1E293B',
     fontWeight: '700',
-    fontSize: 16
+    fontSize: 20
   },
   // Swipe Actions
   swipeActionDuplicate: {
@@ -1181,18 +1175,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12
-  },
-  // FAB
-  fab: {
-    position: 'absolute',
-    margin: 20,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#6366F1',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 8px 24px rgba(99, 102, 241, 0.4)',
-      },
-    }),
   }
 });

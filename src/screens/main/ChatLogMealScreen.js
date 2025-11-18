@@ -4,11 +4,10 @@ import { TextInput, Button, Text, IconButton, ActivityIndicator, Card, Chip, Sur
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Voice from '@react-native-voice/voice';
-import { parseMealDescription, convertImageToDescription } from '../../services/geminiService';
+import { parseMealDescription, convertImageToDescription, gradeMealBackend } from '../../services/geminiService';
 import { mealService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { lookupBarcode, formatBarcodeProductForParsing } from '../../services/barcodeService';
-import { scoreMeal } from '../../services/mealScoringService';
 import MealGradeCard from '../../components/MealGradeCard';
 
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
@@ -461,11 +460,14 @@ export default function ChatLogMealScreen({ navigation, route }) {
   };
 
   const parseAndRespond = async (text) => {
+    console.log('🔍 [ChatLogMeal] parseAndRespond called with text:', text);
     setIsProcessing(true);
     addMessage('ai', '🤔 Let me calculate the nutrition...');
 
     try {
+      console.log('🤖 [ChatLogMeal] Calling parseMealDescription API');
       const result = await parseMealDescription(text);
+      console.log('✅ [ChatLogMeal] Parse result:', JSON.stringify(result, null, 2));
 
       // Remove the "calculating" message
       setMessages(prev => prev.slice(0, -1));
@@ -476,34 +478,55 @@ export default function ChatLogMealScreen({ navigation, route }) {
         `• ${item.quantity} ${item.food} (${item.calories} cal)`
       ).join('\n');
 
-      const response = `Got it! 🍽️ Here's what I found:\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${result.totals.protein}g | Carbs: ${result.totals.carbs}g | Fat: ${result.totals.fat}g\n\nDoes this look right? You can tell me what to adjust, or if it looks good, just pick a meal type below and we'll save it!`;
+      const response = `Got it! 🍽️ Here's what I found:\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${result.totals.protein}g | Carbs: ${result.totals.carbs}g | Fat: ${result.totals.fat}g`;
 
       addMessage('ai', response, { parsedData: result });
+
+      // Add explicit feedback prompt with examples
+      setTimeout(() => {
+        addMessage('ai', '', { showFeedbackSuggestions: true });
+      }, 500);
       setParsedData(result);
+      console.log('✅ [ChatLogMeal] Parse and respond complete');
     } catch (error) {
-      console.error('Error parsing:', error);
+      console.error('❌ [ChatLogMeal] Error parsing meal:', error);
+      console.error('❌ [ChatLogMeal] Error details:', error.message, error.stack);
       setMessages(prev => prev.slice(0, -1));
       addMessage('ai', "Oops, I had trouble with that. Could you try describing it differently?");
     } finally {
       setIsProcessing(false);
+      console.log('🏁 [ChatLogMeal] parseAndRespond finished');
     }
   };
 
   const handleSendMessage = async () => {
+    console.log('🚀 [ChatLogMeal] handleSendMessage called');
+
     // Stop recording if it's active
     if (isListening) {
+      console.log('🎤 [ChatLogMeal] Stopping voice recording');
       await stopVoiceRecording();
     }
 
     const text = inputText.trim();
-    if (!text && !selectedImage) return;
+    console.log('📝 [ChatLogMeal] Input text:', text);
+    console.log('🖼️ [ChatLogMeal] Selected image:', !!selectedImage);
+
+    if (!text && !selectedImage) {
+      console.log('⚠️ [ChatLogMeal] No text or image, returning early');
+      return;
+    }
 
     // Clear input immediately
     setInputText('');
     textBeforeVoiceRef.current = '';
+    console.log('🧹 [ChatLogMeal] Input cleared');
 
     // If we already have parsed data, treat this as a refinement
     if (parsedData && text) {
+      console.log('🔄 [ChatLogMeal] Refining existing parsed data');
+      console.log('📊 [ChatLogMeal] Current parsed data:', parsedData);
+
       addMessage('user', text);
 
       // AI acknowledges the refinement
@@ -511,8 +534,10 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
       setIsProcessing(true);
       try {
+        console.log('🤖 [ChatLogMeal] Calling parseMealDescription for refinement');
         // Re-parse with the feedback AND existing data context
         const result = await parseMealDescription(text, parsedData);
+        console.log('✅ [ChatLogMeal] Refinement result:', result);
 
         setMessages(prev => prev.slice(0, -1));
 
@@ -521,37 +546,54 @@ export default function ChatLogMealScreen({ navigation, route }) {
           `• ${item.quantity} ${item.food} (${item.calories} cal)`
         ).join('\n');
 
-        const response = `Updated! ✨\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${result.totals.protein}g | Carbs: ${result.totals.carbs}g | Fat: ${result.totals.fat}g\n\nLooking better?`;
+        const response = `Updated! ✨\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${result.totals.protein}g | Carbs: ${result.totals.carbs}g | Fat: ${result.totals.fat}g`;
 
         addMessage('ai', response, { parsedData: result });
+
+        // Add feedback prompt again
+        setTimeout(() => {
+          addMessage('ai', '', { showFeedbackSuggestions: true });
+        }, 500);
+
         setParsedData(result);
       } catch (error) {
-        console.error('Error refining:', error);
+        console.error('❌ [ChatLogMeal] Error refining meal:', error);
         setMessages(prev => prev.slice(0, -1));
         addMessage('ai', "Hmm, could you rephrase that adjustment?");
       } finally {
         setIsProcessing(false);
+        console.log('✅ [ChatLogMeal] Refinement complete');
       }
       return;
     }
 
     // Initial meal description
     if (text) {
+      console.log('📝 [ChatLogMeal] Processing initial meal description');
       addMessage('user', text);
       await parseAndRespond(text);
     }
   };
 
   const handleSaveMeal = async () => {
+    console.log('💾 [ChatLogMeal] handleSaveMeal called');
+    console.log('📊 [ChatLogMeal] Parsed data:', parsedData);
+    console.log('🍽️ [ChatLogMeal] Selected meal type:', selectedMealType);
+
     if (!parsedData || !selectedMealType) {
+      console.log('⚠️ [ChatLogMeal] Missing parsedData or selectedMealType');
       showAlert('Error', 'Please select a meal type first!');
       return;
     }
 
     // Prevent duplicate saves
-    if (isSaving) return;
+    if (isSaving) {
+      console.log('⚠️ [ChatLogMeal] Already saving, preventing duplicate');
+      return;
+    }
 
     setIsSaving(true);
+    console.log('🔄 [ChatLogMeal] Starting save process');
 
     try {
       const mealDate = selectedDate ? new Date(selectedDate) : new Date();
@@ -559,32 +601,48 @@ export default function ChatLogMealScreen({ navigation, route }) {
         const now = new Date();
         mealDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
       }
+      console.log('📅 [ChatLogMeal] Meal date:', mealDate);
 
       // Get the original description from messages
       const userMessages = messages.filter(m => m.role === 'user' && !m.data?.imageUri);
       const description = userMessages.map(m => m.content).join(', ');
+      console.log('📝 [ChatLogMeal] Meal description:', description);
 
-      await mealService.logMeal(user.uid, {
+      const mealData = {
         mealType: selectedMealType,
         description: description || 'Meal from photo',
         items: parsedData.items,
         totals: parsedData.totals,
         date: mealDate
-      });
+      };
+      console.log('📦 [ChatLogMeal] Meal data to save:', JSON.stringify(mealData, null, 2));
+
+      console.log('🔥 [ChatLogMeal] Calling mealService.logMeal');
+      const mealId = await mealService.logMeal(user.uid, mealData);
+      console.log('✅ [ChatLogMeal] Meal saved successfully with ID:', mealId);
 
       addMessage('ai', `Perfect! Your ${selectedMealType.toLowerCase()} has been logged. Keep up the great work! 💪`);
 
-      // Score the meal based on user's goals
-      if (userProfile && userProfile.onboardingCompleted) {
-        const gradeData = scoreMeal(parsedData, userProfile);
-        addMessage('ai', '', { gradeData });
+      // Grade the meal using backend based on user's goals
+      if (userProfile && userProfile.onboardingCompleted && mealId) {
+        console.log('🎯 [ChatLogMeal] Grading meal via backend');
+        try {
+          const gradeData = await gradeMealBackend(mealId, parsedData, userProfile);
+          console.log('📊 [ChatLogMeal] Meal grade from backend:', gradeData);
+          addMessage('ai', '', { gradeData });
+        } catch (gradeError) {
+          console.error('❌ [ChatLogMeal] Error grading meal:', gradeError);
+          // Don't fail the whole flow if grading fails
+        }
       }
 
       // Show "Done" button instead of auto-redirect
       setMealSaved(true);
       setIsSaving(false);
+      console.log('✅ [ChatLogMeal] Save process complete');
     } catch (error) {
-      console.error('Error saving meal:', error);
+      console.error('❌ [ChatLogMeal] Error saving meal:', error);
+      console.error('❌ [ChatLogMeal] Error details:', error.message, error.stack);
       showAlert('Error', 'Failed to save meal');
       setIsSaving(false);
     }
@@ -612,6 +670,45 @@ export default function ChatLogMealScreen({ navigation, route }) {
         <View key={message.id} style={[styles.messageContainer, styles.userMessageContainer]}>
           <Surface style={[styles.messageBubble, styles.userBubble]}>
             <Image source={{ uri: message.data.imageUri }} style={styles.messageImage} />
+          </Surface>
+        </View>
+      );
+    }
+
+    // Feedback suggestions (show after parsing)
+    if (message.data?.showFeedbackSuggestions && parsedData && !mealSaved) {
+      const feedbackExamples = [
+        { icon: "plus", text: "Add an item", example: "Add " },
+        { icon: "pencil", text: "Change quantity", example: "Update quantity to " },
+        { icon: "delete", text: "Remove something", example: "Remove " },
+        { icon: "cached", text: "Change cooking", example: "Cooking method: " }
+      ];
+
+      return (
+        <View key={message.id} style={styles.feedbackSuggestionsContainer}>
+          <Surface style={styles.feedbackSuggestionsCard} elevation={2}>
+            <Text style={styles.feedbackTitle}>📝 Need to make changes?</Text>
+            <Text style={styles.feedbackSubtitle}>Just tell me what to adjust!</Text>
+
+            <View style={styles.feedbackExamplesGrid}>
+              {feedbackExamples.map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.feedbackExampleChip}
+                  onPress={() => {
+                    setInputText(item.example);
+                  }}
+                >
+                  <IconButton icon={item.icon} size={16} iconColor="#6366F1" style={styles.feedbackChipIcon} />
+                  <View style={styles.feedbackChipTextContainer}>
+                    <Text style={styles.feedbackChipTitle}>{item.text}</Text>
+                    <Text style={styles.feedbackChipExample}>"{item.example}"</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.feedbackOrText}>Or if it looks good, pick a meal type below! 👇</Text>
           </Surface>
         </View>
       );
@@ -805,7 +902,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
                   key={type}
                   selected={selectedMealType === type}
                   onPress={() => setSelectedMealType(type)}
-                  style={styles.chip}
                   mode={selectedMealType === type ? 'flat' : 'outlined'}
                   selectedColor={selectedMealType === type ? '#FFFFFF' : '#6366F1'}
                   style={[
@@ -1184,6 +1280,77 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 0,
     marginBottom: 12
+  },
+  // Feedback Suggestions Styles
+  feedbackSuggestionsContainer: {
+    width: '100%',
+    marginBottom: 16
+  },
+  feedbackSuggestionsCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 12px rgba(99, 102, 241, 0.15)',
+      },
+    }),
+  },
+  feedbackTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 4
+  },
+  feedbackSubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    marginBottom: 16
+  },
+  feedbackExamplesGrid: {
+    gap: 8,
+    marginBottom: 12
+  },
+  feedbackExampleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
+      },
+    }),
+  },
+  feedbackChipIcon: {
+    margin: 0,
+    marginRight: 8
+  },
+  feedbackChipTextContainer: {
+    flex: 1
+  },
+  feedbackChipTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 2
+  },
+  feedbackChipExample: {
+    fontSize: 12,
+    color: '#6366F1',
+    fontStyle: 'italic'
+  },
+  feedbackOrText: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 8,
+    fontWeight: '500'
   },
   barcodeContainer: {
     flex: 1,

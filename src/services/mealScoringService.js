@@ -7,12 +7,16 @@
 
 // List of common vegetables for detection
 const VEGETABLES = [
-  'broccoli', 'spinach', 'kale', 'lettuce', 'carrots', 'tomato', 'cucumber',
-  'bell pepper', 'zucchini', 'asparagus', 'cauliflower', 'brussels sprouts',
-  'cabbage', 'celery', 'eggplant', 'green beans', 'mushrooms', 'onion',
-  'peas', 'radish', 'squash', 'sweet potato', 'arugula', 'bok choy',
+  'broccoli', 'spinach', 'kale', 'lettuce', 'carrots', 'carrot', 'tomato', 'cucumber',
+  'bell pepper', 'pepper', 'zucchini', 'asparagus', 'cauliflower', 'brussels sprouts',
+  'cabbage', 'celery', 'eggplant', 'green beans', 'mushrooms', 'mushroom', 'onion',
+  'peas', 'radish', 'squash', 'sweet potato', 'potato', 'arugula', 'bok choy',
   'collard greens', 'artichoke', 'beets', 'chard', 'fennel', 'leeks',
-  'parsnip', 'turnip', 'watercress', 'salad', 'greens', 'vegetables', 'veggie'
+  'parsnip', 'turnip', 'watercress', 'salad', 'greens', 'vegetables', 'veggie',
+  // Asian vegetables
+  'scallion', 'spring onion', 'green onion', 'bean sprouts', 'sprouts',
+  'bamboo shoots', 'water chestnuts', 'snow peas', 'chinese cabbage',
+  'napa cabbage', 'daikon', 'lotus root', 'seaweed', 'nori', 'kombu'
 ];
 
 const FRUITS = [
@@ -119,32 +123,32 @@ export function scoreMeal(meal, userProfile) {
 
   // 2. PROTEIN SCORE (30 points) - CRITICAL
   if (goal === 'BUILD_MUSCLE') {
-    if (proteinPercent < 25) {
+    if (proteinPercent < 20) {
       score -= 30;
-      feedback.push(`💪 Low protein (${Math.round(proteinPercent)}%) - aim for 30%+ for muscle building`);
-    } else if (proteinPercent >= 35) {
-      positives.push(`💪 Excellent protein (${Math.round(proteinPercent)}%)!`);
+      feedback.push(`💪 Low protein (${Math.round(proteinPercent)}%) - aim for 25%+ for muscle building`);
     } else if (proteinPercent >= 30) {
+      positives.push(`💪 Excellent protein (${Math.round(proteinPercent)}%)!`);
+    } else if (proteinPercent >= 25) {
       positives.push('✓ Good protein content');
     } else {
-      score -= 15;
-      feedback.push('💪 Add more protein for muscle building');
+      score -= 10;
+      feedback.push('💪 Could use a bit more protein for muscle building');
     }
   } else if (goal === 'LOSE_WEIGHT') {
-    if (proteinPercent < 20) {
+    if (proteinPercent < 15) {
       score -= 25;
       feedback.push('🎯 Add more protein for satiety and muscle preservation');
-    } else if (proteinPercent >= 30) {
+    } else if (proteinPercent >= 25) {
       positives.push(`🎯 Great protein (${Math.round(proteinPercent)}%) for weight loss!`);
     } else {
       positives.push('✓ Good protein content');
     }
   } else {
     // MAINTAIN or EXPLORING
-    if (proteinPercent < 15) {
-      score -= 20;
+    if (proteinPercent < 12) {
+      score -= 15;
       feedback.push('Add more protein for balanced nutrition');
-    } else if (proteinPercent >= 25) {
+    } else if (proteinPercent >= 20) {
       positives.push('✓ Excellent protein balance');
     }
   }
@@ -169,7 +173,7 @@ export function scoreMeal(meal, userProfile) {
     feedback.push('💪 Add more carbs for energy and recovery');
   }
 
-  // 5. VEGETABLES & FRUITS (25 points)
+  // 5. VEGETABLES & FRUITS (15 points) - Made less strict
   let veggieCount = 0;
   let fruitCount = 0;
 
@@ -179,16 +183,15 @@ export function scoreMeal(meal, userProfile) {
     if (isFruit) fruitCount++;
   });
 
-  if (veggieCount === 0) {
-    score -= 20;
+  // Only penalize if BOTH veggies and fruits are missing
+  if (veggieCount === 0 && fruitCount === 0) {
+    score -= 12;
     feedback.push('🥦 Add vegetables for fiber and micronutrients');
   } else if (veggieCount >= 2) {
     positives.push('🥦 Great veggie variety!');
-  } else {
+  } else if (veggieCount >= 1) {
     positives.push('✓ Includes vegetables');
-  }
-
-  if (fruitCount > 0) {
+  } else if (fruitCount > 0) {
     positives.push('🍎 Includes fruit');
   }
 

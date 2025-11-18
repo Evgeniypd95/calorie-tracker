@@ -310,3 +310,103 @@ export const chatOnboarding = async (conversationHistory, userMessage) => {
     };
   }
 };
+
+/**
+ * Grade a meal using backend Cloud Function
+ * @param {string} mealId - The ID of the meal document in Firestore
+ * @param {object} meal - The meal data (items and totals)
+ * @param {object} userProfile - User's profile with goal and targets
+ * @returns {Promise<object>} - Grade data with score, feedback, etc.
+ */
+export const gradeMealBackend = async (mealId, meal, userProfile) => {
+  console.log('📊 Grading meal via backend');
+
+  try {
+    const gradeMealFn = httpsCallable(functions, 'gradeMeal');
+    const result = await gradeMealFn({
+      mealId,
+      meal,
+      userProfile
+    });
+
+    console.log('✅ gradeMeal response:', result.data);
+
+    if (result.data.success) {
+      return result.data.gradeData;
+    } else {
+      throw new Error('Meal grading failed');
+    }
+  } catch (error) {
+    console.error('❌ Error calling gradeMeal function:', error);
+    throw error;
+  }
+};
+
+/**
+ * Generate smart suggestions using backend Cloud Function
+ * @param {string} userId - The user's ID
+ * @param {object} userProfile - User's profile with goal and targets
+ * @returns {Promise<object>} - Suggestions array and stats
+ */
+export const generateSuggestionsBackend = async (userId, userProfile) => {
+  console.log('💡 Generating suggestions via backend');
+
+  try {
+    const generateSuggestionsFn = httpsCallable(functions, 'generateSuggestions');
+    const result = await generateSuggestionsFn({
+      userId,
+      userProfile
+    });
+
+    console.log('✅ generateSuggestions response:', result.data);
+
+    if (result.data.success) {
+      return {
+        suggestions: result.data.suggestions,
+        stats: result.data.stats,
+        reason: result.data.reason,
+        daysWithData: result.data.daysWithData
+      };
+    } else {
+      throw new Error('Suggestions generation failed');
+    }
+  } catch (error) {
+    console.error('❌ Error calling generateSuggestions function:', error);
+    throw error;
+  }
+};
+
+/**
+ * Generate insights using backend Cloud Function
+ * @param {string} userId - The user's ID
+ * @param {object} userProfile - User's profile with targets
+ * @returns {Promise<object>} - Insights, chart data, and metadata
+ */
+export const generateInsightsBackend = async (userId, userProfile) => {
+  console.log('📊 Generating insights via backend');
+
+  try {
+    const generateInsightsFn = httpsCallable(functions, 'generateInsights');
+    const result = await generateInsightsFn({
+      userId,
+      userProfile
+    });
+
+    console.log('✅ generateInsights response:', result.data);
+
+    if (result.data.success) {
+      return {
+        hasEnoughData: result.data.hasEnoughData,
+        daysWithData: result.data.daysWithData,
+        insights: result.data.insights,
+        weeklyChartData: result.data.weeklyChartData,
+        macroChartData: result.data.macroChartData
+      };
+    } else {
+      throw new Error('Insights generation failed');
+    }
+  } catch (error) {
+    console.error('❌ Error calling generateInsights function:', error);
+    throw error;
+  }
+};

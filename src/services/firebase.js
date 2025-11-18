@@ -82,19 +82,34 @@ export const userService = {
 
 export const mealService = {
   logMeal: async (userId, mealData) => {
+    console.log('🔥 [Firebase] logMeal called');
+    console.log('👤 [Firebase] User ID:', userId);
+    console.log('📦 [Firebase] Meal data:', JSON.stringify(mealData, null, 2));
+
     try {
-      const mealRef = await addDoc(collection(db, 'meals'), {
+      const dataToSave = {
         userId,
         ...mealData,
         createdAt: new Date()
-      });
+      };
+      console.log('💾 [Firebase] Data to save:', JSON.stringify(dataToSave, null, 2));
+
+      console.log('🔥 [Firebase] Adding document to meals collection');
+      const mealRef = await addDoc(collection(db, 'meals'), dataToSave);
+      console.log('✅ [Firebase] Meal document created with ID:', mealRef.id);
 
       // Update streak
+      console.log('🔥 [Firebase] Updating user streak');
       await updateStreak(userId);
+      console.log('✅ [Firebase] Streak updated successfully');
 
+      console.log('✅ [Firebase] logMeal complete, returning ID:', mealRef.id);
       return mealRef.id;
     } catch (error) {
-      console.error('❌ Error logging meal:', error);
+      console.error('❌ [Firebase] Error logging meal:', error);
+      console.error('❌ [Firebase] Error code:', error.code);
+      console.error('❌ [Firebase] Error message:', error.message);
+      console.error('❌ [Firebase] Error stack:', error.stack);
       throw error;
     }
   },
@@ -128,7 +143,14 @@ export const mealService = {
     );
 
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const meals = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Sort by date descending (latest first)
+    return meals.sort((a, b) => {
+      const timeA = a.date?.toMillis?.() || a.date?.getTime?.() || 0;
+      const timeB = b.date?.toMillis?.() || b.date?.getTime?.() || 0;
+      return timeB - timeA;
+    });
   },
 
   getRecentMeals: async (userId, limit = 5) => {

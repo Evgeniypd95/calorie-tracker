@@ -2,13 +2,13 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, TouchableOpacity, View, StyleSheet } from 'react-native';
 import DashboardScreen from '../screens/main/DashboardScreen';
 import ChatLogMealScreen from '../screens/main/ChatLogMealScreen';
 import SocialFeedScreen from '../screens/main/SocialFeedScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import InsightsScreen from '../screens/main/InsightsScreen';
-import { IconButton, Icon } from 'react-native-paper';
+import { IconButton, Icon, FAB, Text } from 'react-native-paper';
 import { authService } from '../services/firebase';
 
 const Stack = createStackNavigator();
@@ -97,11 +97,25 @@ function ProfileStack() {
   );
 }
 
+// Custom Tab Button for central "Log Meal" button
+function CustomTabBarButton({ children, onPress }) {
+  return (
+    <TouchableOpacity
+      style={styles.customButtonContainer}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={styles.customButton}>
+        {children}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 export default function MainNavigator() {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
-  
-  const isDark = colorScheme === 'dark';
+  // Force light mode - dark mode not fully implemented
+  const isDark = false;
 
   return (
     <Tab.Navigator
@@ -140,12 +154,34 @@ export default function MainNavigator() {
         }}
       />
       <Tab.Screen
+        name="LogMealTab"
+        component={DashboardStack}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('Dashboard', {
+              screen: 'LogMeal',
+              params: { selectedDate: new Date().toISOString().split('T')[0] }
+            });
+          },
+        })}
+        options={{
+          tabBarLabel: () => null,
+          tabBarIcon: ({ focused }) => (
+            <Icon source="plus" size={32} color="#FFFFFF" />
+          ),
+          tabBarButton: (props) => (
+            <CustomTabBarButton {...props} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="SharedMeals"
         component={SharedMealsStack}
         options={{
           tabBarLabel: 'Feed',
           tabBarIcon: ({ color, size }) => (
-            <Icon source="home-outline" size={size} color={color} />
+            <Icon source="earth" size={size} color={color} />
           ),
         }}
       />
@@ -162,3 +198,28 @@ export default function MainNavigator() {
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  customButtonContainer: {
+    top: -20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flex: 1
+  },
+  customButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6366F1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+  }
+});

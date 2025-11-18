@@ -92,42 +92,14 @@ function AppContent() {
 }
 
 export default function App() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  // Force light mode - dark mode not fully implemented
+  const theme = lightTheme;
 
   return (
     <View style={[styles.appContainer, { backgroundColor: theme.colors.background }]}>
       <PaperProvider theme={theme}>
         <AuthProvider>
-          <NavigationContainer theme={colorScheme === 'dark' ? {
-            dark: true,
-            colors: {
-              primary: darkTheme.colors.primary,
-              background: darkTheme.colors.background,
-              card: darkTheme.colors.surface,
-              text: darkTheme.colors.onBackground,
-              border: darkTheme.colors.outline,
-              notification: darkTheme.colors.primary,
-            },
-            fonts: {
-              regular: {
-                fontFamily: 'System',
-                fontWeight: '400',
-              },
-              medium: {
-                fontFamily: 'System',
-                fontWeight: '500',
-              },
-              bold: {
-                fontFamily: 'System',
-                fontWeight: '600',
-              },
-              heavy: {
-                fontFamily: 'System',
-                fontWeight: '700',
-              },
-            },
-          } : {
+          <NavigationContainer theme={{
             dark: false,
             colors: {
               primary: lightTheme.colors.primary,
