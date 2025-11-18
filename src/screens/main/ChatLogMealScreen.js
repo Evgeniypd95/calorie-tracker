@@ -626,13 +626,17 @@ export default function ChatLogMealScreen({ navigation, route }) {
       // Grade the meal using backend based on user's goals
       if (userProfile && userProfile.onboardingCompleted && mealId) {
         console.log('🎯 [ChatLogMeal] Grading meal via backend');
+        addMessage('ai', '📊 Analyzing your meal...');
         try {
           const gradeData = await gradeMealBackend(mealId, parsedData, userProfile);
           console.log('📊 [ChatLogMeal] Meal grade from backend:', gradeData);
+          // Remove the "analyzing" message
+          setMessages(prev => prev.slice(0, -1));
           addMessage('ai', '', { gradeData });
         } catch (gradeError) {
           console.error('❌ [ChatLogMeal] Error grading meal:', gradeError);
-          // Don't fail the whole flow if grading fails
+          // Remove the "analyzing" message on error too
+          setMessages(prev => prev.slice(0, -1));
         }
       }
 
