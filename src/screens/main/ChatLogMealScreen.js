@@ -475,9 +475,14 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
           setParsedData(parsedResult);
 
-          const response = `Found it! 🎉\n\n• ${result.product.name}${result.product.brand ? ' (' + result.product.brand + ')' : ''}\n• Serving: ${servingSize}\n\nNutrition:\n• ${parsedResult.totals.calories} cal\n• Protein: ${parsedResult.totals.protein}g\n• Carbs: ${parsedResult.totals.carbs}g\n• Fat: ${parsedResult.totals.fat}g\n\nSource: ${result.source}\n\nPick a meal type below to save it!`;
+          const response = `Found it! 🎉\n\n• ${result.product.name}${result.product.brand ? ' (' + result.product.brand + ')' : ''}\n• Serving: ${servingSize}\n\nNutrition:\n• ${parsedResult.totals.calories} cal\n• Protein: ${parsedResult.totals.protein}g\n• Carbs: ${parsedResult.totals.carbs}g\n• Fat: ${parsedResult.totals.fat}g\n\nSource: ${result.source}`;
 
           addMessage('ai', response, { parsedData: parsedResult });
+
+          // Add confirmation prompt for barcode scans
+          setTimeout(() => {
+            addMessage('ai', '', { showFeedbackSuggestions: true });
+          }, 500);
         }
       } else {
         // Update the user message with barcode if product not found
