@@ -11,6 +11,7 @@ import MealGradeCard from '../../components/MealGradeCard';
 import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import Svg, { Circle } from 'react-native-svg';
 
 // Helper function to get a date range (7 days past, today, 7 days future)
 const getDateRange = () => {
@@ -37,6 +38,40 @@ const isSameDay = (date1, date2) => {
   return date1.getDate() === date2.getDate() &&
          date1.getMonth() === date2.getMonth() &&
          date1.getFullYear() === date2.getFullYear();
+};
+
+// Circular progress component
+const CircularProgress = ({ current, target, color, size = 80, strokeWidth = 4 }) => {
+  const percentage = Math.min((current / target) * 100, 100);
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = (percentage / 100) * circumference;
+
+  return (
+    <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
+      {/* Background circle */}
+      <Circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        stroke="#E2E8F0"
+        strokeWidth={strokeWidth}
+        fill="transparent"
+      />
+      {/* Progress circle */}
+      <Circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        stroke={color}
+        strokeWidth={strokeWidth}
+        fill="transparent"
+        strokeDasharray={circumference}
+        strokeDashoffset={circumference - progress}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
 };
 
 // Progress bar component
@@ -498,47 +533,40 @@ export default function DashboardScreen({ navigation }) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Streak & Gamification Card */}
-        {currentStreak > 0 && (
-          <Card style={styles.streakCard} elevation={2}>
-            <Card.Content>
-              <View style={styles.streakContainer}>
-                <View style={styles.streakLeft}>
-                  <Text style={styles.streakEmoji}>🔥</Text>
-                  <View>
-                    <Text variant="headlineMedium" style={styles.streakNumber}>
-                      {currentStreak} days
-                    </Text>
-                    <Text variant="bodySmall" style={styles.streakLabel}>
-                      Current Streak
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.streakRight}>
-                  <Text variant="bodySmall" style={styles.weeklyLabel}>
-                    This week: {weeklyLogs}/7 days
-                  </Text>
-                  <View style={styles.weeklyDots}>
-                    {weeklyMealsData.length === 7 ? weeklyMealsData.map((hasLog, i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.weeklyDot,
-                          hasLog && styles.weeklyDotActive
-                        ]}
-                      />
-                    )) : [...Array(7)].map((_, i) => (
-                      <View
-                        key={i}
-                        style={styles.weeklyDot}
-                      />
-                    ))}
-                  </View>
-                </View>
-              </View>
-            </Card.Content>
-          </Card>
-        )}
+        {/* Quick Action Shortcuts */}
+        <View style={styles.quickActionsContainer}>
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('LogMeal', { action: 'type' })}
+          >
+            <IconButton icon="keyboard" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
+            <Text style={styles.quickActionText}>Type</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('LogMeal', { action: 'scan' })}
+          >
+            <IconButton icon="barcode-scan" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
+            <Text style={styles.quickActionText}>Scan</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('LogMeal', { action: 'photo' })}
+          >
+            <IconButton icon="camera" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
+            <Text style={styles.quickActionText}>Photo</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('LogMeal', { action: 'voice' })}
+          >
+            <IconButton icon="microphone" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
+            <Text style={styles.quickActionText}>Say It</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Smart Suggestions */}
         {smartSuggestions.length > 0 && smartSuggestions.map((suggestion, index) => (
@@ -564,44 +592,72 @@ export default function DashboardScreen({ navigation }) {
         {/* Hero Progress Card */}
         <Card style={styles.heroCard} elevation={3}>
           <Card.Content>
-            <Text variant="titleLarge" style={styles.heroTitle}>
-              Today's Progress
-            </Text>
-
-            {/* Main Calorie Progress */}
-            <View style={styles.heroCaloriesSection}>
-              <View style={styles.calorieRing}>
-                <Text style={styles.calorieRingNumber}>{totals.calories}</Text>
-                <Text style={styles.calorieRingLabel}>/ {calorieTarget}</Text>
-              </View>
-              <Text variant="bodySmall" style={styles.calorieRingSubtext}>
+            {/* Compact Calorie Display */}
+            <View style={styles.compactCalorieRow}>
+              <Text style={styles.compactCalorieText}>
+                <Text style={styles.compactCalorieValue}>{totals.calories}</Text>
+                <Text style={styles.compactCalorieTarget}> / {calorieTarget} cal</Text>
+              </Text>
+              <Text style={styles.compactCalorieRemaining}>
                 {calorieTarget - totals.calories > 0
-                  ? `${calorieTarget - totals.calories} cal remaining`
-                  : `${totals.calories - calorieTarget} cal over`
+                  ? `${calorieTarget - totals.calories} left`
+                  : `${totals.calories - calorieTarget} over`
                 }
               </Text>
             </View>
 
-            {/* Macro Progress Bars */}
+            {/* Macro Progress Circles */}
             <View style={styles.macroProgressSection}>
-              <ProgressBar
-                current={totals.protein}
-                target={proteinTarget}
-                color="#EF4444"
-                label="Protein"
-              />
-              <ProgressBar
-                current={totals.carbs}
-                target={carbsTarget}
-                color="#10B981"
-                label="Carbs"
-              />
-              <ProgressBar
-                current={totals.fat}
-                target={fatTarget}
-                color="#F59E0B"
-                label="Fat"
-              />
+              <View style={styles.macroCircle}>
+                <View style={styles.macroCircleOuter}>
+                  <CircularProgress
+                    current={totals.protein}
+                    target={proteinTarget}
+                    color="#EF4444"
+                    size={80}
+                    strokeWidth={6}
+                  />
+                  <View style={styles.macroCircleInner}>
+                    <Text style={[styles.macroCircleValue, { color: '#EF4444' }]}>{totals.protein}</Text>
+                    <Text style={styles.macroCircleTarget}>/{proteinTarget}g</Text>
+                  </View>
+                </View>
+                <Text style={styles.macroCircleLabel}>Protein</Text>
+              </View>
+
+              <View style={styles.macroCircle}>
+                <View style={styles.macroCircleOuter}>
+                  <CircularProgress
+                    current={totals.carbs}
+                    target={carbsTarget}
+                    color="#10B981"
+                    size={80}
+                    strokeWidth={6}
+                  />
+                  <View style={styles.macroCircleInner}>
+                    <Text style={[styles.macroCircleValue, { color: '#10B981' }]}>{totals.carbs}</Text>
+                    <Text style={styles.macroCircleTarget}>/{carbsTarget}g</Text>
+                  </View>
+                </View>
+                <Text style={styles.macroCircleLabel}>Carbs</Text>
+              </View>
+
+              <View style={styles.macroCircle}>
+                <View style={styles.macroCircleOuter}>
+                  <CircularProgress
+                    current={totals.fat}
+                    target={fatTarget}
+                    color="#F59E0B"
+                    size={80}
+                    strokeWidth={6}
+                  />
+                  <View style={styles.macroCircleInner}>
+                    <Text style={[styles.macroCircleValue, { color: '#F59E0B' }]}>{totals.fat}</Text>
+                    <Text style={styles.macroCircleTarget}>/{fatTarget}g</Text>
+                  </View>
+                </View>
+                <Text style={styles.macroCircleLabel}>Fat</Text>
+              </View>
             </View>
           </Card.Content>
         </Card>
@@ -837,6 +893,41 @@ const styles = StyleSheet.create({
     color: '#6366F1',
     fontWeight: '700'
   },
+  // Quick Actions Styles
+  quickActionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginTop: 8,
+    gap: 12
+  },
+  quickActionButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.04)',
+      },
+    }),
+  },
+  quickActionIcon: {
+    margin: 0,
+    padding: 0
+  },
+  quickActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 4
+  },
   // Streak Card Styles
   streakCard: {
     margin: 20,
@@ -961,8 +1052,90 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontSize: 13
   },
+  // Compact Calorie Display Styles
+  compactCalorieRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  compactCalorieText: {
+    flexDirection: 'row',
+    alignItems: 'baseline'
+  },
+  compactCalorieValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#6366F1',
+    letterSpacing: -1
+  },
+  compactCalorieTarget: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#94A3B8'
+  },
+  compactCalorieRemaining: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
   macroProgressSection: {
-    gap: 16
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 8
+  },
+  macroCircle: {
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  macroCircleOuter: {
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    position: 'relative'
+  },
+  macroCircleInner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  macroCircleValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.5
+  },
+  macroCircleTarget: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '600',
+    marginTop: -2
+  },
+  macroCircleLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
   },
   // Progress Bar Styles
   progressBarContainer: {

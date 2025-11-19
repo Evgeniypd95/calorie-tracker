@@ -17,8 +17,10 @@ const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
 export default function ChatLogMealScreen({ navigation, route }) {
   const { user, userProfile } = useAuth();
-  const { selectedDate } = route.params || {};
+  const { selectedDate, action } = route.params || {};
   const scrollViewRef = useRef(null);
+  const actionHandledRef = useRef(false);
+  const textInputRef = useRef(null);
 
   const [messages, setMessages] = useState([
     {
@@ -54,6 +56,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const [lookingUpBarcode, setLookingUpBarcode] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [mealSaved, setMealSaved] = useState(false);
+  const [mealConfirmed, setMealConfirmed] = useState(false);
   const isScanningBarcodeRef = useRef(false);
 
   // Load recent meals on mount
@@ -188,6 +191,31 @@ export default function ChatLogMealScreen({ navigation, route }) {
       }
     };
   }, []);
+
+  // Handle action parameter (auto-launch camera, scanner, voice)
+  useEffect(() => {
+    if (action && !actionHandledRef.current) {
+      actionHandledRef.current = true;
+      setTimeout(() => {
+        switch (action) {
+          case 'type':
+            textInputRef.current?.focus();
+            break;
+          case 'scan':
+            setShowBarcodeScanner(true);
+            break;
+          case 'photo':
+            takePhoto();
+            break;
+          case 'voice':
+            toggleVoiceInput();
+            break;
+          default:
+            break;
+        }
+      }, 300); // Small delay to let the screen render
+    }
+  }, [action]);
 
   const showAlert = (title, message) => {
     if (Platform.OS === 'web') {
@@ -388,7 +416,8 @@ export default function ChatLogMealScreen({ navigation, route }) {
     setShowBarcodeScanner(false);
     setLookingUpBarcode(true);
 
-    addMessage('user', `🔍 Scanned barcode: ${data}`);
+    // Store barcode ID temporarily
+    const tempUserMessage = addMessage('user', `🔍 Scanning...`);
     addMessage('ai', 'Looking up product...');
 
     try {
@@ -399,6 +428,13 @@ export default function ChatLogMealScreen({ navigation, route }) {
       setMessages(prev => prev.slice(0, -1));
 
       if (result.found) {
+        // Update the user message with the product name
+        setMessages(prev => prev.map(msg =>
+          msg.id === tempUserMessage.id
+            ? { ...msg, content: `${result.product.name}${result.product.brand ? ' (' + result.product.brand + ')' : ''}` }
+            : msg
+        ));
+
         const formattedProduct = formatBarcodeProductForParsing(result);
 
         if (formattedProduct) {
@@ -430,11 +466,23 @@ export default function ChatLogMealScreen({ navigation, route }) {
           addMessage('ai', response, { parsedData: parsedResult });
         }
       } else {
+        // Update the user message with barcode if product not found
+        setMessages(prev => prev.map(msg =>
+          msg.id === tempUserMessage.id
+            ? { ...msg, content: `🔍 Scanned barcode: ${data}` }
+            : msg
+        ));
         addMessage('ai', `Sorry, couldn't find that product in our databases. 😕\n\nBarcode: ${data}\n\nYou can still describe it manually!`);
       }
     } catch (error) {
       console.error('Error looking up barcode:', error);
       setMessages(prev => prev.slice(0, -1));
+      // Update the user message with barcode if error
+      setMessages(prev => prev.map(msg =>
+        msg.id === tempUserMessage.id
+          ? { ...msg, content: `🔍 Scanned barcode: ${data}` }
+          : msg
+      ));
       addMessage('ai', 'Oops, something went wrong looking up that barcode. Try again or enter manually!');
     } finally {
       setLookingUpBarcode(false);
@@ -444,12 +492,19 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
   const processImage = async (image) => {
     setIsProcessing(true);
-    addMessage('user', '📷 [Photo of meal]', { imageUri: image.uri });
+    const tempUserMessage = addMessage('user', '📷 Analyzing photo...', { imageUri: image.uri });
     addMessage('ai', '🔍 Let me analyze that photo...');
 
     try {
       const base64Data = `data:image/jpeg;base64,${image.base64}`;
       const description = await convertImageToDescription(base64Data);
+
+      // Update the user message with the actual description
+      setMessages(prev => prev.map(msg =>
+        msg.id === tempUserMessage.id
+          ? { ...msg, content: description }
+          : msg
+      ));
 
       // Remove the "analyzing" message
       setMessages(prev => prev.slice(0, -1));
@@ -458,6 +513,12 @@ export default function ChatLogMealScreen({ navigation, route }) {
       await parseAndRespond(description);
     } catch (error) {
       console.error('Error processing image:', error);
+      // Update the user message to show it was a photo even if processing failed
+      setMessages(prev => prev.map(msg =>
+        msg.id === tempUserMessage.id
+          ? { ...msg, content: '📷 [Photo of meal]' }
+          : msg
+      ));
       setMessages(prev => prev.slice(0, -1));
       addMessage('ai', "Hmm, I couldn't analyze that photo. Could you describe it for me instead?");
     } finally {
@@ -533,6 +594,9 @@ export default function ChatLogMealScreen({ navigation, route }) {
     if (parsedData && text) {
       console.log('🔄 [ChatLogMeal] Refining existing parsed data');
       console.log('📊 [ChatLogMeal] Current parsed data:', parsedData);
+
+      // Reset confirmation since we're making changes
+      setMealConfirmed(false);
 
       addMessage('user', text);
 
@@ -631,7 +695,14 @@ export default function ChatLogMealScreen({ navigation, route }) {
       addMessage('ai', `Perfect! Your ${selectedMealType.toLowerCase()} has been logged. Keep up the great work! 💪`);
 
       // Grade the meal using backend based on user's goals
-      if (userProfile && userProfile.onboardingCompleted && mealId) {
+      console.log('🔍 [ChatLogMeal] Checking grading conditions:');
+      console.log('  - userProfile exists:', !!userProfile);
+      console.log('  - onboardingCompleted:', userProfile?.onboardingCompleted);
+      console.log('  - mealId:', mealId);
+      console.log('  - dailyCalorieTarget:', userProfile?.dailyCalorieTarget);
+
+      // Grade if user has profile and daily calorie target set
+      if (userProfile && userProfile.dailyCalorieTarget && mealId) {
         console.log('🎯 [ChatLogMeal] Grading meal via backend');
         addMessage('ai', '📊 Analyzing your meal...');
         try {
@@ -645,6 +716,8 @@ export default function ChatLogMealScreen({ navigation, route }) {
           // Remove the "analyzing" message on error too
           setMessages(prev => prev.slice(0, -1));
         }
+      } else {
+        console.log('⚠️ [ChatLogMeal] Skipping grading - conditions not met');
       }
 
       // Show "Done" button instead of auto-redirect
@@ -662,6 +735,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const handleStartOver = () => {
     setParsedData(null);
     setSelectedMealType(null);
+    setMealConfirmed(false);
     setMessages([
       {
         id: Date.now(),
@@ -688,41 +762,44 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
     // Feedback suggestions (show after parsing)
     if (message.data?.showFeedbackSuggestions && parsedData && !mealSaved) {
-      const feedbackExamples = [
-        { icon: "plus", text: "Add an item", example: "Add " },
-        { icon: "pencil", text: "Change quantity", example: "Update quantity to " },
-        { icon: "delete", text: "Remove something", example: "Remove " },
-        { icon: "cached", text: "Change cooking", example: "Cooking method: " }
-      ];
-
-      return (
-        <View key={message.id} style={styles.feedbackSuggestionsContainer}>
-          <Surface style={styles.feedbackSuggestionsCard} elevation={2}>
-            <Text style={styles.feedbackTitle}>📝 Need to make changes?</Text>
-            <Text style={styles.feedbackSubtitle}>Just tell me what to adjust!</Text>
-
-            <View style={styles.feedbackExamplesGrid}>
-              {feedbackExamples.map((item, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.feedbackExampleChip}
+      // Show confirmation button if meal not yet confirmed
+      if (!mealConfirmed) {
+        return (
+          <View key={message.id} style={styles.feedbackSuggestionsContainer}>
+            <Surface style={styles.confirmationCard} elevation={1}>
+              <Text style={styles.confirmationText}>Does this look correct?</Text>
+              <View style={styles.confirmationButtons}>
+                <Button
+                  mode="outlined"
                   onPress={() => {
-                    setInputText(item.example);
+                    // User wants to make changes - focus on input
+                    textInputRef.current?.focus();
                   }}
+                  style={styles.editButton}
+                  contentStyle={styles.buttonContent}
+                  textColor="#6366F1"
                 >
-                  <IconButton icon={item.icon} size={16} iconColor="#6366F1" style={styles.feedbackChipIcon} />
-                  <View style={styles.feedbackChipTextContainer}>
-                    <Text style={styles.feedbackChipTitle}>{item.text}</Text>
-                    <Text style={styles.feedbackChipExample}>"{item.example}"</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  Make changes
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={() => {
+                    setMealConfirmed(true);
+                  }}
+                  style={styles.confirmButton}
+                  contentStyle={styles.buttonContent}
+                  buttonColor="#6366F1"
+                >
+                  Looks good!
+                </Button>
+              </View>
+            </Surface>
+          </View>
+        );
+      }
 
-            <Text style={styles.feedbackOrText}>Or if it looks good, pick a meal type below! 👇</Text>
-          </Surface>
-        </View>
-      );
+      // Show compact edit options after confirmation (optional - can be removed if you want)
+      return null;
     }
 
     // Recent meals button (hide if meal already parsed)
@@ -751,6 +828,11 @@ export default function ChatLogMealScreen({ navigation, route }) {
           <MealGradeCard gradeData={message.data.gradeData} />
         </View>
       );
+    }
+
+    // Don't render empty messages (messages with no content and no special data)
+    if (!message.content || message.content.trim() === '') {
+      return null;
     }
 
     return (
@@ -903,8 +985,8 @@ export default function ChatLogMealScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Meal Type Selector - shows when we have parsed data */}
-        {parsedData && !mealSaved && (
+        {/* Meal Type Selector - shows when we have parsed data AND meal is confirmed */}
+        {parsedData && !mealSaved && mealConfirmed && (
           <View style={styles.mealTypeContainer}>
             <Text style={styles.mealTypeTitle}>Pick a meal type:</Text>
             <View style={styles.chipContainer}>
@@ -1009,6 +1091,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
           />
 
           <TextInput
+            ref={textInputRef}
             mode="outlined"
             placeholder={parsedData ? "Tell me what to improve..." : "Describe your meal..."}
             value={inputText}
@@ -1098,27 +1181,27 @@ const styles = StyleSheet.create({
     borderRadius: 12
   },
   mealTypeContainer: {
-    marginTop: 20,
-    padding: 20,
+    marginTop: 12,
+    padding: 16,
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 16,
     ...Platform.select({
       web: {
-        boxShadow: '0px 2px 12px rgba(0, 0, 0, 0.08)',
+        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
       },
     }),
   },
   mealTypeTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: '#1E293B',
-    marginBottom: 12
+    marginBottom: 10
   },
   chipContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 16
+    marginBottom: 12
   },
   chip: {
     marginRight: 8,
@@ -1299,69 +1382,70 @@ const styles = StyleSheet.create({
   },
   feedbackSuggestionsCard: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: '#6366F1',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 12px rgba(99, 102, 241, 0.15)',
-      },
-    }),
-  },
-  feedbackTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 4
-  },
-  feedbackSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 16
-  },
-  feedbackExamplesGrid: {
-    gap: 8,
-    marginBottom: 12
-  },
-  feedbackExampleChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
-      },
-    }),
   },
-  feedbackChipIcon: {
+  feedbackTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 8,
+    lineHeight: 18
+  },
+  feedbackExamplesCompact: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6
+  },
+  feedbackChipCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  feedbackChipIconCompact: {
     margin: 0,
-    marginRight: 8
+    marginRight: 2
   },
-  feedbackChipTextContainer: {
-    flex: 1
+  feedbackChipTitleCompact: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1E293B'
   },
-  feedbackChipTitle: {
-    fontSize: 14,
+  // Confirmation Card Styles
+  confirmationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  confirmationText: {
+    fontSize: 15,
     fontWeight: '600',
     color: '#1E293B',
-    marginBottom: 2
+    marginBottom: 12,
+    textAlign: 'center'
   },
-  feedbackChipExample: {
-    fontSize: 12,
-    color: '#6366F1',
-    fontStyle: 'italic'
+  confirmationButtons: {
+    flexDirection: 'row',
+    gap: 12
   },
-  feedbackOrText: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    marginTop: 8,
-    fontWeight: '500'
+  editButton: {
+    flex: 1,
+    borderColor: '#CBD5E1'
+  },
+  confirmButton: {
+    flex: 1
+  },
+  buttonContent: {
+    paddingVertical: 4
   },
   barcodeContainer: {
     flex: 1,

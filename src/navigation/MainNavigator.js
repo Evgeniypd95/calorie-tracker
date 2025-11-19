@@ -30,10 +30,18 @@ function DashboardStack() {
       <Stack.Screen
         name="LogMeal"
         component={ChatLogMealScreen}
-        options={{
+        options={({ navigation }) => ({
           title: 'Chat with AI',
-          headerBackTitle: 'Back'
-        }}
+          headerBackTitle: 'Back',
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={{ marginRight: 8 }}
+            >
+              <Icon source="close" size={24} color="#64748B" />
+            </TouchableOpacity>
+          )
+        })}
       />
     </Stack.Navigator>
   );

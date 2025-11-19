@@ -328,7 +328,7 @@ export default function BodyMetricsScreen({ navigation }) {
           </Text>
 
           <View style={styles.rowInputs}>
-            <View style={styles.halfInput}>
+            <View style={isPregnant ? styles.fullInput : styles.halfInput}>
               <Text style={styles.inputLabel}>Current Weight (kg)</Text>
               <TextInput
                 value={currentWeight}
@@ -339,18 +339,19 @@ export default function BodyMetricsScreen({ navigation }) {
                 dense
               />
             </View>
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Target Weight (kg)</Text>
-              <TextInput
-                value={targetWeight}
-                onChangeText={setTargetWeight}
-                keyboardType="decimal-pad"
-                mode="outlined"
-                placeholder="65"
-                dense
-                editable={!isPregnant}
-              />
-            </View>
+            {!isPregnant && (
+              <View style={styles.halfInput}>
+                <Text style={styles.inputLabel}>Target Weight (kg)</Text>
+                <TextInput
+                  value={targetWeight}
+                  onChangeText={setTargetWeight}
+                  keyboardType="decimal-pad"
+                  mode="outlined"
+                  placeholder="65"
+                  dense
+                />
+              </View>
+            )}
           </View>
 
           {!isPregnant && (
