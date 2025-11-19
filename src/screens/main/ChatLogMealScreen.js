@@ -17,10 +17,11 @@ const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
 export default function ChatLogMealScreen({ navigation, route }) {
   const { user, userProfile } = useAuth();
-  const { selectedDate, action } = route.params || {};
+  const { selectedDate, action, editingMeal, reparse } = route.params || {};
   const scrollViewRef = useRef(null);
   const actionHandledRef = useRef(false);
   const textInputRef = useRef(null);
+  const reparseHandledRef = useRef(false);
 
   const [messages, setMessages] = useState([
     {
@@ -63,6 +64,19 @@ export default function ChatLogMealScreen({ navigation, route }) {
   useEffect(() => {
     loadRecentMeals();
   }, []);
+
+  // Handle reparse when editing a meal
+  useEffect(() => {
+    if (editingMeal && reparse && !reparseHandledRef.current) {
+      reparseHandledRef.current = true;
+
+      // Auto-submit the edited description for re-parsing
+      setTimeout(() => {
+        setInputText(editingMeal.description);
+        handleSendMessage(editingMeal.description);
+      }, 500);
+    }
+  }, [editingMeal, reparse]);
 
   const loadRecentMeals = async () => {
     try {

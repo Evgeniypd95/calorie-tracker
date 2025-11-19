@@ -618,7 +618,7 @@ export default function DashboardScreen({ navigation }) {
                     strokeWidth={6}
                   />
                   <View style={styles.macroCircleInner}>
-                    <Text style={[styles.macroCircleValue, { color: '#EF4444' }]}>{totals.protein}</Text>
+                    <Text style={[styles.macroCircleValue, { color: '#EF4444' }]}>{Math.round(totals.protein)}</Text>
                     <Text style={styles.macroCircleTarget}>/{proteinTarget}g</Text>
                   </View>
                 </View>
@@ -635,7 +635,7 @@ export default function DashboardScreen({ navigation }) {
                     strokeWidth={6}
                   />
                   <View style={styles.macroCircleInner}>
-                    <Text style={[styles.macroCircleValue, { color: '#10B981' }]}>{totals.carbs}</Text>
+                    <Text style={[styles.macroCircleValue, { color: '#10B981' }]}>{Math.round(totals.carbs)}</Text>
                     <Text style={styles.macroCircleTarget}>/{carbsTarget}g</Text>
                   </View>
                 </View>
@@ -652,7 +652,7 @@ export default function DashboardScreen({ navigation }) {
                     strokeWidth={6}
                   />
                   <View style={styles.macroCircleInner}>
-                    <Text style={[styles.macroCircleValue, { color: '#F59E0B' }]}>{totals.fat}</Text>
+                    <Text style={[styles.macroCircleValue, { color: '#F59E0B' }]}>{Math.round(totals.fat)}</Text>
                     <Text style={styles.macroCircleTarget}>/{fatTarget}g</Text>
                   </View>
                 </View>
