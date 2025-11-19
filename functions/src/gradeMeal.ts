@@ -133,6 +133,11 @@ export const gradeMeal = onCall(async (request: any) => {
   }
 
   try {
+    // Fetch meal document to get mealType
+    const mealDoc = await db.collection("meals").doc(mealId).get();
+    const mealType = mealDoc.exists ? mealDoc.data()?.mealType : null;
+    const isSnack = mealType === "Snack";
+
     const {totals, items} = meal;
     const {goal, dailyCalorieTarget, isPregnant, trimester} = userProfile;
 
@@ -157,21 +162,43 @@ export const gradeMeal = onCall(async (request: any) => {
     const fatPercent = totalMacroCals > 0 ? (fatCals / totalMacroCals) * 100 : 0;
 
     // 1. CALORIE APPROPRIATENESS
-    const idealMealCals = dailyCalorieTarget ? dailyCalorieTarget / 3 : 600;
-    const calorieRatio = mealCals / idealMealCals;
+    if (isSnack) {
+      // Snacks should be 100-300 calories typically
+      if (mealCals > 400) {
+        score -= 20;
+        feedback.push(`⚠️ High calories for a snack (${mealCals} cal) - consider a smaller portion`);
+      } else if (mealCals > 300) {
+        score -= 10;
+        feedback.push("💡 On the higher side for a snack - watch portion size");
+      } else if (mealCals >= 100 && mealCals <= 250) {
+        positives.push("✓ Perfect snack portion!");
+      } else if (mealCals < 100) {
+        positives.push("✓ Light snack");
+      }
+    } else {
+      // Main meals
+      const idealMealCals = dailyCalorieTarget ? dailyCalorieTarget / 3 : 600;
+      const calorieRatio = mealCals / idealMealCals;
 
-    if (calorieRatio > 1.5) {
-      score -= 25;
-      feedback.push(`⚠️ High calories for one meal (${Math.round(calorieRatio * 100)}% of target)`);
-    } else if (calorieRatio < 0.5 && goal !== "LOSE_WEIGHT") {
-      score -= 15;
-      feedback.push("💡 Quite low in calories - consider adding more food");
-    } else if (calorieRatio >= 0.8 && calorieRatio <= 1.2) {
-      positives.push("✓ Perfect calorie amount");
+      if (calorieRatio > 1.5) {
+        score -= 25;
+        feedback.push(`⚠️ High calories for one meal (${Math.round(calorieRatio * 100)}% of target)`);
+      } else if (calorieRatio < 0.5 && goal !== "LOSE_WEIGHT") {
+        score -= 15;
+        feedback.push("💡 Quite low in calories - consider adding more food");
+      } else if (calorieRatio >= 0.8 && calorieRatio <= 1.2) {
+        positives.push("✓ Perfect calorie amount");
+      }
     }
 
     // 2. PROTEIN SCORE
-    if (isPregnant) {
+    if (isSnack) {
+      // For snacks, protein is a bonus but not required
+      if (proteinPercent >= 15) {
+        positives.push("✓ Great protein for a snack!");
+      }
+      // Don't penalize lack of protein in snacks - it's okay!
+    } else if (isPregnant) {
       // Pregnancy: Need adequate protein for fetal development (20-25%)
       if (proteinPercent < 15) {
         score -= 25;
@@ -215,18 +242,32 @@ export const gradeMeal = onCall(async (request: any) => {
     }
 
     // 3. FAT CONTENT
-    if (fatPercent > 45) {
-      score -= 20;
-      feedback.push(`⚠️ Very high fat (${Math.round(fatPercent)}%) - may feel sluggish`);
-    } else if (fatPercent < 15 && goal !== "LOSE_WEIGHT") {
-      score -= 10;
-      feedback.push("💡 Low fat - add healthy fats (avocado, nuts, olive oil)");
-    } else if (fatPercent >= 25 && fatPercent <= 35) {
-      positives.push("✓ Balanced fat content");
+    if (isSnack) {
+      // For snacks, only warn about extremely high fat
+      if (fatPercent > 60) {
+        score -= 10;
+        feedback.push("💡 Very high fat content - watch portion size");
+      } else if (fatPercent >= 20 && fatPercent <= 40) {
+        // Healthy fats from nuts, avocado are great in snacks
+        positives.push("✓ Contains healthy fats");
+      }
+    } else {
+      if (fatPercent > 45) {
+        score -= 20;
+        feedback.push(`⚠️ Very high fat (${Math.round(fatPercent)}%) - may feel sluggish`);
+      } else if (fatPercent < 15 && goal !== "LOSE_WEIGHT") {
+        score -= 10;
+        feedback.push("💡 Low fat - add healthy fats (avocado, nuts, olive oil)");
+      } else if (fatPercent >= 25 && fatPercent <= 35) {
+        positives.push("✓ Balanced fat content");
+      }
     }
 
     // 4. CARBS
-    if (isPregnant) {
+    if (isSnack) {
+      // For snacks, carbs are fine - fruits, veggies are carb-heavy and healthy
+      // No penalties for carb content in snacks
+    } else if (isPregnant) {
       // Pregnancy: Higher carbs (45-55%) are good for energy
       if (carbsPercent >= 45 && carbsPercent <= 55) {
         positives.push("🤰 Great carbs for energy during pregnancy!");
@@ -253,15 +294,27 @@ export const gradeMeal = onCall(async (request: any) => {
       if (isFruit) fruitCount++;
     });
 
-    if (veggieCount === 0 && fruitCount === 0) {
-      score -= 12;
-      feedback.push("🥦 Add vegetables for fiber and micronutrients");
-    } else if (veggieCount >= 2) {
-      positives.push("🥦 Great veggie variety!");
-    } else if (veggieCount >= 1) {
-      positives.push("✓ Includes vegetables");
-    } else if (fruitCount > 0) {
-      positives.push("🍎 Includes fruit");
+    if (isSnack) {
+      // For snacks, fruits and veggies are great! Give big bonuses
+      if (fruitCount > 0) {
+        positives.push("🍎 Healthy fruit snack!");
+      }
+      if (veggieCount > 0) {
+        positives.push("🥦 Nutritious veggie snack!");
+      }
+      // Don't penalize lack of veggies/fruits in snacks - could be nuts, yogurt, etc.
+    } else {
+      // Main meals should have veggies/fruits
+      if (veggieCount === 0 && fruitCount === 0) {
+        score -= 12;
+        feedback.push("🥦 Add vegetables for fiber and micronutrients");
+      } else if (veggieCount >= 2) {
+        positives.push("🥦 Great veggie variety!");
+      } else if (veggieCount >= 1) {
+        positives.push("✓ Includes vegetables");
+      } else if (fruitCount > 0) {
+        positives.push("🍎 Includes fruit");
+      }
     }
 
     // 5b. PREGNANCY-SPECIFIC NUTRIENT TRACKING
@@ -318,18 +371,39 @@ export const gradeMeal = onCall(async (request: any) => {
     }
 
     // 6. PORTION SIZE CHECK
-    if (items.length === 1 && mealCals > 800) {
-      score -= 10;
-      feedback.push("💡 Large single item - consider adding variety");
-    } else if (items.length >= 3) {
-      positives.push("✓ Good meal variety");
+    if (isSnack) {
+      // Snacks are usually single items - that's okay!
+      // Only warn if snack is actually too large (covered in calorie check)
+    } else {
+      // Main meals
+      if (items.length === 1 && mealCals > 800) {
+        score -= 10;
+        feedback.push("💡 Large single item - consider adding variety");
+      } else if (items.length >= 3) {
+        positives.push("✓ Good meal variety");
+      }
     }
 
     // Create summary
     const finalGrade = scoreToGrade(Math.max(0, score));
     let summary = "";
 
-    if (isPregnant) {
+    if (isSnack) {
+      // Snack-specific summaries
+      if (finalGrade.startsWith("A")) {
+        if (fruitCount > 0 || veggieCount > 0) {
+          summary = "Perfect healthy snack! 🍎";
+        } else {
+          summary = "Great snack choice! 👍";
+        }
+      } else if (finalGrade.startsWith("B")) {
+        summary = "Good snack! Well portioned.";
+      } else if (finalGrade.startsWith("C")) {
+        summary = "Decent snack - watch the portion size.";
+      } else {
+        summary = "Consider a healthier or smaller snack option.";
+      }
+    } else if (isPregnant) {
       if (finalGrade.startsWith("A")) {
         summary = trimester === "FIRST" ?
           "Excellent nutrition for early pregnancy! 🤰" :
@@ -359,12 +433,11 @@ export const gradeMeal = onCall(async (request: any) => {
       summary = "Let's work on improving this meal together!";
     }
 
-    const gradeData = {
+    const gradeData: any = {
       grade: finalGrade,
       score: Math.max(0, score),
       feedback,
       positives,
-      warnings: warnings.length > 0 ? warnings : undefined,
       color: gradeToColor(finalGrade),
       summary,
       macroBreakdown: {
@@ -373,9 +446,16 @@ export const gradeMeal = onCall(async (request: any) => {
         fat: Math.round(fatPercent),
       },
       isPregnancyGrade: isPregnant || false,
-      trimester: isPregnant ? trimester : undefined,
       gradedAt: new Date(),
     };
+
+    // Only add optional fields if they have values (Firestore doesn't accept undefined)
+    if (warnings.length > 0) {
+      gradeData.warnings = warnings;
+    }
+    if (isPregnant && trimester) {
+      gradeData.trimester = trimester;
+    }
 
     // Store grade in Firestore
     await db.collection("meals").doc(mealId).update({

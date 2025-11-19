@@ -259,6 +259,31 @@ export const mealService = {
     return updatedComments;
   },
 
+  incrementMealCopyCount: async (mealId, userId) => {
+    const mealRef = doc(db, 'meals', mealId);
+    const mealDoc = await getDoc(mealRef);
+
+    if (!mealDoc.exists()) {
+      throw new Error('Meal not found');
+    }
+
+    const mealData = mealDoc.data();
+    const currentCount = mealData.copiedByCount || 0;
+    const copiedBy = mealData.copiedBy || [];
+
+    // Always increment count, but track unique users for "You added this" badge
+    const updates = {
+      copiedByCount: currentCount + 1
+    };
+
+    // Add user to copiedBy array if not already there (for badge display)
+    if (!copiedBy.includes(userId)) {
+      updates.copiedBy = [...copiedBy, userId];
+    }
+
+    await updateDoc(mealRef, updates);
+  },
+
   duplicateMeal: async (userId, meal, targetDate) => {
     // Create a copy of the meal for the target date
     const duplicatedMeal = {

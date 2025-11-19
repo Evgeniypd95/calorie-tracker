@@ -4,6 +4,7 @@ import { Text, Card, Surface, useTheme, IconButton, Divider } from 'react-native
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { useAuth } from '../../context/AuthContext';
 import { generateInsightsBackend } from '../../services/geminiService';
+import { mealService } from '../../services/firebase';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -17,12 +18,34 @@ export default function InsightsScreen({ navigation }) {
   const [hasEnoughData, setHasEnoughData] = useState(true);
   const [daysWithData, setDaysWithData] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [weeklyMealsData, setWeeklyMealsData] = useState([]);
 
   useEffect(() => {
     if (user && userProfile) {
       loadAnalytics();
+      loadWeeklyData();
     }
   }, [user, userProfile]);
+
+  const loadWeeklyData = async () => {
+    if (!user) return;
+    try {
+      const today = new Date();
+      const weekData = [];
+
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        const meals = await mealService.getMealsByDate(user.uid, dateStr);
+        weekData.push(meals && meals.length > 0);
+      }
+
+      setWeeklyMealsData(weekData);
+    } catch (error) {
+      console.error('Error loading weekly data:', error);
+    }
+  };
 
   const loadAnalytics = async () => {
     try {
@@ -192,6 +215,141 @@ export default function InsightsScreen({ navigation }) {
         </TouchableOpacity>
       )}
 
+      {/* Pregnancy Tracking Card */}
+      {userProfile?.isPregnant && (
+        <Card style={[styles.pregnancyCard, { backgroundColor: '#FEF3C7' }]} elevation={2}>
+          <Card.Content>
+            <View style={styles.pregnancyHeader}>
+              <Text style={styles.pregnancyEmoji}>🤰</Text>
+              <View style={styles.pregnancyInfo}>
+                <Text variant="titleLarge" style={styles.pregnancyTitle}>
+                  Pregnancy Nutrition
+                </Text>
+                <Text variant="bodyMedium" style={styles.pregnancyTrimester}>
+                  {userProfile.trimester === 'FIRST' && '1st Trimester (Weeks 1-13)'}
+                  {userProfile.trimester === 'SECOND' && '2nd Trimester (Weeks 14-27)'}
+                  {userProfile.trimester === 'THIRD' && '3rd Trimester (Weeks 28-40)'}
+                </Text>
+              </View>
+            </View>
+
+            <Divider style={[styles.pregnancyDivider, { backgroundColor: '#F59E0B' }]} />
+
+            <Text variant="labelSmall" style={styles.pregnancyKeyNutrientsLabel}>
+              KEY NUTRIENTS THIS {userProfile.trimester === 'FIRST' ? 'TRIMESTER' : userProfile.trimester === 'SECOND' ? 'TRIMESTER' : 'TRIMESTER'}
+            </Text>
+
+            <View style={styles.pregnancyNutrients}>
+              {userProfile.trimester === 'FIRST' && (
+                <>
+                  <View style={styles.pregnancyNutrient}>
+                    <IconButton icon="leaf" size={20} iconColor="#10B981" style={styles.nutrientIcon} />
+                    <View>
+                      <Text variant="labelMedium" style={styles.nutrientName}>Folate</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>Prevents birth defects</Text>
+                    </View>
+                  </View>
+                  <View style={styles.pregnancyNutrient}>
+                    <IconButton icon="water" size={20} iconColor="#3B82F6" style={styles.nutrientIcon} />
+                    <View>
+                      <Text variant="labelMedium" style={styles.nutrientName}>Vitamin B6</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>Reduces nausea</Text>
+                    </View>
+                  </View>
+                </>
+              )}
+              {userProfile.trimester === 'SECOND' && (
+                <>
+                  <View style={styles.pregnancyNutrient}>
+                    <IconButton icon="silverware-fork-knife" size={20} iconColor="#EF4444" style={styles.nutrientIcon} />
+                    <View>
+                      <Text variant="labelMedium" style={styles.nutrientName}>Iron</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>Prevents anemia</Text>
+                    </View>
+                  </View>
+                  <View style={styles.pregnancyNutrient}>
+                    <IconButton icon="bone" size={20} iconColor="#6366F1" style={styles.nutrientIcon} />
+                    <View>
+                      <Text variant="labelMedium" style={styles.nutrientName}>Calcium</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>Baby's bone growth</Text>
+                    </View>
+                  </View>
+                </>
+              )}
+              {userProfile.trimester === 'THIRD' && (
+                <>
+                  <View style={styles.pregnancyNutrient}>
+                    <IconButton icon="fish" size={20} iconColor="#3B82F6" style={styles.nutrientIcon} />
+                    <View>
+                      <Text variant="labelMedium" style={styles.nutrientName}>DHA/Omega-3</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>Brain development</Text>
+                    </View>
+                  </View>
+                  <View style={styles.pregnancyNutrient}>
+                    <IconButton icon="silverware-fork-knife" size={20} iconColor="#EF4444" style={styles.nutrientIcon} />
+                    <View>
+                      <Text variant="labelMedium" style={styles.nutrientName}>Iron</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>Extra blood volume</Text>
+                    </View>
+                  </View>
+                </>
+              )}
+            </View>
+
+            <Surface style={styles.pregnancyTip} elevation={0}>
+              <IconButton icon="information" size={16} iconColor="#92400E" style={styles.tipIcon} />
+              <Text variant="bodySmall" style={styles.pregnancyTipText}>
+                {userProfile.trimester === 'FIRST' && 'Focus on small, frequent meals if experiencing nausea. Folate is crucial now!'}
+                {userProfile.trimester === 'SECOND' && 'Your baby is growing fast! Iron and calcium are essential for development.'}
+                {userProfile.trimester === 'THIRD' && "Baby's brain is developing rapidly. Include DHA-rich foods like salmon and walnuts."}
+              </Text>
+            </Surface>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Streak & Gamification Card */}
+      {userProfile?.streakCount > 0 && (
+        <Card style={[styles.streakCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
+          <Card.Content>
+            <View style={styles.streakContainer}>
+              <View style={styles.streakLeft}>
+                <Text style={styles.streakEmoji}>🔥</Text>
+                <View>
+                  <Text variant="headlineMedium" style={styles.streakNumber}>
+                    {userProfile.streakCount} days
+                  </Text>
+                  <Text variant="bodySmall" style={[styles.streakLabel, { color: theme.colors.onSurfaceVariant }]}>
+                    Current Streak
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.streakRight}>
+                <Text variant="bodySmall" style={[styles.weeklyLabel, { color: theme.colors.onSurfaceVariant }]}>
+                  This week: {weeklyMealsData.filter(Boolean).length}/7 days
+                </Text>
+                <View style={styles.weeklyDots}>
+                  {weeklyMealsData.length === 7 ? weeklyMealsData.map((hasLog, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.weeklyDot,
+                        hasLog && styles.weeklyDotActive
+                      ]}
+                    />
+                  )) : [...Array(7)].map((_, i) => (
+                    <View
+                      key={i}
+                      style={styles.weeklyDot}
+                    />
+                  ))}
+                </View>
+              </View>
+            </View>
+          </Card.Content>
+        </Card>
+      )}
+
       {/* Weekly Calorie Chart */}
       {weeklyChartDataDisplay && weeklyChartDataDisplay.datasets && weeklyChartDataDisplay.datasets[0].data.length > 0 && (
         <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
@@ -351,6 +509,56 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  streakCard: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 20,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.08)',
+      },
+    }),
+  },
+  streakContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  streakLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  streakEmoji: {
+    fontSize: 48
+  },
+  streakNumber: {
+    fontWeight: '800',
+    color: '#EF4444',
+    letterSpacing: -1
+  },
+  streakLabel: {
+    marginTop: 4
+  },
+  streakRight: {
+    alignItems: 'flex-end'
+  },
+  weeklyLabel: {
+    marginBottom: 8
+  },
+  weeklyDots: {
+    flexDirection: 'row',
+    gap: 6
+  },
+  weeklyDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#E2E8F0'
+  },
+  weeklyDotActive: {
+    backgroundColor: '#10B981'
+  },
   chartTitle: {
     fontWeight: '700',
     marginBottom: 4
@@ -486,5 +694,92 @@ const styles = StyleSheet.create({
   },
   compactMacroValue: {
     fontWeight: '700'
+  },
+  // Pregnancy Card Styles
+  pregnancyCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#F59E0B'
+  },
+  pregnancyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  pregnancyEmoji: {
+    fontSize: 48,
+    marginRight: 16
+  },
+  pregnancyInfo: {
+    flex: 1
+  },
+  pregnancyTitle: {
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 4
+  },
+  pregnancyTrimester: {
+    color: '#B45309',
+    fontWeight: '600'
+  },
+  pregnancyDivider: {
+    marginVertical: 16,
+    height: 2
+  },
+  pregnancyKeyNutrientsLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#92400E',
+    letterSpacing: 1,
+    marginBottom: 12
+  },
+  pregnancyNutrients: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16
+  },
+  pregnancyNutrient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A'
+  },
+  nutrientIcon: {
+    margin: 0,
+    marginRight: 8
+  },
+  nutrientName: {
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 2
+  },
+  nutrientReason: {
+    color: '#B45309',
+    fontSize: 11
+  },
+  pregnancyTip: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#FDE68A'
+  },
+  tipIcon: {
+    margin: 0,
+    marginRight: 8,
+    marginTop: -2
+  },
+  pregnancyTipText: {
+    flex: 1,
+    color: '#92400E',
+    lineHeight: 18
   }
 });

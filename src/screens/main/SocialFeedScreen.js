@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, Image, TouchableOpacity, TextInput as RNTextInput, Platform, Share, Alert, Modal } from 'react-native';
 import { Text, Card, IconButton, Surface, Divider, Avatar, Button, TextInput, Snackbar, Portal, Chip } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
@@ -7,8 +7,38 @@ import { socialService, mealService } from '../../services/firebase';
 
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
+// Helper function to get a date range (7 days past, today, 7 days future)
+const getDateRange = () => {
+  const days = [];
+  for (let i = -7; i <= 7; i++) {
+    const date = new Date();
+    date.setDate(date.getDate() + i);
+    days.push(date);
+  }
+  return days;
+};
+
+// Helper function to format date
+const formatDate = (date) => {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return {
+    day: days[date.getDay()],
+    date: date.getDate()
+  };
+};
+
+// Helper function to check if two dates are the same day
+const isSameDay = (date1, date2) => {
+  return date1.getDate() === date2.getDate() &&
+         date1.getMonth() === date2.getMonth() &&
+         date1.getFullYear() === date2.getFullYear();
+};
+
+const ITEM_WIDTH = 60;
+
 export default function SocialFeedScreen({ navigation }) {
   const { user } = useAuth();
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [feedMeals, setFeedMeals] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [commentInputs, setCommentInputs] = useState({});
@@ -18,11 +48,21 @@ export default function SocialFeedScreen({ navigation }) {
   const [mealTypeDialogVisible, setMealTypeDialogVisible] = useState(false);
   const [selectedMealForCopy, setSelectedMealForCopy] = useState(null);
   const [menuVisible, setMenuVisible] = useState(null);
+  const calendarRef = useRef(null);
 
-  const loadFeed = async () => {
+  const days = getDateRange();
+
+  const loadFeed = async (date = selectedDate) => {
     try {
       const meals = await socialService.getSocialFeed(user.uid, 20);
-      setFeedMeals(meals);
+
+      // Filter meals by selected date
+      const filteredMeals = meals.filter(meal => {
+        const mealDate = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
+        return isSameDay(mealDate, date);
+      });
+
+      setFeedMeals(filteredMeals);
     } catch (error) {
       console.error('Error loading feed:', error);
     }
@@ -31,7 +71,7 @@ export default function SocialFeedScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadFeed();
-    }, [])
+    }, [selectedDate])
   );
 
   const onRefresh = async () => {
@@ -39,6 +79,22 @@ export default function SocialFeedScreen({ navigation }) {
     await loadFeed();
     setRefreshing(false);
   };
+
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
+    loadFeed(date);
+  };
+
+  // Auto-scroll calendar ribbon to today on first render
+  useEffect(() => {
+    const indexOfToday = days.findIndex((d) => isSameDay(d, new Date()));
+
+    if (calendarRef.current && indexOfToday >= 0) {
+      setTimeout(() => {
+        calendarRef.current.scrollTo({ x: Math.max(0, (indexOfToday - 2) * ITEM_WIDTH), animated: true });
+      }, 0);
+    }
+  }, []);
 
   const handleLike = async (mealId) => {
     try {
@@ -96,10 +152,35 @@ export default function SocialFeedScreen({ navigation }) {
         description: selectedMealForCopy.description,
         items: selectedMealForCopy.items,
         totals: selectedMealForCopy.totals,
-        date: new Date()
+        date: new Date(),
+        copiedFrom: selectedMealForCopy.id // Track that this was copied from feed
       };
 
       await mealService.logMeal(user.uid, mealData);
+
+      // Increment the "added by" count on the original meal
+      await mealService.incrementMealCopyCount(selectedMealForCopy.id, user.uid);
+
+      // Update local state to reflect the change
+      setFeedMeals(prev =>
+        prev.map(meal => {
+          if (meal.id === selectedMealForCopy.id) {
+            const copiedBy = meal.copiedBy || [];
+            const updates = {
+              ...meal,
+              copiedByCount: (meal.copiedByCount || 0) + 1
+            };
+
+            // Add user to copiedBy if not already there (for green badge)
+            if (!copiedBy.includes(user.uid)) {
+              updates.copiedBy = [...copiedBy, user.uid];
+            }
+
+            return updates;
+          }
+          return meal;
+        })
+      );
 
       setMealTypeDialogVisible(false);
       setSelectedMealForCopy(null);
@@ -274,6 +355,26 @@ export default function SocialFeedScreen({ navigation }) {
           </Text>
         )}
 
+        {/* Engagement Stats */}
+        {(meal.copiedBy?.includes(user.uid) || meal.copiedByCount > 0) && (
+          <View style={styles.engagementStats}>
+            {meal.copiedBy?.includes(user.uid) && (
+              <View style={styles.engagementBadge}>
+                <IconButton icon="check-circle" size={14} iconColor="#10B981" style={styles.engagementIcon} />
+                <Text style={styles.engagementText}>You added this</Text>
+              </View>
+            )}
+            {meal.copiedByCount > 0 && (
+              <View style={styles.engagementBadge}>
+                <IconButton icon="account-multiple" size={14} iconColor="#6366F1" style={styles.engagementIcon} />
+                <Text style={styles.engagementText}>
+                  Added {meal.copiedByCount} {meal.copiedByCount === 1 ? 'time' : 'times'}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Meal content */}
         <View style={styles.cardContent}>
           <Text style={styles.description}>
@@ -349,6 +450,51 @@ export default function SocialFeedScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* Calendar Ribbon */}
+      <Surface style={styles.calendarRibbon} elevation={2}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.calendarContent}
+          ref={calendarRef}
+        >
+          {days.map((day, index) => {
+            const { day: dayName, date } = formatDate(day);
+            const isSelected = isSameDay(day, selectedDate);
+            const isToday = isSameDay(day, new Date());
+
+            return (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.dateItem,
+                  isSelected && styles.dateItemSelected
+                ]}
+                onPress={() => handleDateSelect(day)}
+              >
+                <Text
+                  style={[
+                    styles.dayName,
+                    isSelected && styles.dayNameSelected
+                  ]}
+                >
+                  {dayName}
+                </Text>
+                <Text
+                  style={[
+                    styles.dateNumber,
+                    isSelected && styles.dateNumberSelected,
+                    isToday && !isSelected && styles.todayDate
+                  ]}
+                >
+                  {date}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </Surface>
+
       <ScrollView
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -665,5 +811,75 @@ const styles = StyleSheet.create({
   },
   snackbar: {
     backgroundColor: '#1E293B'
+  },
+  // Calendar Ribbon Styles
+  calendarRibbon: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0'
+  },
+  calendarContent: {
+    paddingHorizontal: 8
+  },
+  dateItem: {
+    width: ITEM_WIDTH,
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginHorizontal: 4,
+    borderRadius: 12
+  },
+  dateItemSelected: {
+    backgroundColor: '#6366F1'
+  },
+  dayName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 4,
+    textTransform: 'uppercase'
+  },
+  dayNameSelected: {
+    color: '#E0E7FF'
+  },
+  dateNumber: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B'
+  },
+  dateNumberSelected: {
+    color: '#FFFFFF'
+  },
+  todayDate: {
+    color: '#6366F1'
+  },
+  // Engagement Stats Styles
+  engagementStats: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 8
+  },
+  engagementBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  engagementIcon: {
+    margin: 0,
+    marginRight: -4
+  },
+  engagementText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B'
   }
 });
