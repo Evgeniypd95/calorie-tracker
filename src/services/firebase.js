@@ -547,6 +547,109 @@ function generatePersonalCode() {
   return code;
 }
 
+export const weightService = {
+  logWeight: async (userId, weightData) => {
+    console.log('⚖️ [Firebase] logWeight called');
+    console.log('👤 [Firebase] User ID:', userId);
+    console.log('📦 [Firebase] Weight data:', JSON.stringify(weightData, null, 2));
+
+    try {
+      const dataToSave = {
+        userId,
+        weight: weightData.weight,
+        date: weightData.date || new Date(),
+        notes: weightData.notes || '',
+        createdAt: new Date()
+      };
+
+      const weightRef = await addDoc(collection(db, 'weights'), dataToSave);
+      console.log('✅ [Firebase] Weight entry created with ID:', weightRef.id);
+
+      // Also update currentWeight in user profile
+      await userService.updateUserProfile(userId, {
+        currentWeight: weightData.weight,
+        updatedAt: new Date()
+      });
+
+      return weightRef.id;
+    } catch (error) {
+      console.error('❌ [Firebase] Error logging weight:', error);
+      throw error;
+    }
+  },
+
+  getWeightHistory: async (userId, daysBack = 90) => {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+    startDate.setHours(0, 0, 0, 0);
+
+    const q = query(
+      collection(db, 'weights'),
+      where('userId', '==', userId),
+      where('date', '>=', startDate)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const weights = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Sort by date ascending (oldest first for chart)
+    return weights.sort((a, b) => {
+      const timeA = a.date?.toMillis?.() || a.date?.getTime?.() || 0;
+      const timeB = b.date?.toMillis?.() || b.date?.getTime?.() || 0;
+      return timeA - timeB;
+    });
+  },
+
+  deleteWeight: async (weightId) => {
+    await deleteDoc(doc(db, 'weights', weightId));
+  },
+
+  getWeightInsights: async (userId, daysBack = 30) => {
+    // Get weight history
+    const weights = await weightService.getWeightHistory(userId, daysBack);
+
+    if (weights.length < 2) {
+      return {
+        hasData: false,
+        message: 'Log at least 2 weight entries to see insights'
+      };
+    }
+
+    // Get meals for the same period
+    const meals = await mealService.getUserMeals(userId, daysBack);
+
+    // Calculate weight change
+    const firstWeight = weights[0].weight;
+    const lastWeight = weights[weights.length - 1].weight;
+    const weightChange = lastWeight - firstWeight;
+    const percentChange = ((weightChange / firstWeight) * 100).toFixed(1);
+
+    // Calculate average daily calories
+    const totalCalories = meals.reduce((sum, meal) => sum + (meal.totals?.calories || 0), 0);
+    const avgDailyCalories = meals.length > 0 ? Math.round(totalCalories / daysBack) : 0;
+
+    // Calculate days with data
+    const daysWithWeightData = weights.length;
+    const daysWithMealData = new Set(meals.map(m => {
+      const date = m.date?.toDate?.() || new Date(m.date);
+      return date.toDateString();
+    })).size;
+
+    return {
+      hasData: true,
+      weightChange: weightChange.toFixed(1),
+      percentChange,
+      direction: weightChange > 0 ? 'gain' : weightChange < 0 ? 'loss' : 'maintained',
+      avgDailyCalories,
+      daysWithWeightData,
+      daysWithMealData,
+      firstWeight: firstWeight.toFixed(1),
+      lastWeight: lastWeight.toFixed(1),
+      period: daysBack
+    };
+  }
+};
+
 async function updateStreak(userId) {
   const userRef = doc(db, 'users', userId);
   const userDoc = await getDoc(userRef);

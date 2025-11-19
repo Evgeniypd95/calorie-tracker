@@ -9,6 +9,7 @@ import SocialFeedScreen from '../screens/main/SocialFeedScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import InsightsScreen from '../screens/main/InsightsScreen';
 import BodyMetricsScreen from '../screens/main/BodyMetricsScreen';
+import WeightTrackingScreen from '../screens/main/WeightTrackingScreen';
 import { IconButton, Icon, FAB, Text } from 'react-native-paper';
 import { authService } from '../services/firebase';
 
@@ -79,6 +80,14 @@ function InsightsStack() {
         component={BodyMetricsScreen}
         options={{
           title: 'Body Metrics',
+          headerBackTitle: 'Back'
+        }}
+      />
+      <Stack.Screen
+        name="WeightTracking"
+        component={WeightTrackingScreen}
+        options={{
+          title: 'Weight Tracking',
           headerBackTitle: 'Back'
         }}
       />

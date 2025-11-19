@@ -215,6 +215,35 @@ export default function InsightsScreen({ navigation }) {
         </TouchableOpacity>
       )}
 
+      {/* Weight Tracking Button */}
+      <TouchableOpacity
+        onPress={() => navigation.navigate('WeightTracking')}
+        activeOpacity={0.7}
+      >
+        <Card style={[styles.weightTrackingCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
+          <Card.Content>
+            <View style={styles.weightTrackingRow}>
+              <View style={styles.weightTrackingLeft}>
+                <Text style={styles.weightTrackingEmoji}>⚖️</Text>
+                <View>
+                  <Text variant="titleMedium" style={[styles.weightTrackingTitle, { color: theme.colors.onSurface }]}>
+                    Weight Tracking
+                  </Text>
+                  <Text variant="bodySmall" style={[styles.weightTrackingSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+                    Log weight & see progress
+                  </Text>
+                </View>
+              </View>
+              <IconButton
+                icon="chevron-right"
+                size={24}
+                iconColor={theme.colors.onSurfaceVariant}
+              />
+            </View>
+          </Card.Content>
+        </Card>
+      </TouchableOpacity>
+
       {/* Pregnancy Tracking Card */}
       {userProfile?.isPregnant && (
         <Card style={[styles.pregnancyCard, { backgroundColor: '#FEF3C7' }]} elevation={2}>
@@ -781,5 +810,36 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#92400E',
     lineHeight: 18
+  },
+  // Weight Tracking Card Styles
+  weightTrackingCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 20,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.08)',
+      },
+    }),
+  },
+  weightTrackingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  weightTrackingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16
+  },
+  weightTrackingEmoji: {
+    fontSize: 32
+  },
+  weightTrackingTitle: {
+    fontWeight: '700',
+    marginBottom: 4
+  },
+  weightTrackingSubtitle: {
+    fontSize: 13
   }
 });
