@@ -54,6 +54,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const [lookingUpBarcode, setLookingUpBarcode] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [mealSaved, setMealSaved] = useState(false);
+  const isScanningBarcodeRef = useRef(false);
 
   // Load recent meals on mount
   useEffect(() => {
@@ -372,12 +373,17 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const closeBarcodeScanner = () => {
     setShowBarcodeScanner(false);
     setScannedBarcode(null);
+    isScanningBarcodeRef.current = false;
   };
 
   const handleBarcodeScanned = async ({ type, data }) => {
-    // Prevent multiple scans
-    if (scannedBarcode === data) return;
+    // Prevent multiple scans using ref (immediate check)
+    if (isScanningBarcodeRef.current) {
+      console.log('⚠️ Barcode scan already in progress, ignoring duplicate');
+      return;
+    }
 
+    isScanningBarcodeRef.current = true;
     setScannedBarcode(data);
     setShowBarcodeScanner(false);
     setLookingUpBarcode(true);
@@ -432,6 +438,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       addMessage('ai', 'Oops, something went wrong looking up that barcode. Try again or enter manually!');
     } finally {
       setLookingUpBarcode(false);
+      isScanningBarcodeRef.current = false;
     }
   };
 

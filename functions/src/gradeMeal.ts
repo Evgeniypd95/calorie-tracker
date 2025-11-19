@@ -38,11 +38,53 @@ const FRUITS = [
   "fruit",
 ];
 
+// Pregnancy-specific food lists
+const FOLATE_RICH = [
+  "spinach", "kale", "broccoli", "brussels sprouts", "asparagus", "lentils",
+  "chickpeas", "beans", "orange", "avocado", "fortified cereal", "leafy greens",
+  "collard greens", "turnip greens", "lettuce", "beets", "edamame"
+];
+
+const IRON_RICH = [
+  "red meat", "beef", "lamb", "pork", "chicken", "turkey", "liver",
+  "spinach", "lentils", "beans", "tofu", "quinoa", "fortified cereal",
+  "pumpkin seeds", "cashews", "chickpeas", "edamame"
+];
+
+const CALCIUM_RICH = [
+  "milk", "yogurt", "cheese", "cottage cheese", "tofu", "salmon", "sardines",
+  "kale", "broccoli", "bok choy", "almonds", "fortified milk", "fortified juice"
+];
+
+const DHA_OMEGA3 = [
+  "salmon", "sardines", "mackerel", "herring", "trout", "chia seeds",
+  "flax seeds", "walnuts", "eggs", "fortified eggs"
+];
+
+// Foods to avoid/limit during pregnancy
+const PREGNANCY_AVOID = [
+  "sushi", "raw fish", "tuna", "swordfish", "shark", "king mackerel",
+  "deli meat", "hot dog", "lunch meat", "unpasteurized", "soft cheese",
+  "brie", "feta", "blue cheese", "queso fresco", "raw egg", "runny egg",
+  "alcohol", "beer", "wine", "liquor", "energy drink", "high caffeine"
+];
+
 function isVegetableOrFruit(foodName: string): { isVeggie: boolean; isFruit: boolean } {
   const lowerFood = foodName.toLowerCase();
   const isVeggie = VEGETABLES.some((veg) => lowerFood.includes(veg));
   const isFruit = FRUITS.some((fruit) => lowerFood.includes(fruit));
   return {isVeggie, isFruit};
+}
+
+function checkPregnancyNutrients(foodName: string) {
+  const lowerFood = foodName.toLowerCase();
+  return {
+    hasFolate: FOLATE_RICH.some((food) => lowerFood.includes(food)),
+    hasIron: IRON_RICH.some((food) => lowerFood.includes(food)),
+    hasCalcium: CALCIUM_RICH.some((food) => lowerFood.includes(food)),
+    hasDHA: DHA_OMEGA3.some((food) => lowerFood.includes(food)),
+    isAvoidFood: PREGNANCY_AVOID.some((food) => lowerFood.includes(food))
+  };
 }
 
 function scoreToGrade(score: number): string {
@@ -92,11 +134,12 @@ export const gradeMeal = onCall(async (request: any) => {
 
   try {
     const {totals, items} = meal;
-    const {goal, dailyCalorieTarget} = userProfile;
+    const {goal, dailyCalorieTarget, isPregnant, trimester} = userProfile;
 
     let score = 100;
     const feedback: string[] = [];
     const positives: string[] = [];
+    const warnings: string[] = [];
 
     const mealCals = totals.calories || 0;
     const protein = totals.protein || 0;
@@ -128,7 +171,20 @@ export const gradeMeal = onCall(async (request: any) => {
     }
 
     // 2. PROTEIN SCORE
-    if (goal === "BUILD_MUSCLE") {
+    if (isPregnant) {
+      // Pregnancy: Need adequate protein for fetal development (20-25%)
+      if (proteinPercent < 15) {
+        score -= 25;
+        feedback.push("🤰 Add more protein for your baby's development (aim for 20-25%)");
+      } else if (proteinPercent >= 20 && proteinPercent <= 30) {
+        positives.push(`🤰 Perfect protein (${Math.round(proteinPercent)}%) for pregnancy!`);
+      } else if (proteinPercent >= 18) {
+        positives.push("✓ Good protein for pregnancy");
+      } else {
+        score -= 10;
+        feedback.push("🤰 A bit more protein would be great for baby");
+      }
+    } else if (goal === "BUILD_MUSCLE") {
       if (proteinPercent < 20) {
         score -= 30;
         feedback.push(`💪 Low protein (${Math.round(proteinPercent)}%) - aim for 25%+ for muscle building`);
@@ -170,7 +226,16 @@ export const gradeMeal = onCall(async (request: any) => {
     }
 
     // 4. CARBS
-    if (goal === "LOSE_WEIGHT" && carbsPercent > 50) {
+    if (isPregnant) {
+      // Pregnancy: Higher carbs (45-55%) are good for energy
+      if (carbsPercent >= 45 && carbsPercent <= 55) {
+        positives.push("🤰 Great carbs for energy during pregnancy!");
+      } else if (carbsPercent < 35) {
+        score -= 10;
+        feedback.push("🤰 Add more healthy carbs for energy (whole grains, fruits)");
+      }
+      // Don't penalize high carbs during pregnancy - they need the energy!
+    } else if (goal === "LOSE_WEIGHT" && carbsPercent > 50) {
       score -= 15;
       feedback.push("🎯 High carbs - consider reducing for better weight loss");
     } else if (goal === "BUILD_MUSCLE" && carbsPercent < 30) {
@@ -199,6 +264,59 @@ export const gradeMeal = onCall(async (request: any) => {
       positives.push("🍎 Includes fruit");
     }
 
+    // 5b. PREGNANCY-SPECIFIC NUTRIENT TRACKING
+    if (isPregnant) {
+      let hasFolateFood = false;
+      let hasIronFood = false;
+      let hasCalciumFood = false;
+      let hasDHAFood = false;
+      let hasAvoidFood = false;
+
+      items.forEach((item: MealItem) => {
+        const nutrients = checkPregnancyNutrients(item.food);
+        if (nutrients.hasFolate) hasFolateFood = true;
+        if (nutrients.hasIron) hasIronFood = true;
+        if (nutrients.hasCalcium) hasCalciumFood = true;
+        if (nutrients.hasDHA) hasDHAFood = true;
+        if (nutrients.isAvoidFood) {
+          hasAvoidFood = true;
+          warnings.push(`⚠️ ${item.food} may not be safe during pregnancy - consult your doctor`);
+        }
+      });
+
+      // Bonus points for pregnancy-critical nutrients
+      if (hasFolateFood) {
+        score += 5;
+        positives.push("🤰 Great source of folate for baby's development!");
+      } else if (trimester === "FIRST") {
+        feedback.push("💡 Consider adding folate-rich foods (leafy greens, beans, oranges)");
+      }
+
+      if (hasIronFood) {
+        score += 3;
+        positives.push("🤰 Good iron content for preventing anemia!");
+      } else if (trimester === "SECOND" || trimester === "THIRD") {
+        feedback.push("💡 Add iron-rich foods (lean meat, spinach, lentils)");
+      }
+
+      if (hasCalciumFood) {
+        score += 3;
+        positives.push("🤰 Excellent calcium for baby's bones!");
+      }
+
+      if (hasDHAFood) {
+        score += 4;
+        positives.push("🤰 Great DHA/Omega-3 for baby's brain development!");
+      } else if (trimester === "THIRD") {
+        feedback.push("💡 Add DHA sources (salmon, chia seeds, walnuts) for baby's brain");
+      }
+
+      // Heavy penalty for avoid foods
+      if (hasAvoidFood) {
+        score -= 30;
+      }
+    }
+
     // 6. PORTION SIZE CHECK
     if (items.length === 1 && mealCals > 800) {
       score -= 10;
@@ -211,7 +329,21 @@ export const gradeMeal = onCall(async (request: any) => {
     const finalGrade = scoreToGrade(Math.max(0, score));
     let summary = "";
 
-    if (finalGrade.startsWith("A")) {
+    if (isPregnant) {
+      if (finalGrade.startsWith("A")) {
+        summary = trimester === "FIRST" ?
+          "Excellent nutrition for early pregnancy! 🤰" :
+          trimester === "SECOND" ?
+            "Perfect balance for your growing baby! 🤰" :
+            "Great nutrients for baby's final development! 🤰";
+      } else if (finalGrade.startsWith("B")) {
+        summary = "Good meal for pregnancy! Consider adding key nutrients.";
+      } else if (finalGrade.startsWith("C")) {
+        summary = "Decent meal, but let's boost those pregnancy nutrients!";
+      } else {
+        summary = "Let's adjust this meal to better support your pregnancy.";
+      }
+    } else if (finalGrade.startsWith("A")) {
       summary = goal === "BUILD_MUSCLE" ?
         "High protein, balanced macros - perfect for muscle building!" :
         goal === "LOSE_WEIGHT" ?
@@ -232,6 +364,7 @@ export const gradeMeal = onCall(async (request: any) => {
       score: Math.max(0, score),
       feedback,
       positives,
+      warnings: warnings.length > 0 ? warnings : undefined,
       color: gradeToColor(finalGrade),
       summary,
       macroBreakdown: {
@@ -239,6 +372,8 @@ export const gradeMeal = onCall(async (request: any) => {
         carbs: Math.round(carbsPercent),
         fat: Math.round(fatPercent),
       },
+      isPregnancyGrade: isPregnant || false,
+      trimester: isPregnant ? trimester : undefined,
       gradedAt: new Date(),
     };
 

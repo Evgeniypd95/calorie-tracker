@@ -425,7 +425,8 @@ Response:
   }
 });
 
-// Export gradeMeal, generateSuggestions, and generateInsights functions
+// Export gradeMeal, generateSuggestions, generateInsights, and calculateNutritionPlan functions
 export {gradeMeal} from "./gradeMeal";
 export {generateSuggestions} from "./generateSuggestions";
 export {generateInsights} from "./generateInsights";
+export {calculateNutritionPlan} from "./calculateNutritionPlan";

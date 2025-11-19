@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Dimensions, Platform, useColorScheme } from 'react-native';
-import { Text, Card, Surface, useTheme } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Dimensions, Platform, useColorScheme, TouchableOpacity } from 'react-native';
+import { Text, Card, Surface, useTheme, IconButton, Divider } from 'react-native-paper';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { useAuth } from '../../context/AuthContext';
 import { generateInsightsBackend } from '../../services/geminiService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-export default function InsightsScreen() {
+export default function InsightsScreen({ navigation }) {
   const { user, userProfile } = useAuth();
   const theme = useTheme();
   const colorScheme = useColorScheme();
@@ -120,12 +120,77 @@ export default function InsightsScreen() {
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
         <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.onBackground }]}>
-          Insights
+          My Goals
         </Text>
         <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
-          Your nutrition trends this week
+          Track your progress and nutrition
         </Text>
       </View>
+
+      {/* Compact Personalized Plan Card */}
+      {userProfile?.dailyCalorieTarget && (
+        <TouchableOpacity
+          onPress={() => navigation.navigate('BodyMetrics')}
+          activeOpacity={0.7}
+        >
+          <Card style={[styles.compactPlanCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
+            <Card.Content>
+              <View style={styles.compactPlanHeader}>
+                <View>
+                  <Text variant="labelSmall" style={[styles.compactPlanLabel, { color: theme.colors.onSurfaceVariant }]}>
+                    YOUR DAILY TARGET
+                  </Text>
+                  <Text variant="headlineLarge" style={[styles.compactPlanCalories, { color: '#6366F1' }]}>
+                    {userProfile.dailyCalorieTarget}
+                  </Text>
+                  <Text variant="bodySmall" style={[styles.compactPlanUnit, { color: theme.colors.onSurfaceVariant }]}>
+                    calories/day
+                  </Text>
+                </View>
+                <IconButton
+                  icon="pencil"
+                  size={24}
+                  iconColor="#6366F1"
+                  style={styles.editButton}
+                  onPress={() => navigation.navigate('BodyMetrics')}
+                />
+              </View>
+
+              <Divider style={styles.compactDivider} />
+
+              <View style={styles.compactMacrosRow}>
+                <View style={styles.compactMacro}>
+                  <View style={[styles.compactMacroBar, { backgroundColor: '#EF4444' }]} />
+                  <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
+                    Protein
+                  </Text>
+                  <Text variant="titleMedium" style={[styles.compactMacroValue, { color: theme.colors.onSurface }]}>
+                    {userProfile.proteinTarget}g
+                  </Text>
+                </View>
+                <View style={styles.compactMacro}>
+                  <View style={[styles.compactMacroBar, { backgroundColor: '#10B981' }]} />
+                  <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
+                    Carbs
+                  </Text>
+                  <Text variant="titleMedium" style={[styles.compactMacroValue, { color: theme.colors.onSurface }]}>
+                    {userProfile.carbsTarget}g
+                  </Text>
+                </View>
+                <View style={styles.compactMacro}>
+                  <View style={[styles.compactMacroBar, { backgroundColor: '#F59E0B' }]} />
+                  <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
+                    Fat
+                  </Text>
+                  <Text variant="titleMedium" style={[styles.compactMacroValue, { color: theme.colors.onSurface }]}>
+                    {userProfile.fatTarget}g
+                  </Text>
+                </View>
+              </View>
+            </Card.Content>
+          </Card>
+        </TouchableOpacity>
+      )}
 
       {/* Weekly Calorie Chart */}
       {weeklyChartDataDisplay && weeklyChartDataDisplay.datasets && weeklyChartDataDisplay.datasets[0].data.length > 0 && (
@@ -358,5 +423,68 @@ const styles = StyleSheet.create({
   emptyText: {
     textAlign: 'center',
     lineHeight: 22
+  },
+  compactPlanCard: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 20px rgba(99, 102, 241, 0.15)',
+      },
+    }),
+  },
+  compactPlanHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16
+  },
+  compactPlanLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: 8
+  },
+  compactPlanCalories: {
+    fontWeight: '900',
+    letterSpacing: -2,
+    marginBottom: 4
+  },
+  compactPlanUnit: {
+    fontSize: 13
+  },
+  editButton: {
+    margin: 0,
+    marginTop: -8
+  },
+  compactDivider: {
+    marginBottom: 16
+  },
+  compactMacrosRow: {
+    flexDirection: 'row',
+    gap: 12
+  },
+  compactMacro: {
+    flex: 1,
+    alignItems: 'center'
+  },
+  compactMacroBar: {
+    width: 3,
+    height: 32,
+    borderRadius: 2,
+    marginBottom: 8
+  },
+  compactMacroLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4
+  },
+  compactMacroValue: {
+    fontWeight: '700'
   }
 });

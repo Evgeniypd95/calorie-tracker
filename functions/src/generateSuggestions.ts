@@ -110,7 +110,7 @@ export const generateSuggestions = onCall(async (request: any) => {
 
     // Generate suggestions based on data
     const suggestions: any[] = [];
-    const {goal, dailyCalorieTarget} = userProfile;
+    const {goal, dailyCalorieTarget, isPregnant, trimester} = userProfile;
 
     // Calculate macro percentages
     const proteinCals = avgProtein * 4;
@@ -122,8 +122,89 @@ export const generateSuggestions = onCall(async (request: any) => {
     const carbsPercent = totalMacroCals > 0 ? (carbsCals / totalMacroCals) * 100 : 0;
     const fatPercent = totalMacroCals > 0 ? (fatCals / totalMacroCals) * 100 : 0;
 
-    // SUGGESTION 1: Protein intake
-    if (goal === "BUILD_MUSCLE") {
+    // PREGNANCY-SPECIFIC SUGGESTIONS
+    if (isPregnant) {
+      // Folate suggestion (critical in 1st trimester)
+      if (trimester === "FIRST") {
+        suggestions.push({
+          type: "pregnancy_folate",
+          icon: "🤰",
+          title: "Boost Folate for Baby's Development",
+          description: "Folate is crucial in the 1st trimester for preventing neural tube defects.",
+          actionable: "Add spinach, kale, lentils, beans, or fortified cereals to your meals",
+          priority: "high",
+        });
+      }
+
+      // Iron suggestion (critical in 2nd/3rd trimester)
+      if (trimester === "SECOND" || trimester === "THIRD") {
+        suggestions.push({
+          type: "pregnancy_iron",
+          icon: "🤰",
+          title: "Maintain Iron Levels",
+          description: "Iron needs increase significantly during pregnancy to prevent anemia.",
+          actionable: "Include lean red meat, spinach, lentils, or iron-fortified foods daily",
+          priority: "high",
+        });
+      }
+
+      // Calcium suggestion
+      suggestions.push({
+        type: "pregnancy_calcium",
+        icon: "🤰",
+        title: "Strong Bones for Baby",
+        description: "Your baby needs calcium for bone development.",
+        actionable: "Aim for 3-4 servings of dairy, fortified plant milk, or calcium-rich foods daily",
+        priority: "medium",
+      });
+
+      // DHA/Omega-3 suggestion (critical in 3rd trimester for brain development)
+      if (trimester === "THIRD") {
+        suggestions.push({
+          type: "pregnancy_dha",
+          icon: "🤰",
+          title: "DHA for Baby's Brain",
+          description: "Omega-3 fatty acids support your baby's brain and eye development.",
+          actionable: "Eat salmon 2x/week, or add chia seeds, walnuts, or DHA-fortified eggs",
+          priority: "high",
+        });
+      }
+
+      // Small frequent meals (helps with nausea in 1st trimester, digestion later)
+      if (trimester === "FIRST") {
+        suggestions.push({
+          type: "pregnancy_meals",
+          icon: "🤰",
+          title: "Small, Frequent Meals",
+          description: "Eating smaller meals more often can help reduce nausea and maintain energy.",
+          actionable: "Try 5-6 smaller meals throughout the day instead of 3 large ones",
+          priority: "medium",
+        });
+      }
+
+      // Hydration
+      suggestions.push({
+        type: "pregnancy_hydration",
+        icon: "💧",
+        title: "Stay Well Hydrated",
+        description: "Pregnancy increases your fluid needs for amniotic fluid and increased blood volume.",
+        actionable: "Aim for 8-10 glasses of water daily, more if exercising",
+        priority: "medium",
+      });
+
+      // Foods to avoid reminder
+      suggestions.push({
+        type: "pregnancy_avoid",
+        icon: "⚠️",
+        title: "Foods to Avoid During Pregnancy",
+        description: "Some foods pose risks during pregnancy.",
+        actionable: "Avoid raw fish, deli meats, unpasteurized cheese, high-mercury fish, and alcohol",
+        priority: "high",
+      });
+    }
+
+    // SUGGESTION 1: Protein intake (regular)
+    if (!isPregnant && goal === "BUILD_MUSCLE") {
       if (proteinPercent < 25) {
         suggestions.push({
           type: "protein",
@@ -143,7 +224,7 @@ export const generateSuggestions = onCall(async (request: any) => {
           priority: "positive",
         });
       }
-    } else if (goal === "LOSE_WEIGHT") {
+    } else if (!isPregnant && goal === "LOSE_WEIGHT") {
       if (proteinPercent < 20) {
         suggestions.push({
           type: "protein",
@@ -184,7 +265,7 @@ export const generateSuggestions = onCall(async (request: any) => {
     }
 
     // SUGGESTION 3: Carbs for muscle building
-    if (goal === "BUILD_MUSCLE" && carbsPercent < 35) {
+    if (!isPregnant && goal === "BUILD_MUSCLE" && carbsPercent < 35) {
       suggestions.push({
         type: "carbs",
         icon: "🍚",

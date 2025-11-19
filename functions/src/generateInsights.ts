@@ -16,6 +16,39 @@ if (!getApps().length) {
 
 const db = getFirestore();
 
+// Pregnancy-specific food lists
+const FOLATE_RICH = [
+  "spinach", "kale", "broccoli", "brussels sprouts", "asparagus", "lentils",
+  "chickpeas", "beans", "orange", "avocado", "fortified cereal", "leafy greens",
+  "collard greens", "turnip greens", "lettuce", "beets", "edamame"
+];
+
+const IRON_RICH = [
+  "red meat", "beef", "lamb", "pork", "chicken", "turkey", "liver",
+  "spinach", "lentils", "beans", "tofu", "quinoa", "fortified cereal",
+  "pumpkin seeds", "cashews", "chickpeas", "edamame"
+];
+
+const CALCIUM_RICH = [
+  "milk", "yogurt", "cheese", "cottage cheese", "tofu", "salmon", "sardines",
+  "kale", "broccoli", "bok choy", "almonds", "fortified milk", "fortified juice"
+];
+
+const DHA_OMEGA3 = [
+  "salmon", "sardines", "mackerel", "herring", "trout", "chia seeds",
+  "flax seeds", "walnuts", "eggs", "fortified eggs"
+];
+
+function checkForPregnancyNutrients(foodName: string) {
+  const lowerFood = foodName.toLowerCase();
+  return {
+    hasFolate: FOLATE_RICH.some((food) => lowerFood.includes(food)),
+    hasIron: IRON_RICH.some((food) => lowerFood.includes(food)),
+    hasCalcium: CALCIUM_RICH.some((food) => lowerFood.includes(food)),
+    hasDHA: DHA_OMEGA3.some((food) => lowerFood.includes(food)),
+  };
+}
+
 interface MealData {
   date: any;
   totals: {
@@ -23,6 +56,19 @@ interface MealData {
     protein: number;
     carbs: number;
     fat: number;
+  };
+  items?: Array<{
+    food: string;
+    quantity: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  }>;
+  gradeData?: {
+    grade: string;
+    score: number;
+    isPregnancyGrade?: boolean;
   };
 }
 
@@ -48,6 +94,8 @@ export const generateInsights = onCall(async (request: any) => {
   }
 
   try {
+    const {isPregnant, trimester} = userProfile;
+
     // Get last 7 days of meals
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -157,20 +205,40 @@ export const generateInsights = onCall(async (request: any) => {
     const avgProtein = daysWithCalories.reduce((sum, day) => sum + day.protein, 0) / daysWithCalories.length || 0;
     const proteinTarget = userProfile.proteinTarget || 150;
 
-    if (avgProtein < proteinTarget * 0.8) {
-      insights.push({
-        icon: "💪",
-        title: "Protein Opportunity",
-        description: `Your average protein intake is ${Math.round(avgProtein)}g. Target: ${proteinTarget}g`,
-        color: "#EF4444",
-      });
-    } else if (avgProtein >= proteinTarget) {
-      insights.push({
-        icon: "💪",
-        title: "Protein Champion",
-        description: `Crushing your protein goals! Average: ${Math.round(avgProtein)}g`,
-        color: "#10B981",
-      });
+    if (isPregnant) {
+      // Pregnancy-specific protein messaging
+      if (avgProtein < proteinTarget * 0.75) {
+        insights.push({
+          icon: "🤰",
+          title: "Protein for Baby",
+          description: `Average: ${Math.round(avgProtein)}g. Aim for ${proteinTarget}g for healthy fetal development`,
+          color: "#EF4444",
+        });
+      } else if (avgProtein >= proteinTarget) {
+        insights.push({
+          icon: "🤰",
+          title: "Excellent Protein",
+          description: `Great job! Average: ${Math.round(avgProtein)}g - perfect for pregnancy`,
+          color: "#10B981",
+        });
+      }
+    } else {
+      // Regular protein insights
+      if (avgProtein < proteinTarget * 0.8) {
+        insights.push({
+          icon: "💪",
+          title: "Protein Opportunity",
+          description: `Your average protein intake is ${Math.round(avgProtein)}g. Target: ${proteinTarget}g`,
+          color: "#EF4444",
+        });
+      } else if (avgProtein >= proteinTarget) {
+        insights.push({
+          icon: "💪",
+          title: "Protein Champion",
+          description: `Crushing your protein goals! Average: ${Math.round(avgProtein)}g`,
+          color: "#10B981",
+        });
+      }
     }
 
     // 3. Consistency insight
@@ -196,6 +264,144 @@ export const generateInsights = onCall(async (request: any) => {
         description: "Try to log meals at least 5 days a week for better insights",
         color: "#94A3B8",
       });
+    }
+
+    // 4. PREGNANCY-SPECIFIC NUTRIENT TRACKING
+    if (isPregnant) {
+      let totalFolateCount = 0;
+      let totalIronCount = 0;
+      let totalCalciumCount = 0;
+      let totalDHACount = 0;
+      let totalMealsWithItems = 0;
+
+      meals.forEach((meal) => {
+        if (meal.items && meal.items.length > 0) {
+          totalMealsWithItems++;
+          meal.items.forEach((item) => {
+            const nutrients = checkForPregnancyNutrients(item.food);
+            if (nutrients.hasFolate) totalFolateCount++;
+            if (nutrients.hasIron) totalIronCount++;
+            if (nutrients.hasCalcium) totalCalciumCount++;
+            if (nutrients.hasDHA) totalDHACount++;
+          });
+        }
+      });
+
+      // Folate insight (critical in 1st trimester)
+      if (trimester === "FIRST") {
+        if (totalFolateCount >= 5) {
+          insights.push({
+            icon: "🤰",
+            title: "Excellent Folate Intake",
+            description: `Great job! ${totalFolateCount} folate-rich foods this week - crucial for baby's development`,
+            color: "#10B981",
+          });
+        } else if (totalFolateCount > 0) {
+          insights.push({
+            icon: "🤰",
+            title: "Add More Folate",
+            description: `Only ${totalFolateCount} folate-rich foods this week. Aim for daily intake (leafy greens, beans)`,
+            color: "#F59E0B",
+          });
+        } else {
+          insights.push({
+            icon: "⚠️",
+            title: "Missing Folate",
+            description: "Folate is critical in 1st trimester. Add spinach, kale, beans, or fortified cereals",
+            color: "#EF4444",
+          });
+        }
+      }
+
+      // Iron insight (critical in 2nd/3rd trimester)
+      if (trimester === "SECOND" || trimester === "THIRD") {
+        if (totalIronCount >= 5) {
+          insights.push({
+            icon: "🤰",
+            title: "Great Iron Sources",
+            description: `${totalIronCount} iron-rich foods this week - keeping anemia at bay!`,
+            color: "#10B981",
+          });
+        } else if (totalIronCount > 0) {
+          insights.push({
+            icon: "🤰",
+            title: "Boost Iron Intake",
+            description: `Only ${totalIronCount} iron-rich foods this week. Add lean meats, spinach, or lentils`,
+            color: "#F59E0B",
+          });
+        } else {
+          insights.push({
+            icon: "⚠️",
+            title: "Need More Iron",
+            description: "Iron prevents anemia during pregnancy. Include lean red meat, spinach, or fortified cereals",
+            color: "#EF4444",
+          });
+        }
+      }
+
+      // Calcium insight
+      if (totalCalciumCount >= 7) {
+        insights.push({
+          icon: "🤰",
+          title: "Perfect Calcium",
+          description: `${totalCalciumCount} calcium-rich foods - baby's bones are developing great!`,
+          color: "#10B981",
+        });
+      } else if (totalCalciumCount < 3) {
+        insights.push({
+          icon: "🤰",
+          title: "More Calcium Needed",
+          description: "Aim for 3-4 calcium sources daily (dairy, fortified milk, leafy greens)",
+          color: "#F59E0B",
+        });
+      }
+
+      // DHA insight (critical in 3rd trimester for brain development)
+      if (trimester === "THIRD") {
+        if (totalDHACount >= 2) {
+          insights.push({
+            icon: "🤰",
+            title: "Great DHA/Omega-3",
+            description: `${totalDHACount} DHA sources this week - excellent for baby's brain development!`,
+            color: "#10B981",
+          });
+        } else if (totalDHACount === 1) {
+          insights.push({
+            icon: "🤰",
+            title: "Add More DHA",
+            description: "Aim for 2x salmon per week, or add chia seeds/walnuts for baby's brain",
+            color: "#F59E0B",
+          });
+        } else {
+          insights.push({
+            icon: "⚠️",
+            title: "Missing DHA",
+            description: "DHA supports baby's brain development. Add salmon, chia seeds, or fortified eggs",
+            color: "#EF4444",
+          });
+        }
+      }
+
+      // Overall pregnancy grade trend
+      const pregnancyGradedMeals = meals.filter((meal) => meal.gradeData?.isPregnancyGrade);
+      if (pregnancyGradedMeals.length >= 3) {
+        const avgScore = pregnancyGradedMeals.reduce((sum, meal) => sum + (meal.gradeData?.score || 0), 0) / pregnancyGradedMeals.length;
+        if (avgScore >= 85) {
+          insights.push({
+            icon: "🎉",
+            title: "Amazing Pregnancy Nutrition",
+            description: `Your meals average ${Math.round(avgScore)}/100 - you're nourishing baby perfectly!`,
+            color: "#10B981",
+          });
+        } else if (avgScore < 70) {
+          insights.push({
+            icon: "💡",
+            title: "Nutrition Opportunity",
+            description: `Average score: ${Math.round(avgScore)}/100. Focus on pregnancy-critical nutrients`,
+            color: "#F59E0B",
+          });
+        }
+      }
     }
 
     // Prepare weekly chart data

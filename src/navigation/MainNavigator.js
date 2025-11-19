@@ -8,6 +8,7 @@ import ChatLogMealScreen from '../screens/main/ChatLogMealScreen';
 import SocialFeedScreen from '../screens/main/SocialFeedScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import InsightsScreen from '../screens/main/InsightsScreen';
+import BodyMetricsScreen from '../screens/main/BodyMetricsScreen';
 import { IconButton, Icon, FAB, Text } from 'react-native-paper';
 import { authService } from '../services/firebase';
 
@@ -61,8 +62,16 @@ function InsightsStack() {
         name="InsightsMain"
         component={InsightsScreen}
         options={{
-          title: 'Insights',
+          title: 'My Goals',
           headerShown: false
+        }}
+      />
+      <Stack.Screen
+        name="BodyMetrics"
+        component={BodyMetricsScreen}
+        options={{
+          title: 'Body Metrics',
+          headerBackTitle: 'Back'
         }}
       />
     </Stack.Navigator>
@@ -91,6 +100,14 @@ function ProfileStack() {
               onPress={handleLogout}
             />
           )
+        }}
+      />
+      <Stack.Screen
+        name="BodyMetrics"
+        component={BodyMetricsScreen}
+        options={{
+          title: 'Body Metrics',
+          headerBackTitle: 'Back'
         }}
       />
     </Stack.Navigator>
@@ -147,7 +164,7 @@ export default function MainNavigator() {
         name="Insights"
         component={InsightsStack}
         options={{
-          tabBarLabel: 'Insights',
+          tabBarLabel: 'My Goals',
           tabBarIcon: ({ color, size }) => (
             <Icon source="chart-line" size={size} color={color} />
           ),

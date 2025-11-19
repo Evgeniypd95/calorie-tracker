@@ -410,3 +410,28 @@ export const generateInsightsBackend = async (userId, userProfile) => {
     throw error;
   }
 };
+
+/**
+ * Calculate personalized nutrition plan using backend Cloud Function
+ * @param {object} userData - User's body metrics and goals
+ * @returns {Promise<object>} - Calculated nutrition plan
+ */
+export const calculateNutritionPlanBackend = async (userData) => {
+  console.log('🧮 Calculating nutrition plan via backend');
+
+  try {
+    const calculatePlanFn = httpsCallable(functions, 'calculateNutritionPlan');
+    const result = await calculatePlanFn(userData);
+
+    console.log('✅ calculateNutritionPlan response:', result.data);
+
+    if (result.data.success) {
+      return result.data.plan;
+    } else {
+      throw new Error('Nutrition plan calculation failed');
+    }
+  } catch (error) {
+    console.error('❌ Error calling calculateNutritionPlan function:', error);
+    throw error;
+  }
+};
