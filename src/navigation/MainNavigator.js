@@ -237,25 +237,24 @@ export default function MainNavigator() {
 
 const styles = StyleSheet.create({
   customButtonContainer: {
-    top: -20,
     justifyContent: 'center',
     alignItems: 'center',
     flex: 1
   },
   customButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#6366F1',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 2,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   }
 });

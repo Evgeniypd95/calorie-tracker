@@ -19,6 +19,10 @@ export default function InsightsScreen({ navigation }) {
   const [daysWithData, setDaysWithData] = useState(0);
   const [loading, setLoading] = useState(true);
   const [weeklyMealsData, setWeeklyMealsData] = useState([]);
+  const [calorieAdherenceData, setCalorieAdherenceData] = useState(null);
+  const [dailyProteinData, setDailyProteinData] = useState(null);
+  const [dailyCarbsData, setDailyCarbsData] = useState(null);
+  const [dailyFatData, setDailyFatData] = useState(null);
 
   useEffect(() => {
     if (user && userProfile) {
@@ -55,9 +59,22 @@ export default function InsightsScreen({ navigation }) {
       const result = await generateInsightsBackend(user.uid, userProfile);
 
       console.log('[Insights] Backend result:', result);
+      console.log('[Insights] calorieAdherenceData:', result.calorieAdherenceData);
+      console.log('[Insights] dailyProteinData:', result.dailyProteinData);
+      console.log('[Insights] dailyCarbsData:', result.dailyCarbsData);
+      console.log('[Insights] dailyFatData:', result.dailyFatData);
 
       setHasEnoughData(result.hasEnoughData);
       setDaysWithData(result.daysWithData);
+
+      // Always set the new chart data (not gated by 5 days)
+      setCalorieAdherenceData(result.calorieAdherenceData || null);
+      setDailyProteinData(result.dailyProteinData || null);
+      setDailyCarbsData(result.dailyCarbsData || null);
+      setDailyFatData(result.dailyFatData || null);
+
+      console.log('[Insights] State set - checking data...');
+      console.log('[Insights] calorieAdherenceData state:', result.calorieAdherenceData);
 
       if (result.hasEnoughData) {
         setInsights(result.insights || []);
@@ -75,6 +92,10 @@ export default function InsightsScreen({ navigation }) {
       setInsights([]);
       setWeeklyChartData(null);
       setMacroChartData([]);
+      setCalorieAdherenceData(null);
+      setDailyProteinData(null);
+      setDailyCarbsData(null);
+      setDailyFatData(null);
     } finally {
       setLoading(false);
     }
@@ -183,29 +204,28 @@ export default function InsightsScreen({ navigation }) {
 
               <View style={styles.compactMacrosRow}>
                 <View style={styles.compactMacro}>
-                  <View style={[styles.compactMacroBar, { backgroundColor: '#EF4444' }]} />
                   <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
                     Protein
                   </Text>
-                  <Text variant="titleMedium" style={[styles.compactMacroValue, { color: theme.colors.onSurface }]}>
+                  <Text variant="headlineSmall" style={[styles.compactMacroValue, { color: '#EF4444' }]}>
                     {userProfile.proteinTarget}g
                   </Text>
                 </View>
+                <View style={styles.compactMacroDivider} />
                 <View style={styles.compactMacro}>
-                  <View style={[styles.compactMacroBar, { backgroundColor: '#10B981' }]} />
                   <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
                     Carbs
                   </Text>
-                  <Text variant="titleMedium" style={[styles.compactMacroValue, { color: theme.colors.onSurface }]}>
+                  <Text variant="headlineSmall" style={[styles.compactMacroValue, { color: '#10B981' }]}>
                     {userProfile.carbsTarget}g
                   </Text>
                 </View>
+                <View style={styles.compactMacroDivider} />
                 <View style={styles.compactMacro}>
-                  <View style={[styles.compactMacroBar, { backgroundColor: '#F59E0B' }]} />
                   <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
                     Fat
                   </Text>
-                  <Text variant="titleMedium" style={[styles.compactMacroValue, { color: theme.colors.onSurface }]}>
+                  <Text variant="headlineSmall" style={[styles.compactMacroValue, { color: '#F59E0B' }]}>
                     {userProfile.fatTarget}g
                   </Text>
                 </View>
@@ -213,6 +233,193 @@ export default function InsightsScreen({ navigation }) {
             </Card.Content>
           </Card>
         </TouchableOpacity>
+      )}
+
+      {/* Calorie Adherence Chart - Always visible */}
+      {calorieAdherenceData && calorieAdherenceData.labels && calorieAdherenceData.actual && (
+        <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
+          <Card.Content>
+            <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
+              Calorie Target Adherence
+            </Text>
+            <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+              Actual vs Target (Last 7 days)
+            </Text>
+            <LineChart
+              data={{
+                labels: calorieAdherenceData.labels,
+                datasets: [
+                  {
+                    data: calorieAdherenceData.actual,
+                    color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
+                    strokeWidth: 3
+                  },
+                  {
+                    data: Array(calorieAdherenceData.labels.length).fill(calorieAdherenceData.target),
+                    color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
+                    strokeWidth: 3,
+                    strokeDasharray: [10, 5],
+                    withDots: false
+                  }
+                ],
+                legend: ['Actual', 'Target']
+              }}
+              width={screenWidth - 80}
+              height={220}
+              chartConfig={chartConfig}
+              bezier
+              style={styles.chart}
+              withInnerLines={true}
+              withOuterLines={true}
+              withVerticalLines={false}
+              withHorizontalLines={true}
+              withDots={true}
+              withShadow={false}
+              fromZero={true}
+            />
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Daily Protein Chart - Always visible */}
+      {dailyProteinData && dailyProteinData.labels && dailyProteinData.data && (
+        <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
+          <Card.Content>
+            <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
+              Daily Protein
+            </Text>
+            <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+              Actual vs Target • Last 7 days
+            </Text>
+            <LineChart
+              data={{
+                labels: dailyProteinData.labels,
+                datasets: [
+                  {
+                    data: dailyProteinData.data,
+                    color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
+                    strokeWidth: 3
+                  },
+                  {
+                    data: Array(dailyProteinData.labels.length).fill(dailyProteinData.target),
+                    color: (opacity = 1) => `rgba(251, 146, 60, ${opacity})`,
+                    strokeWidth: 3,
+                    strokeDasharray: [10, 5],
+                    withDots: false
+                  }
+                ],
+                legend: ['Actual', 'Target']
+              }}
+              width={screenWidth - 80}
+              height={200}
+              chartConfig={{...chartConfig, color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`}}
+              bezier
+              style={styles.chart}
+              withInnerLines={true}
+              withOuterLines={true}
+              withVerticalLines={false}
+              withHorizontalLines={true}
+              withDots={true}
+              withShadow={false}
+              fromZero={true}
+              yAxisSuffix="g"
+            />
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Daily Carbs Chart - Always visible */}
+      {dailyCarbsData && dailyCarbsData.labels && dailyCarbsData.data && (
+        <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
+          <Card.Content>
+            <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
+              Daily Carbs
+            </Text>
+            <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+              Actual vs Target • Last 7 days
+            </Text>
+            <LineChart
+              data={{
+                labels: dailyCarbsData.labels,
+                datasets: [
+                  {
+                    data: dailyCarbsData.data,
+                    color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
+                    strokeWidth: 3
+                  },
+                  {
+                    data: Array(dailyCarbsData.labels.length).fill(dailyCarbsData.target),
+                    color: (opacity = 1) => `rgba(52, 211, 153, ${opacity})`,
+                    strokeWidth: 3,
+                    strokeDasharray: [10, 5],
+                    withDots: false
+                  }
+                ],
+                legend: ['Actual', 'Target']
+              }}
+              width={screenWidth - 80}
+              height={200}
+              chartConfig={{...chartConfig, color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`}}
+              bezier
+              style={styles.chart}
+              withInnerLines={true}
+              withOuterLines={true}
+              withVerticalLines={false}
+              withHorizontalLines={true}
+              withDots={true}
+              withShadow={false}
+              fromZero={true}
+              yAxisSuffix="g"
+            />
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Daily Fat Chart - Always visible */}
+      {dailyFatData && dailyFatData.labels && dailyFatData.data && (
+        <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
+          <Card.Content>
+            <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
+              Daily Fat
+            </Text>
+            <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+              Actual vs Target • Last 7 days
+            </Text>
+            <LineChart
+              data={{
+                labels: dailyFatData.labels,
+                datasets: [
+                  {
+                    data: dailyFatData.data,
+                    color: (opacity = 1) => `rgba(245, 158, 11, ${opacity})`,
+                    strokeWidth: 3
+                  },
+                  {
+                    data: Array(dailyFatData.labels.length).fill(dailyFatData.target),
+                    color: (opacity = 1) => `rgba(251, 191, 36, ${opacity})`,
+                    strokeWidth: 3,
+                    strokeDasharray: [10, 5],
+                    withDots: false
+                  }
+                ],
+                legend: ['Actual', 'Target']
+              }}
+              width={screenWidth - 80}
+              height={200}
+              chartConfig={{...chartConfig, color: (opacity = 1) => `rgba(245, 158, 11, ${opacity})`}}
+              bezier
+              style={styles.chart}
+              withInnerLines={true}
+              withOuterLines={true}
+              withVerticalLines={false}
+              withHorizontalLines={true}
+              withDots={true}
+              withShadow={false}
+              fromZero={true}
+              yAxisSuffix="g"
+            />
+          </Card.Content>
+        </Card>
       )}
 
       {/* Weight Tracking Button */}
@@ -708,11 +915,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center'
   },
-  compactMacroBar: {
-    width: 3,
-    height: 32,
-    borderRadius: 2,
-    marginBottom: 8
+  compactMacroDivider: {
+    width: 1,
+    height: '100%',
+    backgroundColor: '#E2E8F0'
   },
   compactMacroLabel: {
     fontSize: 10,

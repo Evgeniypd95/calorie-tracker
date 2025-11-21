@@ -1,7 +1,9 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signOut
+  signOut,
+  GoogleAuthProvider,
+  signInWithCredential
 } from 'firebase/auth';
 import {
   doc,
@@ -16,6 +18,23 @@ import {
   deleteDoc
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase.config';
+import { Platform } from 'react-native';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+
+// Configure Google Sign-In
+// Get the Web Client ID from environment variables
+const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+
+if (Platform.OS !== 'web') {
+  if (!WEB_CLIENT_ID || WEB_CLIENT_ID === 'YOUR_WEB_CLIENT_ID_HERE') {
+    console.warn('⚠️ Google Sign-In: Web Client ID not configured. Please add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to your .env file');
+  } else {
+    GoogleSignin.configure({
+      webClientId: WEB_CLIENT_ID,
+      offlineAccess: true,
+    });
+  }
+}
 
 export const authService = {
   signup: async (email, password) => {
@@ -26,7 +45,37 @@ export const authService = {
     return await signInWithEmailAndPassword(auth, email, password);
   },
 
+  googleSignIn: async () => {
+    if (Platform.OS === 'web') {
+      throw new Error('Google Sign-In is not available on web');
+    }
+
+    try {
+      // Check if device supports Google Play Services
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
+      // Get user info from Google
+      const { idToken } = await GoogleSignin.signIn();
+
+      // Create Firebase credential
+      const googleCredential = GoogleAuthProvider.credential(idToken);
+
+      // Sign in to Firebase with Google credential
+      return await signInWithCredential(auth, googleCredential);
+    } catch (error) {
+      console.error('Google Sign-In Error:', error);
+      throw error;
+    }
+  },
+
   logout: async () => {
+    // Sign out from Google if user signed in with Google
+    if (Platform.OS !== 'web') {
+      const isSignedIn = await GoogleSignin.isSignedIn();
+      if (isSignedIn) {
+        await GoogleSignin.signOut();
+      }
+    }
     return await signOut(auth);
   }
 };

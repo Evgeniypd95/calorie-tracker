@@ -400,7 +400,11 @@ export const generateInsightsBackend = async (userId, userProfile) => {
         daysWithData: result.data.daysWithData,
         insights: result.data.insights,
         weeklyChartData: result.data.weeklyChartData,
-        macroChartData: result.data.macroChartData
+        macroChartData: result.data.macroChartData,
+        calorieAdherenceData: result.data.calorieAdherenceData,
+        dailyProteinData: result.data.dailyProteinData,
+        dailyCarbsData: result.data.dailyCarbsData,
+        dailyFatData: result.data.dailyFatData
       };
     } else {
       throw new Error('Insights generation failed');

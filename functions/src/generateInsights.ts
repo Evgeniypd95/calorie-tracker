@@ -152,6 +152,36 @@ export const generateInsights = onCall(async (request: any) => {
     // Check if we have at least 5 days of data
     const daysWithData = dailyTotals.filter((d) => d.calories > 0).length;
 
+    // Always prepare chart labels and daily macro data (even with < 5 days)
+    const chartLabels = dailyTotals.map((d) => {
+      const day = d.date.toLocaleDateString("en-US", {weekday: "short"});
+      return day.substring(0, 3);
+    });
+
+    const dailyProteinData = {
+      labels: chartLabels,
+      data: dailyTotals.map((d) => Math.round(d.protein)),
+      target: userProfile.proteinTarget || 0,
+    };
+
+    const dailyCarbsData = {
+      labels: chartLabels,
+      data: dailyTotals.map((d) => Math.round(d.carbs)),
+      target: userProfile.carbsTarget || 0,
+    };
+
+    const dailyFatData = {
+      labels: chartLabels,
+      data: dailyTotals.map((d) => Math.round(d.fat)),
+      target: userProfile.fatTarget || 0,
+    };
+
+    const calorieAdherenceData = {
+      labels: chartLabels,
+      actual: dailyTotals.map((d) => Math.round(d.calories)),
+      target: userProfile.dailyCalorieTarget || 0,
+    };
+
     if (daysWithData < 5) {
       console.log(`⏸️ Not enough data: ${daysWithData} days (need 5+)`);
       return {
@@ -160,6 +190,10 @@ export const generateInsights = onCall(async (request: any) => {
         daysWithData,
         insights: [],
         weeklyData: null,
+        dailyProteinData,
+        dailyCarbsData,
+        dailyFatData,
+        calorieAdherenceData,
       };
     }
 
@@ -454,6 +488,9 @@ export const generateInsights = onCall(async (request: any) => {
 
     console.log(`✅ Generated ${insights.length} insights`);
 
+    // Note: dailyProteinData, dailyCarbsData, dailyFatData, and calorieAdherenceData
+    // are already prepared earlier in the function to support < 5 days of data
+
     return {
       success: true,
       hasEnoughData: true,
@@ -461,6 +498,10 @@ export const generateInsights = onCall(async (request: any) => {
       insights,
       weeklyChartData,
       macroChartData,
+      dailyProteinData,
+      dailyCarbsData,
+      dailyFatData,
+      calorieAdherenceData,
     };
   } catch (error) {
     console.error("Error generating insights:", error);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform, Image, KeyboardAvoidingView, TouchableOpacity, Modal } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Platform, Image, KeyboardAvoidingView, TouchableOpacity, Modal, Linking } from 'react-native';
 import { TextInput, Button, Text, IconButton, ActivityIndicator, Card, Chip, Surface } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -338,9 +338,34 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
   const pickImage = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status, canAskAgain } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        showAlert('Permission Required', 'We need camera roll permissions to upload meal photos.');
+        if (canAskAgain === false) {
+          // Permission permanently denied
+          if (Platform.OS === 'web') {
+            window.alert('Photo library access is required to upload meal photos. Please enable it in your browser settings.');
+          } else {
+            Alert.alert(
+              'Photo Library Permission Required',
+              'Photo library access is needed to upload meal photos. Please enable it in your device Settings.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Open Settings',
+                  onPress: () => {
+                    if (Platform.OS === 'ios') {
+                      Linking.openURL('app-settings:');
+                    } else {
+                      Linking.openSettings();
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        } else {
+          showAlert('Permission Required', 'We need camera roll permissions to upload meal photos.');
+        }
         return;
       }
 
@@ -364,9 +389,34 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
   const takePhoto = async () => {
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        showAlert('Permission Required', 'We need camera permissions to take meal photos.');
+        if (canAskAgain === false) {
+          // Permission permanently denied
+          if (Platform.OS === 'web') {
+            window.alert('Camera access is required to take meal photos. Please enable it in your browser settings.');
+          } else {
+            Alert.alert(
+              'Camera Permission Required',
+              'Camera access is needed to take meal photos. Please enable it in your device Settings.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Open Settings',
+                  onPress: () => {
+                    if (Platform.OS === 'ios') {
+                      Linking.openURL('app-settings:');
+                    } else {
+                      Linking.openSettings();
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        } else {
+          showAlert('Permission Required', 'We need camera permissions to take meal photos.');
+        }
         return;
       }
 
@@ -411,7 +461,34 @@ export default function ChatLogMealScreen({ navigation, route }) {
     if (!permission.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        showAlert('Permission Required', 'Camera permission is required to scan barcodes.');
+        // Check if they can ask again or if it was permanently denied
+        if (result.canAskAgain === false) {
+          // Permission was permanently denied - guide them to Settings
+          if (Platform.OS === 'web') {
+            window.alert('Camera permission is required to scan barcodes. Please enable camera access in your browser settings.');
+          } else {
+            Alert.alert(
+              'Camera Permission Required',
+              'Camera access is needed to scan barcodes. Please enable it in your device Settings.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Open Settings',
+                  onPress: () => {
+                    if (Platform.OS === 'ios') {
+                      Linking.openURL('app-settings:');
+                    } else {
+                      Linking.openSettings();
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        } else {
+          // Permission was just denied this time
+          showAlert('Permission Required', 'Camera permission is required to scan barcodes.');
+        }
         return;
       }
     }

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { TextInput, Button, Text, Snackbar } from 'react-native-paper';
+import { TextInput, Button, Text, Snackbar, Divider } from 'react-native-paper';
 import { authService } from '../../services/firebase';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
 
@@ -30,6 +31,25 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      await authService.googleSignIn();
+      // Navigation handled by auth state listener
+    } catch (error) {
+      console.error('Google Sign-In error:', error);
+      if (error.code === 'ERR_CANCELED') {
+        // User cancelled the sign-in
+        setError('Sign-in cancelled');
+      } else {
+        setError(error.message || 'Failed to sign in with Google');
+      }
+      setSnackbarVisible(true);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -43,6 +63,30 @@ export default function LoginScreen({ navigation }) {
           Sign in to continue tracking your nutrition
         </Text>
 
+        {/* Native: Show Google Sign-In */}
+        {Platform.OS !== 'web' && (
+          <>
+            <Button
+              mode="outlined"
+              onPress={handleGoogleSignIn}
+              loading={googleLoading}
+              disabled={googleLoading || loading}
+              style={[styles.button, styles.googleButton]}
+              icon="google"
+            >
+              Continue with Google
+            </Button>
+
+            <View style={styles.dividerContainer}>
+              <Divider style={styles.divider} />
+              <Text style={styles.dividerText}>or</Text>
+              <Divider style={styles.divider} />
+            </View>
+          </>
+        )}
+
+        {/* Web: Show Email/Password (always visible on web) */}
+        {/* Native: Show Email/Password after divider */}
         <TextInput
           label="Email"
           value={email}
@@ -66,10 +110,10 @@ export default function LoginScreen({ navigation }) {
           mode="contained"
           onPress={handleLogin}
           loading={loading}
-          disabled={loading}
+          disabled={loading || googleLoading}
           style={styles.button}
         >
-          Log In
+          {Platform.OS === 'web' ? 'Log In' : 'Continue with Email'}
         </Button>
 
         <Button
@@ -125,6 +169,26 @@ const styles = StyleSheet.create({
   button: {
     marginTop: 12,
     paddingVertical: 8
+  },
+  googleButton: {
+    borderColor: '#DB4437',
+    borderWidth: 2
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E8F0'
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: '#64748B',
+    fontSize: 14,
+    fontWeight: '600'
   },
   linkButton: {
     marginTop: 24
