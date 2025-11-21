@@ -122,6 +122,8 @@ export default function DashboardScreen({ navigation }) {
   const [editingMeal, setEditingMeal] = useState(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editDescription, setEditDescription] = useState('');
+  const [editDate, setEditDate] = useState(new Date());
+  const [editMode, setEditMode] = useState('description'); // 'description' or 'date'
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
   const [smartSuggestions, setSmartSuggestions] = useState([]);
   const [showGoalConfetti, setShowGoalConfetti] = useState(false);
@@ -177,10 +179,17 @@ export default function DashboardScreen({ navigation }) {
         return;
       }
 
+      if (result.reason === 'index_needed') {
+        console.log('[SmartSuggestions] Firestore index needed - skipping suggestions');
+        setSmartSuggestions([]);
+        return;
+      }
+
       console.log('[SmartSuggestions] Received suggestions from backend:', result.suggestions);
       setSmartSuggestions(result.suggestions || []);
     } catch (error) {
       console.error('[SmartSuggestions] Error generating suggestions:', error);
+      // Silently fail - suggestions are optional
       setSmartSuggestions([]);
     }
   };
@@ -333,17 +342,33 @@ export default function DashboardScreen({ navigation }) {
   const handleEditMeal = (meal) => {
     setEditingMeal(meal);
     setEditDescription(meal.description);
+    const mealDate = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
+    setEditDate(mealDate);
+    setEditMode('description');
     setEditModalVisible(true);
   };
 
   const handleSaveEdit = async () => {
     try {
-      // Re-parse the edited description
-      navigation.navigate('LogMeal', {
-        editingMeal: { ...editingMeal, description: editDescription },
-        reparse: true
-      });
-      setEditModalVisible(false);
+      if (editMode === 'description') {
+        // Re-parse the edited description
+        navigation.navigate('LogMeal', {
+          editingMeal: { ...editingMeal, description: editDescription },
+          reparse: true
+        });
+        setEditModalVisible(false);
+      } else if (editMode === 'date') {
+        // Update only the date
+        await mealService.updateMeal(editingMeal.id, { date: editDate });
+        setEditModalVisible(false);
+        await loadMeals();
+
+        if (Platform.OS === 'web') {
+          window.alert('Meal date updated successfully!');
+        } else {
+          Alert.alert('Success', 'Meal date updated successfully!');
+        }
+      }
     } catch (error) {
       console.error('Error saving edit:', error);
       if (Platform.OS === 'web') {
@@ -537,7 +562,7 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.quickActionsContainer}>
           <TouchableOpacity
             style={styles.quickActionButton}
-            onPress={() => navigation.navigate('LogMeal', { action: 'type' })}
+            onPress={() => navigation.navigate('LogMeal', { action: 'type', selectedDate: selectedDate.toISOString() })}
           >
             <IconButton icon="keyboard" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
             <Text style={styles.quickActionText}>Type</Text>
@@ -545,7 +570,7 @@ export default function DashboardScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.quickActionButton}
-            onPress={() => navigation.navigate('LogMeal', { action: 'scan' })}
+            onPress={() => navigation.navigate('LogMeal', { action: 'scan', selectedDate: selectedDate.toISOString() })}
           >
             <IconButton icon="barcode-scan" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
             <Text style={styles.quickActionText}>Scan</Text>
@@ -553,7 +578,7 @@ export default function DashboardScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.quickActionButton}
-            onPress={() => navigation.navigate('LogMeal', { action: 'photo' })}
+            onPress={() => navigation.navigate('LogMeal', { action: 'photo', selectedDate: selectedDate.toISOString() })}
           >
             <IconButton icon="camera" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
             <Text style={styles.quickActionText}>Photo</Text>
@@ -561,7 +586,7 @@ export default function DashboardScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.quickActionButton}
-            onPress={() => navigation.navigate('LogMeal', { action: 'voice' })}
+            onPress={() => navigation.navigate('LogMeal', { action: 'voice', selectedDate: selectedDate.toISOString() })}
           >
             <IconButton icon="microphone" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
             <Text style={styles.quickActionText}>Say It</Text>
@@ -799,21 +824,86 @@ export default function DashboardScreen({ navigation }) {
           <Text variant="titleLarge" style={styles.editModalTitle}>
             Edit Meal
           </Text>
-          <PaperTextInput
-            label="Description"
-            value={editDescription}
-            onChangeText={setEditDescription}
-            multiline
-            numberOfLines={4}
-            mode="outlined"
-            style={styles.editInput}
-          />
+
+          {/* Mode Toggle */}
+          <View style={styles.editModeToggle}>
+            <Button
+              mode={editMode === 'description' ? 'contained' : 'outlined'}
+              onPress={() => setEditMode('description')}
+              style={styles.editModeButton}
+              compact
+            >
+              Description
+            </Button>
+            <Button
+              mode={editMode === 'date' ? 'contained' : 'outlined'}
+              onPress={() => setEditMode('date')}
+              style={styles.editModeButton}
+              compact
+            >
+              Date
+            </Button>
+          </View>
+
+          {/* Content based on mode */}
+          {editMode === 'description' ? (
+            <PaperTextInput
+              label="Description"
+              value={editDescription}
+              onChangeText={setEditDescription}
+              multiline
+              numberOfLines={4}
+              mode="outlined"
+              style={styles.editInput}
+            />
+          ) : (
+            <View style={styles.datePickerContainer}>
+              <Text variant="bodyMedium" style={styles.datePickerLabel}>
+                Select new date for this meal:
+              </Text>
+              <View style={styles.datePickerButtons}>
+                {[-2, -1, 0, 1, 2].map((offset) => {
+                  const date = new Date(editDate);
+                  date.setDate(date.getDate() + offset);
+                  const isSelected = isSameDay(date, editDate);
+                  const { day: dayName, date: dayNum } = formatDate(date);
+                  const isToday = isSameDay(date, new Date());
+
+                  return (
+                    <TouchableOpacity
+                      key={offset}
+                      style={[
+                        styles.datePickerButton,
+                        isSelected && styles.datePickerButtonSelected
+                      ]}
+                      onPress={() => setEditDate(date)}
+                    >
+                      <Text style={[
+                        styles.datePickerDayName,
+                        isSelected && styles.datePickerDayNameSelected
+                      ]}>
+                        {dayName}
+                      </Text>
+                      <Text style={[
+                        styles.datePickerDayNum,
+                        isSelected && styles.datePickerDayNumSelected,
+                        isToday && !isSelected && styles.datePickerToday
+                      ]}>
+                        {dayNum}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
           <View style={styles.editModalActions}>
             <Button mode="outlined" onPress={() => setEditModalVisible(false)}>
               Cancel
             </Button>
             <Button mode="contained" onPress={handleSaveEdit}>
-              Re-parse & Save
+              {editMode === 'description' ? 'Re-parse & Save' : 'Update Date'}
             </Button>
           </View>
         </Modal>
@@ -1348,5 +1438,62 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12
+  },
+  editModeToggle: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 20
+  },
+  editModeButton: {
+    flex: 1
+  },
+  datePickerContainer: {
+    marginBottom: 20
+  },
+  datePickerLabel: {
+    color: '#64748B',
+    marginBottom: 12,
+    fontSize: 14
+  },
+  datePickerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between'
+  },
+  datePickerButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'transparent'
+  },
+  datePickerButtonSelected: {
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1'
+  },
+  datePickerDayName: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 4,
+    textTransform: 'uppercase'
+  },
+  datePickerDayNameSelected: {
+    color: '#FFFFFF'
+  },
+  datePickerDayNum: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B'
+  },
+  datePickerDayNumSelected: {
+    color: '#FFFFFF'
+  },
+  datePickerToday: {
+    color: '#6366F1'
   }
 });

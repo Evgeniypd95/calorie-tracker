@@ -135,10 +135,15 @@ export default function ChatLogMealScreen({ navigation, route }) {
       `• ${item.quantity} ${item.food} (${item.calories} cal)`
     ).join('\n');
 
-    const response = `Here's the breakdown:\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${meal.totals.protein}g | Carbs: ${meal.totals.carbs}g | Fat: ${meal.totals.fat}g\n\nPick a meal type below to save it!`;
+    const response = `Here's the breakdown:\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${meal.totals.protein}g | Carbs: ${meal.totals.carbs}g | Fat: ${meal.totals.fat}g`;
 
     setTimeout(() => {
       addMessage('ai', response, { parsedData: { items: meal.items, totals: meal.totals } });
+
+      // Add confirmation prompt for recent meals
+      setTimeout(() => {
+        addMessage('ai', '', { showFeedbackSuggestions: true });
+      }, 500);
     }, 500);
   };
 

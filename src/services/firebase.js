@@ -300,6 +300,11 @@ export const mealService = {
     return mealRef.id;
   },
 
+  updateMeal: async (mealId, updates) => {
+    const mealRef = doc(db, 'meals', mealId);
+    await updateDoc(mealRef, updates);
+  },
+
   getUserMeals: async (userId, daysBack = 30) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysBack);

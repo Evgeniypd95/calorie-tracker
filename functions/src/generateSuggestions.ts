@@ -44,6 +44,7 @@ export const generateSuggestions = onCall(async (request: any) => {
 
   try {
     // Fetch all meals for the user
+    console.log(`🔍 Fetching meals for user: ${userId}`);
     const mealsSnapshot = await db
       .collection("meals")
       .where("userId", "==", userId)
@@ -338,8 +339,25 @@ export const generateSuggestions = onCall(async (request: any) => {
         },
       },
     };
-  } catch (error) {
-    console.error("Error generating suggestions:", error);
+  } catch (error: any) {
+    console.error("❌ Error generating suggestions:", error);
+    console.error("Error details:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+
+    // If it's a Firestore index error, return gracefully
+    if (error.code === 9 || error.message?.includes("index")) {
+      console.log("📋 Firestore index needed. Returning empty suggestions.");
+      return {
+        success: true,
+        suggestions: [],
+        reason: "index_needed",
+        daysWithData: 0,
+      };
+    }
+
     throw new HttpsError("internal", "Failed to generate suggestions", error);
   }
 });
