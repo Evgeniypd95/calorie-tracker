@@ -163,6 +163,21 @@ Use metric measurements and recalculate totals for all items.`;
 
 Meal: "${mealDescription}"
 
+CRITICAL INTERPRETATION RULES:
+1. Handle common abbreviations, slang, and typos intelligently:
+   - "mms" or "m&ms" or "m and ms" → M&M's chocolate candies
+   - "pb" → peanut butter
+   - "chix" or "chk" → chicken
+   - "tuna sando" → tuna sandwich
+   - "bfast" → breakfast items
+   - "sm" or "lg" → small or large portion
+   - Brand names and common foods (recognize them even with typos)
+
+2. If the input is too vague or unrecognizable as food:
+   - ONLY return empty items array if you genuinely cannot identify ANY food
+   - Try to interpret creatively first - users might use slang or shorthand
+   - If you must return empty, user will be prompted to clarify
+
 CRITICAL ACCURACY RULES:
 1. Use REALISTIC portion sizes - don't overestimate
    - A sandwich: 350-570 calories (not 700+)
@@ -170,6 +185,8 @@ CRITICAL ACCURACY RULES:
    - 2 eggs: ~140 calories
    - 1 cup rice (cooked, 200g): ~200 calories
    - 1 slice bread: ~70-90 calories
+   - Small pack M&M's (45g): ~200 calories
+   - Regular pack M&M's (47.9g): ~240 calories
 
 2. Consider ACTUAL cooking methods and ingredients
    - Grilled vs fried makes a BIG difference
@@ -185,6 +202,10 @@ CRITICAL ACCURACY RULES:
    - Protein should be ~4 cal/g, carbs ~4 cal/g, fat ~9 cal/g
 
 5. Use standard USDA/nutritional database values when possible
+
+6. DEFAULT ASSUMPTIONS when quantity not specified:
+   - Standard serving size (e.g., 1 regular pack of candy, 1 medium apple)
+   - Be reasonable and consistent
 
 Return ONLY valid JSON in this exact format (no markdown, no explanations):
 {

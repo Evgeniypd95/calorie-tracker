@@ -4,6 +4,7 @@ import { Text, FAB, Card, Surface, IconButton, Portal, Modal, TextInput as Paper
 import { useFocusEffect } from '@react-navigation/native';
 import { mealService, userService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { useSelectedDate } from '../../context/DateContext';
 import { shouldShowCheckIn, getCheckInQuestions, calculateTargetAdjustment, getNextCheckInDate } from '../../services/checkInService';
 import CheckInModal from '../../components/CheckInModal';
 import { generateSuggestionsBackend } from '../../services/geminiService';
@@ -110,9 +111,9 @@ const ProgressBar = ({ current, target, color, label }) => {
 
 export default function DashboardScreen({ navigation }) {
   const { user, userProfile, refreshUserProfile } = useAuth();
+  const { selectedDate, setSelectedDate } = useSelectedDate();
   const theme = useTheme();
   const colorScheme = useColorScheme();
-  const [selectedDate, setSelectedDate] = useState(new Date());
   const [meals, setMeals] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const calendarRef = useRef(null);
@@ -131,7 +132,25 @@ export default function DashboardScreen({ navigation }) {
   const loadMeals = async (date = selectedDate) => {
     try {
       const dayMeals = await mealService.getMealsByDate(user.uid, date);
-      setMeals(dayMeals);
+
+      // Sort meals: first by meal type order, then by date (most recent first within each type)
+      const mealTypeOrder = { 'Breakfast': 1, 'Lunch': 2, 'Dinner': 3, 'Snack': 4 };
+      const sortedMeals = dayMeals.sort((a, b) => {
+        // First sort by meal type
+        const typeOrderA = mealTypeOrder[a.mealType] || 999;
+        const typeOrderB = mealTypeOrder[b.mealType] || 999;
+
+        if (typeOrderA !== typeOrderB) {
+          return typeOrderA - typeOrderB;
+        }
+
+        // Within same type, sort by date (most recent first)
+        const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
+        const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
+        return dateB - dateA; // Most recent first
+      });
+
+      setMeals(sortedMeals);
 
       // Generate smart suggestions
       if (dayMeals.length > 0) {

@@ -121,6 +121,9 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const handleSelectRecentMeal = (meal) => {
     setShowRecentMeals(false);
 
+    // Add user message with the meal description so it gets saved correctly
+    addMessage('user', meal.description);
+
     // Use the selected meal's data
     addMessage('ai', `Great choice! Using "${meal.description}"`);
 
@@ -564,8 +567,23 @@ export default function ChatLogMealScreen({ navigation, route }) {
       // Remove the "calculating" message
       setMessages(prev => prev.slice(0, -1));
 
-      // Create a friendly response
+      // Check if result has zero or very low calories (< 20)
       const totalCal = result.totals.calories;
+      const isZeroOrLowCalories = totalCal < 20;
+
+      // Check if items array is empty or has no recognizable food
+      const hasNoItems = !result.items || result.items.length === 0;
+
+      if (isZeroOrLowCalories || hasNoItems) {
+        console.log('⚠️ [ChatLogMeal] Zero/low calories or no items detected');
+        // Show error message and ask user to clarify
+        addMessage('ai', `Hmm, I couldn't identify any food items from "${text}" 🤔\n\nThis might be because:\n• The description is too vague or abbreviated\n• It contains typos or unusual shorthand\n• It's not a food item\n\nCould you try describing your meal more clearly? For example:\n• "M&M's chocolate candy"\n• "1 pack of M&Ms"\n• "chicken breast with rice"\n\nOr you can try again with a different description!`);
+        setParsedData(null); // Clear any existing parsed data
+        console.log('⚠️ [ChatLogMeal] User prompted to provide clearer description');
+        return; // Exit early, don't save zero-calorie meal
+      }
+
+      // Create a friendly response
       const itemsList = result.items.map(item =>
         `• ${item.quantity} ${item.food} (${item.calories} cal)`
       ).join('\n');
@@ -703,12 +721,18 @@ export default function ChatLogMealScreen({ navigation, route }) {
       const description = userMessages.map(m => m.content).join(', ');
       console.log('📝 [ChatLogMeal] Meal description:', description);
 
+      // Check if there's an image in the messages
+      const imageMessage = messages.find(m => m.data?.imageUri);
+      const imageUri = imageMessage?.data?.imageUri || null;
+      console.log('🖼️ [ChatLogMeal] Image URI:', imageUri);
+
       const mealData = {
         mealType: selectedMealType,
         description: description || 'Meal from photo',
         items: parsedData.items,
         totals: parsedData.totals,
-        date: mealDate
+        date: mealDate,
+        ...(imageUri && { imageUrl: imageUri }) // Add image URL if available
       };
       console.log('📦 [ChatLogMeal] Meal data to save:', JSON.stringify(mealData, null, 2));
 
@@ -859,6 +883,52 @@ export default function ChatLogMealScreen({ navigation, route }) {
       return null;
     }
 
+    // Helper to render text with markdown bold
+    const renderFormattedText = (text) => {
+      // Split by **bold** patterns
+      const parts = [];
+      const regex = /\*\*(.*?)\*\*/g;
+      let lastIndex = 0;
+      let match;
+
+      while ((match = regex.exec(text)) !== null) {
+        // Add text before the match
+        if (match.index > lastIndex) {
+          parts.push({
+            text: text.substring(lastIndex, match.index),
+            bold: false
+          });
+        }
+        // Add the bold text
+        parts.push({
+          text: match[1],
+          bold: true
+        });
+        lastIndex = regex.lastIndex;
+      }
+
+      // Add remaining text
+      if (lastIndex < text.length) {
+        parts.push({
+          text: text.substring(lastIndex),
+          bold: false
+        });
+      }
+
+      return parts.map((part, index) => (
+        <Text
+          key={index}
+          style={[
+            styles.messageText,
+            isUser ? styles.userMessageText : styles.aiMessageText,
+            part.bold && styles.boldText
+          ]}
+        >
+          {part.text}
+        </Text>
+      ));
+    };
+
     return (
       <View key={message.id} style={[
         styles.messageContainer,
@@ -872,7 +942,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
             styles.messageText,
             isUser ? styles.userMessageText : styles.aiMessageText
           ]}>
-            {message.content}
+            {renderFormattedText(message.content)}
           </Text>
         </Surface>
       </View>
@@ -950,6 +1020,28 @@ export default function ChatLogMealScreen({ navigation, route }) {
           </CameraView>
         </View>
       </Modal>
+
+      {/* Date Indicator */}
+      {selectedDate && (
+        <View style={styles.dateIndicator}>
+          <Text style={styles.dateIndicatorText}>
+            {(() => {
+              const date = new Date(selectedDate);
+              const today = new Date();
+              const yesterday = new Date(today);
+              yesterday.setDate(yesterday.getDate() - 1);
+
+              if (date.toDateString() === today.toDateString()) {
+                return '📅 Adding meal for Today';
+              } else if (date.toDateString() === yesterday.toDateString()) {
+                return '📅 Adding meal for Yesterday';
+              } else {
+                return `📅 Adding meal for ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+              }
+            })()}
+          </Text>
+        </View>
+      )}
 
       {/* Messages */}
       <ScrollView
@@ -1152,6 +1244,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F1F5F9'
   },
+  dateIndicator: {
+    backgroundColor: '#EEF2FF',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#C7D2FE',
+    alignItems: 'center'
+  },
+  dateIndicatorText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4338CA'
+  },
   messagesContainer: {
     flex: 1
   },
@@ -1198,6 +1303,11 @@ const styles = StyleSheet.create({
   },
   aiMessageText: {
     color: '#1E293B'
+  },
+  boldText: {
+    fontWeight: '800',
+    fontSize: 17,
+    color: '#6366F1'
   },
   messageImage: {
     width: 200,

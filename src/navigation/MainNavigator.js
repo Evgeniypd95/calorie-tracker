@@ -12,6 +12,7 @@ import BodyMetricsScreen from '../screens/main/BodyMetricsScreen';
 import WeightTrackingScreen from '../screens/main/WeightTrackingScreen';
 import { IconButton, Icon, FAB, Text } from 'react-native-paper';
 import { authService } from '../services/firebase';
+import { useSelectedDate } from '../context/DateContext';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -148,6 +149,7 @@ function CustomTabBarButton({ children, onPress }) {
 
 export default function MainNavigator() {
   const insets = useSafeAreaInsets();
+  const { selectedDate } = useSelectedDate();
   // Force light mode - dark mode not fully implemented
   const isDark = false;
 
@@ -195,7 +197,7 @@ export default function MainNavigator() {
             e.preventDefault();
             navigation.navigate('Dashboard', {
               screen: 'LogMeal',
-              params: { selectedDate: new Date().toISOString().split('T')[0] }
+              params: { selectedDate: selectedDate.toISOString() }
             });
           },
         })}
