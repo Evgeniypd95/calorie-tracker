@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { TextInput, Button, Text, Snackbar, Divider } from 'react-native-paper';
-import { authService } from '../../services/firebase';
+import { View, StyleSheet, Platform, KeyboardAvoidingView } from 'react-native';
+import { Button, Text, Snackbar, TextInput } from 'react-native-paper';
+import { authService, userService } from '../../services/firebase';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -34,7 +34,21 @@ export default function LoginScreen({ navigation }) {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      await authService.googleSignIn();
+      const userCredential = await authService.googleSignIn();
+      const userId = userCredential.user.uid;
+
+      // Check if user profile exists
+      const existingProfile = await userService.getUserProfile(userId);
+
+      if (!existingProfile) {
+        // Create basic profile for new users
+        const profileData = {
+          email: userCredential.user.email,
+          name: userCredential.user.displayName || '',
+          createdAt: new Date()
+        };
+        await userService.createUserProfile(userId, profileData);
+      }
       // Navigation handled by auth state listener
     } catch (error) {
       console.error('Google Sign-In error:', error);
@@ -57,72 +71,81 @@ export default function LoginScreen({ navigation }) {
     >
       <View style={styles.content}>
         <Text variant="displaySmall" style={styles.title}>
-          Welcome Back
+          Welcome to Calorie Tracker
         </Text>
         <Text variant="bodyLarge" style={styles.subtitle}>
-          Sign in to continue tracking your nutrition
+          Track your nutrition and reach your health goals
         </Text>
 
-        {/* Native: Show Google Sign-In */}
+        {/* Mobile: Show only Google Sign-In and Get Started */}
         {Platform.OS !== 'web' && (
           <>
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate('Signup')}
+              style={styles.primaryButton}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
+            >
+              Get Started
+            </Button>
+
             <Button
               mode="outlined"
               onPress={handleGoogleSignIn}
               loading={googleLoading}
-              disabled={googleLoading || loading}
-              style={[styles.button, styles.googleButton]}
+              disabled={googleLoading}
+              style={styles.googleButton}
               icon="google"
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.googleButtonLabel}
             >
               Continue with Google
             </Button>
-
-            <View style={styles.dividerContainer}>
-              <Divider style={styles.divider} />
-              <Text style={styles.dividerText}>or</Text>
-              <Divider style={styles.divider} />
-            </View>
           </>
         )}
 
-        {/* Web: Show Email/Password (always visible on web) */}
-        {/* Native: Show Email/Password after divider */}
-        <TextInput
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
-          mode="outlined"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          style={styles.input}
-        />
+        {/* Web: Show Email/Password Login */}
+        {Platform.OS === 'web' && (
+          <>
+            <TextInput
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              mode="outlined"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={styles.input}
+            />
 
-        <TextInput
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          mode="outlined"
-          secureTextEntry
-          style={styles.input}
-        />
+            <TextInput
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              mode="outlined"
+              secureTextEntry
+              style={styles.input}
+            />
 
-        <Button
-          mode="contained"
-          onPress={handleLogin}
-          loading={loading}
-          disabled={loading || googleLoading}
-          style={styles.button}
-        >
-          {Platform.OS === 'web' ? 'Log In' : 'Continue with Email'}
-        </Button>
+            <Button
+              mode="contained"
+              onPress={handleLogin}
+              loading={loading}
+              disabled={loading}
+              style={styles.button}
+            >
+              Log In
+            </Button>
 
-        <Button
-          mode="text"
-          onPress={() => navigation.navigate('Signup')}
-          style={styles.linkButton}
-        >
-          Don't have an account? Sign Up
-        </Button>
+            <Button
+              mode="text"
+              onPress={() => navigation.navigate('Signup')}
+              style={styles.linkButton}
+            >
+              Don't have an account? Sign Up
+            </Button>
+          </>
+        )}
       </View>
 
       <Snackbar
@@ -154,13 +177,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 36,
     color: '#1E293B',
-    letterSpacing: -1
+    letterSpacing: -1,
+    textAlign: 'center'
   },
   subtitle: {
-    marginBottom: 40,
+    marginBottom: 48,
     color: '#64748B',
     fontSize: 16,
-    lineHeight: 24
+    lineHeight: 24,
+    textAlign: 'center'
   },
   input: {
     marginBottom: 20,
@@ -170,24 +195,22 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 8
   },
+  primaryButton: {
+    marginBottom: 16
+  },
   googleButton: {
-    borderColor: '#DB4437',
-    borderWidth: 2
+    borderWidth: 1,
+    borderColor: '#E5E7EB'
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24
+  buttonContent: {
+    paddingVertical: 12
   },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E2E8F0'
+  buttonLabel: {
+    fontSize: 16,
+    fontWeight: '600'
   },
-  dividerText: {
-    marginHorizontal: 16,
-    color: '#64748B',
-    fontSize: 14,
+  googleButtonLabel: {
+    fontSize: 16,
     fontWeight: '600'
   },
   linkButton: {

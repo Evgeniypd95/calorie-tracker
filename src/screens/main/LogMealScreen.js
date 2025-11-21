@@ -12,7 +12,10 @@ const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
 export default function LogMealScreen({ navigation, route }) {
   const { user } = useAuth();
-  const { selectedDate } = route.params || {};
+  const { selectedDate, action } = route.params || {};
+
+  console.log('LogMealScreen rendered with action:', action);
+
   const [selectedMealType, setSelectedMealType] = useState(null);
   const [mealDescription, setMealDescription] = useState('');
   const [parsedData, setParsedData] = useState(null);
@@ -31,11 +34,13 @@ export default function LogMealScreen({ navigation, route }) {
   const [originalDescription, setOriginalDescription] = useState('');
   const feedbackTextBeforeVoiceRef = useRef('');
   const voiceContextRef = useRef('meal'); // 'meal' or 'feedback'
+  const actionHandledRef = useRef(false);
 
   // Load recent meals on mount
   useEffect(() => {
     loadRecentMeals();
   }, []);
+
 
   // Initialize speech recognition
   useEffect(() => {
@@ -344,11 +349,15 @@ export default function LogMealScreen({ navigation, route }) {
   };
 
   const showImageOptions = () => {
+    console.log('showImageOptions function called, Platform.OS:', Platform.OS);
+
     if (Platform.OS === 'web') {
       // On web, just pick from library
+      console.log('Web platform - calling pickImage');
       pickImage();
     } else {
       // On mobile, show action sheet
+      console.log('Mobile platform - showing Alert');
       Alert.alert(
         'Add Meal Photo',
         'Choose an option',
@@ -358,8 +367,38 @@ export default function LogMealScreen({ navigation, route }) {
           { text: 'Cancel', style: 'cancel' }
         ]
       );
+      console.log('Alert.alert called');
     }
   };
+
+  // Handle action from route params (e.g., from Dashboard shortcuts)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('useFocusEffect triggered, action:', action, 'handled:', actionHandledRef.current);
+
+      if (action && !actionHandledRef.current) {
+        actionHandledRef.current = true;
+        console.log('Processing action:', action);
+
+        // Call the action handler
+        if (action === 'photo') {
+          console.log('About to call showImageOptions');
+          showImageOptions();
+          console.log('showImageOptions called');
+        } else if (action === 'voice') {
+          console.log('About to call toggleVoiceInput');
+          toggleVoiceInput();
+        }
+
+        // Clear the action from params to prevent re-triggering
+        navigation.setParams({ action: undefined });
+      }
+
+      return () => {
+        actionHandledRef.current = false;
+      };
+    }, [action, showImageOptions, toggleVoiceInput])
+  );
 
   const handleParse = async () => {
     if (!mealDescription.trim()) {

@@ -11,6 +11,7 @@ export default function SignupScreen({ navigation, route }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
 
@@ -79,6 +80,58 @@ export default function SignupScreen({ navigation, route }) {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      const userCredential = await authService.googleSignIn();
+      const userId = userCredential.user.uid;
+
+      // Check if user profile exists
+      const existingProfile = await userService.getUserProfile(userId);
+
+      if (!existingProfile) {
+        // Create profile with onboarding data for new users
+        const profileData = {
+          email: userCredential.user.email,
+          createdAt: new Date(),
+          ...(onboardingData.name && { name: onboardingData.name }),
+          ...(onboardingData.age && { age: onboardingData.age }),
+          ...(onboardingData.weight && { weight: onboardingData.weight }),
+          ...(onboardingData.weightUnit && { weightUnit: onboardingData.weightUnit }),
+          ...(onboardingData.height && { height: onboardingData.height }),
+          ...(onboardingData.heightUnit && { heightUnit: onboardingData.heightUnit }),
+          ...(onboardingData.gender && { gender: onboardingData.gender }),
+          ...(onboardingData.goal && { goal: onboardingData.goal }),
+          ...(onboardingData.activityLevel && { activityLevel: onboardingData.activityLevel }),
+          ...(onboardingData.workoutsPerWeek && { workoutsPerWeek: onboardingData.workoutsPerWeek }),
+          ...(onboardingData.calculatedPlan && {
+            dailyCalorieTarget: onboardingData.calculatedPlan.dailyCalories,
+            proteinTarget: onboardingData.calculatedPlan.protein,
+            carbsTarget: onboardingData.calculatedPlan.carbs,
+            fatTarget: onboardingData.calculatedPlan.fat
+          })
+        };
+
+        await userService.createUserProfile(userId, profileData);
+      }
+
+      // Refresh profile
+      setTimeout(async () => {
+        await refreshUserProfile();
+      }, 500);
+    } catch (error) {
+      console.error('Google Sign-In error:', error);
+      if (error.code === 'ERR_CANCELED') {
+        setError('Sign-in cancelled');
+      } else {
+        setError(error.message || 'Failed to sign in with Google');
+      }
+      setSnackbarVisible(true);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -93,43 +146,64 @@ export default function SignupScreen({ navigation, route }) {
             Start your fitness journey today
           </Text>
 
-          <TextInput
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            mode="outlined"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={styles.input}
-          />
+          {/* iOS/Android: Show only Google Sign-In */}
+          {Platform.OS !== 'web' && (
+            <Button
+              mode="contained"
+              onPress={handleGoogleSignIn}
+              loading={googleLoading}
+              disabled={googleLoading}
+              style={[styles.button, styles.googleButton]}
+              icon="google"
+              labelStyle={styles.googleButtonLabel}
+              contentStyle={styles.googleButtonContent}
+            >
+              Continue with Google
+            </Button>
+          )}
 
-          <TextInput
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            mode="outlined"
-            secureTextEntry
-            style={styles.input}
-          />
+          {/* Web: Show Email/Password (only visible on web) */}
+          {Platform.OS === 'web' && (
+            <>
+              <TextInput
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                mode="outlined"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={styles.input}
+              />
 
-          <TextInput
-            label="Confirm Password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            mode="outlined"
-            secureTextEntry
-            style={styles.input}
-          />
+              <TextInput
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                mode="outlined"
+                secureTextEntry
+                style={styles.input}
+              />
 
-          <Button
-            mode="contained"
-            onPress={handleSignup}
-            loading={loading}
-            disabled={loading}
-            style={styles.button}
-          >
-            Sign Up
-          </Button>
+              <TextInput
+                label="Confirm Password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                mode="outlined"
+                secureTextEntry
+                style={styles.input}
+              />
+
+              <Button
+                mode="contained"
+                onPress={handleSignup}
+                loading={loading}
+                disabled={loading}
+                style={styles.button}
+              >
+                Sign Up
+              </Button>
+            </>
+          )}
 
           <Button
             mode="text"
@@ -188,6 +262,29 @@ const styles = StyleSheet.create({
   button: {
     marginTop: 12,
     paddingVertical: 8
+  },
+  googleButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2
+  },
+  googleButtonLabel: {
+    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.5
+  },
+  googleButtonContent: {
+    paddingVertical: 12,
+    paddingHorizontal: 24
   },
   linkButton: {
     marginTop: 24

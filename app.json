@@ -17,7 +17,8 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice input when logging meals.",
         "NSSpeechRecognitionUsageDescription": "This app needs access to speech recognition to convert your voice to text when logging meals."
-      }
+      },
+      "scheme": "com.googleusercontent.apps.91528684167-8le1u3voe1s99dkpkijqc8ppvaqkoe0m"
     },
     "android": {
       "adaptiveIcon": {

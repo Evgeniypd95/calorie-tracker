@@ -134,7 +134,7 @@ export default function DashboardScreen({ navigation }) {
       const dayMeals = await mealService.getMealsByDate(user.uid, date);
 
       // Sort meals: first by meal type order, then by date (most recent first within each type)
-      const mealTypeOrder = { 'Breakfast': 1, 'Lunch': 2, 'Dinner': 3, 'Snack': 4 };
+      const mealTypeOrder = { 'Dinner': 1, 'Lunch': 2, 'Breakfast': 3, 'Snack': 4 };
       const sortedMeals = dayMeals.sort((a, b) => {
         // First sort by meal type
         const typeOrderA = mealTypeOrder[a.mealType] || 999;

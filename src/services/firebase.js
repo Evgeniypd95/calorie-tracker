@@ -22,17 +22,25 @@ import { Platform } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 // Configure Google Sign-In
-// Get the Web Client ID from environment variables
+// Get the Client IDs from environment variables
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 
 if (Platform.OS !== 'web') {
   if (!WEB_CLIENT_ID || WEB_CLIENT_ID === 'YOUR_WEB_CLIENT_ID_HERE') {
     console.warn('⚠️ Google Sign-In: Web Client ID not configured. Please add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to your .env file');
   } else {
-    GoogleSignin.configure({
+    const config = {
       webClientId: WEB_CLIENT_ID,
       offlineAccess: true,
-    });
+    };
+
+    // Add iOS client ID if on iOS platform
+    if (Platform.OS === 'ios' && IOS_CLIENT_ID) {
+      config.iosClientId = IOS_CLIENT_ID;
+    }
+
+    GoogleSignin.configure(config);
   }
 }
 
@@ -51,11 +59,24 @@ export const authService = {
     }
 
     try {
-      // Check if device supports Google Play Services
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      // Check if device supports Google Play Services (Android only)
+      if (Platform.OS === 'android') {
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      }
 
       // Get user info from Google
-      const { idToken } = await GoogleSignin.signIn();
+      const userInfo = await GoogleSignin.signIn();
+      console.log('Google Sign-In user info:', userInfo);
+
+      // Extract idToken - it might be in different locations depending on the response
+      const idToken = userInfo.idToken || userInfo.data?.idToken;
+
+      if (!idToken) {
+        console.error('No idToken found in response:', userInfo);
+        throw new Error('Failed to get authentication token from Google');
+      }
+
+      console.log('Got idToken, creating Firebase credential');
 
       // Create Firebase credential
       const googleCredential = GoogleAuthProvider.credential(idToken);
@@ -71,9 +92,12 @@ export const authService = {
   logout: async () => {
     // Sign out from Google if user signed in with Google
     if (Platform.OS !== 'web') {
-      const isSignedIn = await GoogleSignin.isSignedIn();
-      if (isSignedIn) {
+      try {
+        // Try to sign out from Google - will fail silently if user wasn't signed in with Google
         await GoogleSignin.signOut();
+      } catch (error) {
+        // User wasn't signed in with Google, continue with Firebase logout
+        console.log('Google Sign-Out: User was not signed in with Google');
       }
     }
     return await signOut(auth);

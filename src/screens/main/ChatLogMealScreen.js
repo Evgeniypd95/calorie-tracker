@@ -227,7 +227,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
             setShowBarcodeScanner(true);
             break;
           case 'photo':
-            takePhoto();
+            showImageOptions();
             break;
           case 'voice':
             toggleVoiceInput();
