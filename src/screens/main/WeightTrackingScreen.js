@@ -6,9 +6,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { weightService } from '../../services/firebase';
 import { Swipeable } from 'react-native-gesture-handler';
+import { useLocalization } from '../../localization/i18n';
 
 export default function WeightTrackingScreen({ navigation }) {
   const { user, userProfile } = useAuth();
+  const { t, localeCode } = useLocalization();
   const [weights, setWeights] = useState([]);
   const [insights, setInsights] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -37,7 +39,7 @@ export default function WeightTrackingScreen({ navigation }) {
 
   const handleAddWeight = async () => {
     if (!weightInput || isNaN(parseFloat(weightInput))) {
-      showAlert('Invalid Input', 'Please enter a valid weight');
+      showAlert(t('weight.invalidInput'), t('weight.enterValidWeight'));
       return;
     }
 
@@ -53,10 +55,10 @@ export default function WeightTrackingScreen({ navigation }) {
       setNotesInput('');
       setShowAddModal(false);
       await loadWeightData();
-      showAlert('Success', 'Weight logged successfully!');
+      showAlert(t('common.success'), t('weight.weightLogged'));
     } catch (error) {
       console.error('Error logging weight:', error);
-      showAlert('Error', 'Failed to log weight');
+      showAlert(t('common.error'), t('weight.logFailed'));
     } finally {
       setSaving(false);
     }
@@ -69,21 +71,21 @@ export default function WeightTrackingScreen({ navigation }) {
         await loadWeightData();
       } catch (error) {
         console.error('Error deleting weight:', error);
-        showAlert('Error', 'Failed to delete weight entry');
+        showAlert(t('common.error'), t('weight.deleteEntryFailed'));
       }
     };
 
     if (Platform.OS === 'web') {
-      if (window.confirm('Are you sure you want to delete this weight entry?')) {
+      if (window.confirm(t('weight.deleteEntryConfirm'))) {
         confirmDelete();
       }
     } else {
       Alert.alert(
-        'Delete Weight Entry',
-        'Are you sure you want to delete this weight entry?',
+        t('weight.deleteEntryTitle'),
+        t('weight.deleteEntryConfirm'),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: confirmDelete }
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('common.delete'), style: 'destructive', onPress: confirmDelete }
         ]
       );
     }
@@ -101,7 +103,7 @@ export default function WeightTrackingScreen({ navigation }) {
     return (
       <View style={styles.swipeActionDelete}>
         <IconButton icon="delete" iconColor="#FFFFFF" size={24} />
-        <Text style={styles.swipeActionText}>Delete</Text>
+        <Text style={styles.swipeActionText}>{t('common.delete')}</Text>
       </View>
     );
   };
@@ -143,7 +145,7 @@ export default function WeightTrackingScreen({ navigation }) {
             style={styles.filterChip}
             mode={periodFilter === 30 ? 'flat' : 'outlined'}
           >
-            30 Days
+            {t('weight.days30')}
           </Chip>
           <Chip
             selected={periodFilter === 60}
@@ -151,7 +153,7 @@ export default function WeightTrackingScreen({ navigation }) {
             style={styles.filterChip}
             mode={periodFilter === 60 ? 'flat' : 'outlined'}
           >
-            60 Days
+            {t('weight.days60')}
           </Chip>
           <Chip
             selected={periodFilter === 90}
@@ -159,7 +161,7 @@ export default function WeightTrackingScreen({ navigation }) {
             style={styles.filterChip}
             mode={periodFilter === 90 ? 'flat' : 'outlined'}
           >
-            90 Days
+            {t('weight.days90')}
           </Chip>
         </View>
 
@@ -168,12 +170,12 @@ export default function WeightTrackingScreen({ navigation }) {
           <Card style={styles.insightsCard}>
             <Card.Content>
               <Text variant="titleLarge" style={styles.cardTitle}>
-                📊 Insights ({periodFilter} days)
+                {t('weight.insights', { days: periodFilter })}
               </Text>
 
               <View style={styles.insightsGrid}>
                 <View style={styles.insightBox}>
-                  <Text style={styles.insightLabel}>Weight Change</Text>
+                  <Text style={styles.insightLabel}>{t('weight.weightChange')}</Text>
                   <Text style={[
                     styles.insightValue,
                     { color: insights.direction === 'gain' ? '#EF4444' : insights.direction === 'loss' ? '#10B981' : '#64748B' }
@@ -184,18 +186,21 @@ export default function WeightTrackingScreen({ navigation }) {
                 </View>
 
                 <View style={styles.insightBox}>
-                  <Text style={styles.insightLabel}>Avg Calories</Text>
+                  <Text style={styles.insightLabel}>{t('weight.avgCalories')}</Text>
                   <Text style={styles.insightValue}>{insights.avgDailyCalories}</Text>
-                  <Text style={styles.insightSubtext}>per day</Text>
+                  <Text style={styles.insightSubtext}>{t('weight.perDay')}</Text>
                 </View>
               </View>
 
               <Surface style={styles.rangeBox}>
                 <Text style={styles.rangeText}>
-                  {insights.firstWeight} kg → {insights.lastWeight} kg
+                  {t('weight.rangeSummary', { first: insights.firstWeight, last: insights.lastWeight })}
                 </Text>
                 <Text style={styles.rangeSubtext}>
-                  {insights.daysWithWeightData} weight logs • {insights.daysWithMealData} days tracked
+                  {t('weight.rangeDetails', {
+                    weightDays: insights.daysWithWeightData,
+                    mealDays: insights.daysWithMealData
+                  })}
                 </Text>
               </Surface>
             </Card.Content>
@@ -206,9 +211,9 @@ export default function WeightTrackingScreen({ navigation }) {
         {chartData && (
           <Card style={styles.chartCard}>
             <Card.Content>
-              <Text variant="titleLarge" style={styles.cardTitle}>
-                📈 Weight Trend
-              </Text>
+            <Text variant="titleLarge" style={styles.cardTitle}>
+              {t('weight.weightTrend')}
+            </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <LineChart
                   data={chartData}
@@ -242,17 +247,17 @@ export default function WeightTrackingScreen({ navigation }) {
         <Card style={styles.historyCard}>
           <Card.Content>
             <Text variant="titleLarge" style={styles.cardTitle}>
-              📝 Weight History
+              {t('weight.history')}
             </Text>
 
             {weights.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyIcon}>⚖️</Text>
                 <Text variant="titleMedium" style={styles.emptyTitle}>
-                  No weight entries yet
+                  {t('weight.noEntriesTitle')}
                 </Text>
                 <Text variant="bodyMedium" style={styles.emptyText}>
-                  Start tracking your weight to see progress and insights
+                  {t('weight.noEntriesBody')}
                 </Text>
               </View>
             ) : (
@@ -269,7 +274,7 @@ export default function WeightTrackingScreen({ navigation }) {
                         <View style={styles.weightItemLeft}>
                           <Text style={styles.weightValue}>{weight.weight} kg</Text>
                           <Text style={styles.weightDate}>
-                            {date.toLocaleDateString('en-US', {
+                            {date.toLocaleDateString(localeCode, {
                               month: 'short',
                               day: 'numeric',
                               year: 'numeric'
@@ -302,7 +307,7 @@ export default function WeightTrackingScreen({ navigation }) {
         icon="plus"
         style={styles.fab}
         onPress={() => setShowAddModal(true)}
-        label="Log Weight"
+        label={t('weight.logWeight')}
       />
 
       {/* Add Weight Modal */}
@@ -313,11 +318,11 @@ export default function WeightTrackingScreen({ navigation }) {
           contentContainerStyle={styles.modal}
         >
           <Text variant="titleLarge" style={styles.modalTitle}>
-            Log Your Weight
+            {t('weight.logYourWeight')}
           </Text>
 
           <TextInput
-            label="Weight (kg)"
+            label={t('weight.weightLabel')}
             value={weightInput}
             onChangeText={setWeightInput}
             keyboardType="decimal-pad"
@@ -327,14 +332,14 @@ export default function WeightTrackingScreen({ navigation }) {
           />
 
           <TextInput
-            label="Notes (optional)"
+            label={t('weight.notesLabel')}
             value={notesInput}
             onChangeText={setNotesInput}
             mode="outlined"
             multiline
             numberOfLines={3}
             style={styles.input}
-            placeholder="e.g., Morning weigh-in, after workout..."
+            placeholder={t('weight.notesPlaceholder')}
           />
 
           <View style={styles.modalActions}>
@@ -343,7 +348,7 @@ export default function WeightTrackingScreen({ navigation }) {
               onPress={() => setShowAddModal(false)}
               style={styles.modalButton}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               mode="contained"
@@ -352,7 +357,7 @@ export default function WeightTrackingScreen({ navigation }) {
               disabled={saving}
               style={styles.modalButton}
             >
-              Save
+              {t('common.save')}
             </Button>
           </View>
         </Modal>

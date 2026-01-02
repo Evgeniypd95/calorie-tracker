@@ -4,9 +4,11 @@ import { Text, Card, Button, TextInput, Surface, SegmentedButtons, Modal, Portal
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/firebase';
 import { calculateNutritionPlanBackend } from '../../services/geminiService';
+import { useLocalization } from '../../localization/i18n';
 
 export default function BodyMetricsScreen({ navigation }) {
   const { user, refreshUserProfile, userProfile: authProfile } = useAuth();
+  const { t, localeCode } = useLocalization();
 
   // Body metrics
   const [birthMonth, setBirthMonth] = useState('');
@@ -41,6 +43,11 @@ export default function BodyMetricsScreen({ navigation }) {
   });
 
   const [saving, setSaving] = useState(false);
+  const trimesterLabel = trimester === 'FIRST'
+    ? t('bodyMetrics.trimesterFirstShort')
+    : trimester === 'SECOND'
+    ? t('bodyMetrics.trimesterSecondShort')
+    : t('bodyMetrics.trimesterThirdShort');
 
   useEffect(() => {
     if (authProfile) {
@@ -126,12 +133,12 @@ export default function BodyMetricsScreen({ navigation }) {
 
   const handleSave = async () => {
     if (!birthMonth || !birthYear || !currentWeight || !height) {
-      showAlert('Missing Info', 'Please fill in all required fields');
+      showAlert(t('bodyMetrics.missingInfo'), t('bodyMetrics.fillRequired'));
       return;
     }
 
     if (isPregnant && gender === 'MALE') {
-      showAlert('Invalid Selection', 'Pregnancy option is only available for female users');
+      showAlert(t('bodyMetrics.invalidSelection'), t('bodyMetrics.pregnancyFemaleOnly'));
       setIsPregnant(false);
       return;
     }
@@ -166,11 +173,11 @@ export default function BodyMetricsScreen({ navigation }) {
       });
 
       await refreshUserProfile();
-      showAlert('Success', 'Body metrics updated successfully!');
+      showAlert(t('common.success'), t('bodyMetrics.saveSuccess'));
       navigation.goBack();
     } catch (error) {
       console.error('Error saving body metrics:', error);
-      showAlert('Error', 'Failed to save body metrics');
+      showAlert(t('common.error'), t('bodyMetrics.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -194,24 +201,24 @@ export default function BodyMetricsScreen({ navigation }) {
   return (
     <ScrollView style={styles.container}>
       <Text variant="headlineMedium" style={styles.pageTitle}>
-        Body Metrics
+        {t('bodyMetrics.title')}
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
         {isPregnant
-          ? 'Maintain a healthy diet during pregnancy'
-          : 'Track your progress toward your goals'}
+          ? t('bodyMetrics.subtitlePregnant')
+          : t('bodyMetrics.subtitleDefault')}
       </Text>
 
       {/* Basic Info */}
       <Card style={styles.card}>
         <Card.Content>
           <Text variant="titleLarge" style={styles.sectionTitle}>
-            📊 Basic Information
+            {t('bodyMetrics.basicInfo')}
           </Text>
 
           <View style={styles.rowInputs}>
             <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Birth Month</Text>
+              <Text style={styles.inputLabel}>{t('bodyMetrics.birthMonth')}</Text>
               <TextInput
                 value={birthMonth}
                 onChangeText={setBirthMonth}
@@ -223,7 +230,7 @@ export default function BodyMetricsScreen({ navigation }) {
               />
             </View>
             <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>Birth Year</Text>
+              <Text style={styles.inputLabel}>{t('bodyMetrics.birthYear')}</Text>
               <TextInput
                 value={birthYear}
                 onChangeText={setBirthYear}
@@ -238,22 +245,22 @@ export default function BodyMetricsScreen({ navigation }) {
 
           {calculatedData.age > 0 && (
             <Surface style={styles.infoChip}>
-              <Text style={styles.infoText}>Age: {calculatedData.age} years old</Text>
+              <Text style={styles.infoText}>{t('bodyMetrics.ageYears', { age: calculatedData.age })}</Text>
             </Surface>
           )}
 
-          <Text style={styles.inputLabel}>Gender</Text>
+          <Text style={styles.inputLabel}>{t('bodyMetrics.gender')}</Text>
           <SegmentedButtons
             value={gender}
             onValueChange={setGender}
             buttons={[
-              { value: 'MALE', label: 'Male' },
-              { value: 'FEMALE', label: 'Female' }
+              { value: 'MALE', label: t('bodyMetrics.male') },
+              { value: 'FEMALE', label: t('bodyMetrics.female') }
             ]}
             style={styles.segmented}
           />
 
-          <Text style={styles.inputLabel}>Height (cm)</Text>
+          <Text style={styles.inputLabel}>{t('bodyMetrics.heightCm')}</Text>
           <TextInput
             value={height}
             onChangeText={setHeight}
@@ -272,12 +279,12 @@ export default function BodyMetricsScreen({ navigation }) {
           <Card.Content>
             <View style={styles.toggleRow}>
               <View style={styles.toggleTextContainer}>
-                <Text variant="titleLarge" style={styles.sectionTitle}>
-                  🤰 Pregnancy Support
-                </Text>
-                <Text variant="bodySmall" style={styles.helpText}>
-                  Get nutrition guidance for a healthy pregnancy
-                </Text>
+              <Text variant="titleLarge" style={styles.sectionTitle}>
+                {t('bodyMetrics.pregnancySupport')}
+              </Text>
+              <Text variant="bodySmall" style={styles.helpText}>
+                {t('bodyMetrics.pregnancyHelp')}
+              </Text>
               </View>
               <Switch value={isPregnant} onValueChange={setIsPregnant} />
             </View>
@@ -286,19 +293,19 @@ export default function BodyMetricsScreen({ navigation }) {
               <>
                 <Divider style={styles.divider} />
 
-                <Text style={styles.inputLabel}>Current Trimester</Text>
+                <Text style={styles.inputLabel}>{t('bodyMetrics.currentTrimester')}</Text>
                 <SegmentedButtons
                   value={trimester}
                   onValueChange={setTrimester}
                   buttons={[
-                    { value: 'FIRST', label: '1st' },
-                    { value: 'SECOND', label: '2nd' },
-                    { value: 'THIRD', label: '3rd' }
+                    { value: 'FIRST', label: t('bodyMetrics.trimesterFirstShort') },
+                    { value: 'SECOND', label: t('bodyMetrics.trimesterSecondShort') },
+                    { value: 'THIRD', label: t('bodyMetrics.trimesterThirdShort') }
                   ]}
                   style={styles.segmented}
                 />
 
-                <Text style={styles.inputLabel}>Pre-Pregnancy Weight (kg)</Text>
+                <Text style={styles.inputLabel}>{t('bodyMetrics.prePregWeight')}</Text>
                 <TextInput
                   value={prePregnancyWeight}
                   onChangeText={setPrePregnancyWeight}
@@ -311,7 +318,10 @@ export default function BodyMetricsScreen({ navigation }) {
 
                 <Surface style={[styles.infoChip, { backgroundColor: '#FEF3C7' }]}>
                   <Text style={[styles.infoText, { color: '#92400E' }]}>
-                    💡 Your calorie target includes the recommended {trimester === 'FIRST' ? '0' : trimester === 'SECOND' ? '340' : '452'} extra calories for {trimester === 'FIRST' ? '1st' : trimester === 'SECOND' ? '2nd' : '3rd'} trimester
+                    {t('bodyMetrics.pregnancyCalorieNote', {
+                      calories: trimester === 'FIRST' ? '0' : trimester === 'SECOND' ? '340' : '452',
+                      trimester: trimesterLabel
+                    })}
                   </Text>
                 </Surface>
               </>
@@ -324,12 +334,12 @@ export default function BodyMetricsScreen({ navigation }) {
       <Card style={styles.card}>
         <Card.Content>
           <Text variant="titleLarge" style={styles.sectionTitle}>
-            ⚖️ Weight & Goals
+            {t('bodyMetrics.weightGoals')}
           </Text>
 
           <View style={styles.rowInputs}>
             <View style={isPregnant ? styles.fullInput : styles.halfInput}>
-              <Text style={styles.inputLabel}>Current Weight (kg)</Text>
+              <Text style={styles.inputLabel}>{t('bodyMetrics.currentWeight')}</Text>
               <TextInput
                 value={currentWeight}
                 onChangeText={setCurrentWeight}
@@ -341,7 +351,7 @@ export default function BodyMetricsScreen({ navigation }) {
             </View>
             {!isPregnant && (
               <View style={styles.halfInput}>
-                <Text style={styles.inputLabel}>Target Weight (kg)</Text>
+                <Text style={styles.inputLabel}>{t('bodyMetrics.targetWeight')}</Text>
                 <TextInput
                   value={targetWeight}
                   onChangeText={setTargetWeight}
@@ -356,14 +366,14 @@ export default function BodyMetricsScreen({ navigation }) {
 
           {!isPregnant && (
             <>
-              <Text style={styles.inputLabel}>Fitness Goal</Text>
+              <Text style={styles.inputLabel}>{t('bodyMetrics.fitnessGoal')}</Text>
               <SegmentedButtons
                 value={goal}
                 onValueChange={setGoal}
                 buttons={[
-                  { value: 'LOSE_WEIGHT', label: 'Lose' },
-                  { value: 'MAINTAIN', label: 'Maintain' },
-                  { value: 'BUILD_MUSCLE', label: 'Gain' }
+                  { value: 'LOSE_WEIGHT', label: t('bodyMetrics.lose') },
+                  { value: 'MAINTAIN', label: t('bodyMetrics.maintain') },
+                  { value: 'BUILD_MUSCLE', label: t('bodyMetrics.gain') }
                 ]}
                 style={styles.segmented}
               />
@@ -376,10 +386,10 @@ export default function BodyMetricsScreen({ navigation }) {
       <Card style={styles.card}>
         <Card.Content>
           <Text variant="titleLarge" style={styles.sectionTitle}>
-            🏃 Activity Level
+            {t('bodyMetrics.activityLevel')}
           </Text>
 
-          <Text style={styles.inputLabel}>Workouts per Week</Text>
+          <Text style={styles.inputLabel}>{t('bodyMetrics.workoutsPerWeek')}</Text>
           <TextInput
             value={workoutsPerWeek}
             onChangeText={setWorkoutsPerWeek}
@@ -392,14 +402,14 @@ export default function BodyMetricsScreen({ navigation }) {
 
           {!isPregnant && (
             <>
-              <Text style={styles.inputLabel}>Target Date</Text>
+              <Text style={styles.inputLabel}>{t('bodyMetrics.targetDate')}</Text>
               <Button
                 mode="outlined"
                 onPress={() => setShowDatePicker(true)}
                 icon="calendar"
                 style={styles.dateButton}
               >
-                {targetDate.toLocaleDateString('en-US', {
+                {targetDate.toLocaleDateString(localeCode, {
                   month: 'long',
                   day: 'numeric',
                   year: 'numeric'
@@ -413,7 +423,7 @@ export default function BodyMetricsScreen({ navigation }) {
                   contentContainerStyle={styles.dateModal}
                 >
                   <Text variant="titleLarge" style={styles.modalTitle}>
-                    When do you want to reach your goal?
+                    {t('bodyMetrics.goalDateQuestion')}
                   </Text>
 
                   <View style={styles.dateOptions}>
@@ -422,35 +432,35 @@ export default function BodyMetricsScreen({ navigation }) {
                       onPress={() => handleDateChange(30)}
                       style={styles.dateOption}
                     >
-                      1 Month
+                      {t('bodyMetrics.oneMonth')}
                     </Button>
                     <Button
                       mode="outlined"
                       onPress={() => handleDateChange(60)}
                       style={styles.dateOption}
                     >
-                      2 Months
+                      {t('bodyMetrics.twoMonths')}
                     </Button>
                     <Button
                       mode="outlined"
                       onPress={() => handleDateChange(90)}
                       style={styles.dateOption}
                     >
-                      3 Months
+                      {t('bodyMetrics.threeMonths')}
                     </Button>
                     <Button
                       mode="outlined"
                       onPress={() => handleDateChange(180)}
                       style={styles.dateOption}
                     >
-                      6 Months
+                      {t('bodyMetrics.sixMonths')}
                     </Button>
                     <Button
                       mode="outlined"
                       onPress={() => handleDateChange(365)}
                       style={styles.dateOption}
                     >
-                      1 Year
+                      {t('bodyMetrics.oneYear')}
                     </Button>
                   </View>
 
@@ -459,7 +469,7 @@ export default function BodyMetricsScreen({ navigation }) {
                     onPress={() => setShowDatePicker(false)}
                     style={styles.modalClose}
                   >
-                    Close
+                    {t('bodyMetrics.close')}
                   </Button>
                 </Modal>
               </Portal>
@@ -467,7 +477,10 @@ export default function BodyMetricsScreen({ navigation }) {
               {calculatedData.weeksToGoal > 0 && (
                 <Surface style={styles.infoChip}>
                   <Text style={styles.infoText}>
-                    ~{calculatedData.weeksToGoal} weeks • {calculatedData.weeklyWeightChange.toFixed(1)}kg/week
+                    {t('bodyMetrics.weeksToGoal', {
+                      weeks: calculatedData.weeksToGoal,
+                      rate: calculatedData.weeklyWeightChange.toFixed(1)
+                    })}
                   </Text>
                 </Surface>
               )}
@@ -480,14 +493,14 @@ export default function BodyMetricsScreen({ navigation }) {
       {calculatedData.targetCalories > 0 && (
         <Card style={styles.resultsCard}>
           <Card.Content>
-            <Text variant="titleLarge" style={styles.sectionTitle}>
-              ✨ Your Personalized Plan
-            </Text>
+          <Text variant="titleLarge" style={styles.sectionTitle}>
+            {t('bodyMetrics.planTitle')}
+          </Text>
 
             {isPregnant && (
               <Surface style={[styles.infoChip, { backgroundColor: '#DCFCE7', marginBottom: 16 }]}>
                 <Text style={[styles.infoText, { color: '#166534' }]}>
-                  🌟 This plan is optimized for a healthy pregnancy in your {trimester === 'FIRST' ? '1st' : trimester === 'SECOND' ? '2nd' : '3rd'} trimester
+                  {t('bodyMetrics.planPregnant', { trimester: trimesterLabel })}
                 </Text>
               </Surface>
             )}
@@ -496,45 +509,45 @@ export default function BodyMetricsScreen({ navigation }) {
               <View style={styles.statBox}>
                 <Text style={styles.statLabel}>BMR</Text>
                 <Text style={styles.statValue}>{calculatedData.bmr}</Text>
-                <Text style={styles.statUnit}>cal/day</Text>
+                <Text style={styles.statUnit}>{t('bodyMetrics.calPerDay')}</Text>
               </View>
               <View style={styles.statBox}>
                 <Text style={styles.statLabel}>TDEE</Text>
                 <Text style={styles.statValue}>{calculatedData.tdee}</Text>
-                <Text style={styles.statUnit}>cal/day</Text>
+                <Text style={styles.statUnit}>{t('bodyMetrics.calPerDay')}</Text>
               </View>
             </View>
 
             <Divider style={styles.divider} />
 
             <View style={styles.calorieTarget}>
-              <Text style={styles.calorieLabel}>Daily Calorie Target</Text>
+              <Text style={styles.calorieLabel}>{t('bodyMetrics.dailyCalorieTarget')}</Text>
               <Text style={styles.calorieValue}>{calculatedData.targetCalories}</Text>
-              <Text style={styles.calorieUnit}>calories/day</Text>
+              <Text style={styles.calorieUnit}>{t('bodyMetrics.caloriesPerDay')}</Text>
             </View>
 
             <Divider style={styles.divider} />
 
             <Text variant="titleMedium" style={styles.macroTitle}>
-              Macro Breakdown
+              {t('bodyMetrics.macroBreakdown')}
             </Text>
 
             <View style={styles.macrosGrid}>
               <View style={styles.macroCard}>
                 <View style={[styles.macroBar, { backgroundColor: '#EF4444' }]} />
-                <Text style={styles.macroLabel}>Protein</Text>
+                <Text style={styles.macroLabel}>{t('insights.protein')}</Text>
                 <Text style={styles.macroValue}>{calculatedData.protein}g</Text>
                 <Text style={styles.macroPercent}>{isPregnant ? '25%' : '30%'}</Text>
               </View>
               <View style={styles.macroCard}>
                 <View style={[styles.macroBar, { backgroundColor: '#10B981' }]} />
-                <Text style={styles.macroLabel}>Carbs</Text>
+                <Text style={styles.macroLabel}>{t('insights.carbs')}</Text>
                 <Text style={styles.macroValue}>{calculatedData.carbs}g</Text>
                 <Text style={styles.macroPercent}>{isPregnant ? '50%' : '40%'}</Text>
               </View>
               <View style={styles.macroCard}>
                 <View style={[styles.macroBar, { backgroundColor: '#F59E0B' }]} />
-                <Text style={styles.macroLabel}>Fat</Text>
+                <Text style={styles.macroLabel}>{t('insights.fat')}</Text>
                 <Text style={styles.macroValue}>{calculatedData.fat}g</Text>
                 <Text style={styles.macroPercent}>{isPregnant ? '25%' : '30%'}</Text>
               </View>
@@ -548,7 +561,7 @@ export default function BodyMetricsScreen({ navigation }) {
               style={styles.saveButton}
               contentStyle={styles.saveButtonContent}
             >
-              Save Metrics
+              {t('bodyMetrics.saveMetrics')}
             </Button>
           </Card.Content>
         </Card>

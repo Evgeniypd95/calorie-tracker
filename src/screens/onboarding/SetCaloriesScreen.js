@@ -3,9 +3,11 @@ import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 're
 import { TextInput, Button, Text } from 'react-native-paper';
 import { userService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../localization/i18n';
 
 export default function SetCaloriesScreen({ navigation }) {
   const { user, refreshUserProfile } = useAuth();
+  const { t } = useLocalization();
   const [name, setName] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -15,7 +17,7 @@ export default function SetCaloriesScreen({ navigation }) {
 
   const handleSave = async () => {
     if (!name || !calories || !protein || !carbs || !fat) {
-      alert('Please fill in all fields');
+      alert(t('setTargets.fillAllFields'));
       return;
     }
 
@@ -32,7 +34,7 @@ export default function SetCaloriesScreen({ navigation }) {
       await refreshUserProfile();
     } catch (error) {
       console.error('Error saving targets:', error);
-      alert('Failed to save. Please try again.');
+      alert(t('setTargets.saveFailed'));
     } finally {
       setLoading(false);
     }
@@ -46,14 +48,14 @@ export default function SetCaloriesScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           <Text variant="displaySmall" style={styles.title}>
-            Set Your Targets
+            {t('setTargets.title')}
           </Text>
           <Text variant="bodyLarge" style={styles.subtitle}>
-            Enter your name and daily nutrition goals
+            {t('setTargets.subtitle')}
           </Text>
 
           <TextInput
-            label="Name"
+            label={t('setTargets.name')}
             value={name}
             onChangeText={setName}
             mode="outlined"
@@ -61,7 +63,7 @@ export default function SetCaloriesScreen({ navigation }) {
           />
 
           <TextInput
-            label="Daily Calories"
+            label={t('setTargets.dailyCalories')}
             value={calories}
             onChangeText={setCalories}
             mode="outlined"
@@ -70,7 +72,7 @@ export default function SetCaloriesScreen({ navigation }) {
           />
 
           <TextInput
-            label="Protein (g)"
+            label={t('setTargets.protein')}
             value={protein}
             onChangeText={setProtein}
             mode="outlined"
@@ -79,7 +81,7 @@ export default function SetCaloriesScreen({ navigation }) {
           />
 
           <TextInput
-            label="Carbs (g)"
+            label={t('setTargets.carbs')}
             value={carbs}
             onChangeText={setCarbs}
             mode="outlined"
@@ -88,7 +90,7 @@ export default function SetCaloriesScreen({ navigation }) {
           />
 
           <TextInput
-            label="Fat (g)"
+            label={t('setTargets.fat')}
             value={fat}
             onChangeText={setFat}
             mode="outlined"
@@ -103,7 +105,7 @@ export default function SetCaloriesScreen({ navigation }) {
             disabled={loading}
             style={styles.button}
           >
-            Save & Continue
+            {t('setTargets.saveContinue')}
           </Button>
         </View>
       </ScrollView>

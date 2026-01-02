@@ -13,6 +13,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import Svg, { Circle } from 'react-native-svg';
+import { useLocalization, getDayNameShort, getMealTypeLabel } from '../../localization/i18n';
 
 // Helper function to get a date range (7 days past, today, 7 days future)
 const getDateRange = () => {
@@ -26,10 +27,9 @@ const getDateRange = () => {
 };
 
 // Helper function to format date
-const formatDate = (date) => {
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const formatDate = (date, t) => {
   return {
-    day: days[date.getDay()],
+    day: getDayNameShort(date.getDay(), t),
     date: date.getDate()
   };
 };
@@ -113,6 +113,7 @@ export default function DashboardScreen({ navigation }) {
   const { user, userProfile, refreshUserProfile } = useAuth();
   const { selectedDate, setSelectedDate } = useSelectedDate();
   const theme = useTheme();
+  const { t, localeCode } = useLocalization();
   const colorScheme = useColorScheme();
   const [meals, setMeals] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -277,23 +278,23 @@ export default function DashboardScreen({ navigation }) {
       // Show success message with adjustment
       if (adjustment !== 0) {
         if (Platform.OS === 'web') {
-          window.alert(`Target Updated!\n\n${reason}\n\nNew daily target: ${newTarget} calories`);
+          window.alert(t('dashboard.targetUpdatedTitle') + '\n\n' + t('dashboard.targetUpdatedBody', { reason, target: newTarget }));
         } else {
-          Alert.alert('Target Updated!', `${reason}\n\nNew daily target: ${newTarget} calories`);
+          Alert.alert(t('dashboard.targetUpdatedTitle'), t('dashboard.targetUpdatedBody', { reason, target: newTarget }));
         }
       } else {
         if (Platform.OS === 'web') {
-          window.alert('Great! We\'ll keep your current target.');
+          window.alert(t('dashboard.keepTargetWeb'));
         } else {
-          Alert.alert('Perfect!', 'We\'ll keep your current target.');
+          Alert.alert(t('dashboard.targetUpdatedTitle'), t('dashboard.keepTarget'));
         }
       }
     } catch (error) {
       console.error('Error updating check-in:', error);
       if (Platform.OS === 'web') {
-        window.alert('Failed to update target');
+        window.alert(t('dashboard.updateTargetFailed'));
       } else {
-        Alert.alert('Error', 'Failed to update target');
+        Alert.alert(t('common.error'), t('dashboard.updateTargetFailed'));
       }
     }
   };
@@ -324,16 +325,19 @@ export default function DashboardScreen({ navigation }) {
       } catch (error) {
         console.error('Error deleting meal:', error);
         if (Platform.OS === 'web') {
-          window.alert('Failed to delete meal');
+          window.alert(t('dashboard.deleteMealFailed'));
         } else {
-          Alert.alert('Error', 'Failed to delete meal');
+          Alert.alert(t('common.error'), t('dashboard.deleteMealFailed'));
         }
       }
     };
 
+    const trimmedName = mealDescription
+      ? `${mealDescription.substring(0, 50)}${mealDescription.length > 50 ? '...' : ''}`
+      : '';
     const confirmMessage = mealDescription
-      ? `Are you sure you want to delete "${mealDescription.substring(0, 50)}${mealDescription.length > 50 ? '...' : ''}"?`
-      : 'Are you sure you want to delete this meal?';
+      ? t('dashboard.deleteMealConfirmWithName', { name: trimmedName })
+      : t('dashboard.deleteMealConfirm');
 
     if (Platform.OS === 'web') {
       if (window.confirm(confirmMessage)) {
@@ -341,15 +345,15 @@ export default function DashboardScreen({ navigation }) {
       }
     } else {
       Alert.alert(
-        'Delete Meal',
+        t('dashboard.deleteMealTitle'),
         confirmMessage,
         [
           {
-            text: 'Cancel',
+            text: t('common.cancel'),
             style: 'cancel'
           },
           {
-            text: 'Delete',
+            text: t('common.delete'),
             style: 'destructive',
             onPress: confirmDelete
           }
@@ -383,17 +387,17 @@ export default function DashboardScreen({ navigation }) {
         await loadMeals();
 
         if (Platform.OS === 'web') {
-          window.alert('Meal date updated successfully!');
+          window.alert(t('dashboard.mealDateUpdated'));
         } else {
-          Alert.alert('Success', 'Meal date updated successfully!');
+          Alert.alert(t('common.success'), t('dashboard.mealDateUpdated'));
         }
       }
     } catch (error) {
       console.error('Error saving edit:', error);
       if (Platform.OS === 'web') {
-        window.alert('Failed to save changes');
+        window.alert(t('dashboard.saveChangesFailed'));
       } else {
-        Alert.alert('Error', 'Failed to save changes');
+        Alert.alert(t('common.error'), t('dashboard.saveChangesFailed'));
       }
     }
   };
@@ -404,9 +408,9 @@ export default function DashboardScreen({ navigation }) {
       await loadMeals();
 
       if (Platform.OS === 'web') {
-        window.alert('Meal duplicated successfully!');
+        window.alert(t('dashboard.mealDuplicated'));
       } else {
-        Alert.alert('Success', 'Meal duplicated successfully!');
+        Alert.alert(t('common.success'), t('dashboard.mealDuplicated'));
       }
     } catch (error) {
       console.error('Error duplicating meal:', error);
@@ -481,7 +485,7 @@ export default function DashboardScreen({ navigation }) {
         onPress={() => handleDuplicateMeal(meal)}
       >
         <IconButton icon="content-copy" iconColor="#FFFFFF" size={24} />
-        <Text style={styles.swipeActionText}>Duplicate</Text>
+        <Text style={styles.swipeActionText}>{t('dashboard.duplicate')}</Text>
       </TouchableOpacity>
     );
   };
@@ -494,7 +498,7 @@ export default function DashboardScreen({ navigation }) {
         onPress={() => handleDeleteMeal(meal.id, meal.description)}
       >
         <IconButton icon="delete" iconColor="#FFFFFF" size={24} />
-        <Text style={styles.swipeActionText}>Delete</Text>
+        <Text style={styles.swipeActionText}>{t('dashboard.delete')}</Text>
       </TouchableOpacity>
     );
   };
@@ -534,7 +538,7 @@ export default function DashboardScreen({ navigation }) {
           ref={calendarRef}
         >
           {days.map((day, index) => {
-            const { day: dayName, date } = formatDate(day);
+            const { day: dayName, date } = formatDate(day, t);
             const isSelected = isSameDay(day, selectedDate);
             const isToday = isSameDay(day, new Date());
 
@@ -584,7 +588,7 @@ export default function DashboardScreen({ navigation }) {
             onPress={() => navigation.navigate('LogMeal', { action: 'type', selectedDate: selectedDate.toISOString() })}
           >
             <IconButton icon="keyboard" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
-            <Text style={styles.quickActionText}>Type</Text>
+            <Text style={styles.quickActionText}>{t('dashboard.type')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -592,7 +596,7 @@ export default function DashboardScreen({ navigation }) {
             onPress={() => navigation.navigate('LogMeal', { action: 'scan', selectedDate: selectedDate.toISOString() })}
           >
             <IconButton icon="barcode-scan" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
-            <Text style={styles.quickActionText}>Scan</Text>
+            <Text style={styles.quickActionText}>{t('dashboard.scan')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -600,7 +604,7 @@ export default function DashboardScreen({ navigation }) {
             onPress={() => navigation.navigate('LogMeal', { action: 'photo', selectedDate: selectedDate.toISOString() })}
           >
             <IconButton icon="camera" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
-            <Text style={styles.quickActionText}>Photo</Text>
+            <Text style={styles.quickActionText}>{t('dashboard.photo')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -608,7 +612,7 @@ export default function DashboardScreen({ navigation }) {
             onPress={() => navigation.navigate('LogMeal', { action: 'voice', selectedDate: selectedDate.toISOString() })}
           >
             <IconButton icon="microphone" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
-            <Text style={styles.quickActionText}>Say It</Text>
+            <Text style={styles.quickActionText}>{t('dashboard.sayIt')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -640,12 +644,12 @@ export default function DashboardScreen({ navigation }) {
             <View style={styles.compactCalorieRow}>
               <Text style={styles.compactCalorieText}>
                 <Text style={styles.compactCalorieValue}>{totals.calories}</Text>
-                <Text style={styles.compactCalorieTarget}> / {calorieTarget} cal</Text>
+                <Text style={styles.compactCalorieTarget}> / {calorieTarget} {t('dashboard.calShort')}</Text>
               </Text>
               <Text style={styles.compactCalorieRemaining}>
                 {calorieTarget - totals.calories > 0
-                  ? `${calorieTarget - totals.calories} left`
-                  : `${totals.calories - calorieTarget} over`
+                  ? t('dashboard.left', { count: calorieTarget - totals.calories })
+                  : t('dashboard.over', { count: totals.calories - calorieTarget })
                 }
               </Text>
             </View>
@@ -666,7 +670,7 @@ export default function DashboardScreen({ navigation }) {
                     <Text style={styles.macroCircleTarget}>/{proteinTarget}g</Text>
                   </View>
                 </View>
-                <Text style={styles.macroCircleLabel}>Protein</Text>
+                <Text style={styles.macroCircleLabel}>{t('dashboard.protein')}</Text>
               </View>
 
               <View style={styles.macroCircle}>
@@ -683,7 +687,7 @@ export default function DashboardScreen({ navigation }) {
                     <Text style={styles.macroCircleTarget}>/{carbsTarget}g</Text>
                   </View>
                 </View>
-                <Text style={styles.macroCircleLabel}>Carbs</Text>
+                <Text style={styles.macroCircleLabel}>{t('dashboard.carbs')}</Text>
               </View>
 
               <View style={styles.macroCircle}>
@@ -700,7 +704,7 @@ export default function DashboardScreen({ navigation }) {
                     <Text style={styles.macroCircleTarget}>/{fatTarget}g</Text>
                   </View>
                 </View>
-                <Text style={styles.macroCircleLabel}>Fat</Text>
+                <Text style={styles.macroCircleLabel}>{t('dashboard.fat')}</Text>
               </View>
             </View>
           </Card.Content>
@@ -709,7 +713,7 @@ export default function DashboardScreen({ navigation }) {
         {/* Meals Section */}
         <View style={styles.mealsSection}>
           <Text variant="titleLarge" style={styles.sectionTitle}>
-            Meals
+            {t('dashboard.meals')}
           </Text>
 
           {meals.length === 0 ? (
@@ -717,10 +721,10 @@ export default function DashboardScreen({ navigation }) {
               <Card.Content style={styles.emptyContent}>
                 <Text style={styles.emptyIcon}>🍽️</Text>
                 <Text variant="titleLarge" style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
-                  No meals today
+                  {t('dashboard.noMealsToday')}
                 </Text>
                 <Text variant="bodyMedium" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-                  Time to fuel up! Start tracking your nutrition.
+                  {t('dashboard.emptyPrompt')}
                 </Text>
                 <Button
                   mode="contained"
@@ -733,7 +737,7 @@ export default function DashboardScreen({ navigation }) {
                   style={styles.emptyButton}
                   icon="plus"
                 >
-                  Log your first meal
+                  {t('dashboard.logFirstMeal')}
                 </Button>
               </Card.Content>
             </Card>
@@ -757,10 +761,10 @@ export default function DashboardScreen({ navigation }) {
                         <View style={styles.mealHeader}>
                           <View style={styles.mealHeaderLeft}>
                             <Text variant="titleMedium" style={styles.mealType}>
-                              {meal.mealType}
+                              {getMealTypeLabel(meal.mealType, t)}
                             </Text>
                             <Text variant="bodySmall" style={styles.timeText}>
-                              {meal.date?.toDate?.()?.toLocaleTimeString?.('en-US', {
+                              {meal.date?.toDate?.()?.toLocaleTimeString?.(localeCode, {
                                 hour: 'numeric',
                                 minute: '2-digit'
                               })}
@@ -788,7 +792,7 @@ export default function DashboardScreen({ navigation }) {
                         <View style={styles.nutrientsContainer}>
                           <View style={styles.nutrientItem}>
                             <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              CALORIES
+                              {t('dashboard.caloriesLabel')}
                             </Text>
                             <Text variant="titleLarge" style={styles.caloriesValue}>
                               {meal.totals.calories}
@@ -796,19 +800,19 @@ export default function DashboardScreen({ navigation }) {
                           </View>
                           <View style={styles.nutrientItem}>
                             <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              PROTEIN
+                              {t('dashboard.proteinLabel')}
                             </Text>
                             <Text variant="titleMedium" style={styles.macroValue}>{Math.round(meal.totals.protein)}g</Text>
                           </View>
                           <View style={styles.nutrientItem}>
                             <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              CARBS
+                              {t('dashboard.carbsLabel')}
                             </Text>
                             <Text variant="titleMedium" style={styles.macroValue}>{Math.round(meal.totals.carbs)}g</Text>
                           </View>
                           <View style={styles.nutrientItem}>
                             <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              FAT
+                              {t('dashboard.fatLabel')}
                             </Text>
                             <Text variant="titleMedium" style={styles.macroValue}>{Math.round(meal.totals.fat)}g</Text>
                           </View>
@@ -841,7 +845,7 @@ export default function DashboardScreen({ navigation }) {
           contentContainerStyle={styles.editModal}
         >
           <Text variant="titleLarge" style={styles.editModalTitle}>
-            Edit Meal
+            {t('dashboard.editMeal')}
           </Text>
 
           {/* Mode Toggle */}
@@ -852,7 +856,7 @@ export default function DashboardScreen({ navigation }) {
               style={styles.editModeButton}
               compact
             >
-              Description
+              {t('dashboard.description')}
             </Button>
             <Button
               mode={editMode === 'date' ? 'contained' : 'outlined'}
@@ -860,14 +864,14 @@ export default function DashboardScreen({ navigation }) {
               style={styles.editModeButton}
               compact
             >
-              Date
+              {t('dashboard.date')}
             </Button>
           </View>
 
           {/* Content based on mode */}
           {editMode === 'description' ? (
             <PaperTextInput
-              label="Description"
+              label={t('dashboard.description')}
               value={editDescription}
               onChangeText={setEditDescription}
               multiline
@@ -878,14 +882,14 @@ export default function DashboardScreen({ navigation }) {
           ) : (
             <View style={styles.datePickerContainer}>
               <Text variant="bodyMedium" style={styles.datePickerLabel}>
-                Select new date for this meal:
+                {t('dashboard.selectNewDate')}
               </Text>
               <View style={styles.datePickerButtons}>
                 {[-2, -1, 0, 1, 2].map((offset) => {
                   const date = new Date(editDate);
                   date.setDate(date.getDate() + offset);
                   const isSelected = isSameDay(date, editDate);
-                  const { day: dayName, date: dayNum } = formatDate(date);
+                  const { day: dayName, date: dayNum } = formatDate(date, t);
                   const isToday = isSameDay(date, new Date());
 
                   return (
@@ -919,10 +923,10 @@ export default function DashboardScreen({ navigation }) {
 
           <View style={styles.editModalActions}>
             <Button mode="outlined" onPress={() => setEditModalVisible(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button mode="contained" onPress={handleSaveEdit}>
-              {editMode === 'description' ? 'Re-parse & Save' : 'Update Date'}
+              {editMode === 'description' ? t('dashboard.reparseSave') : t('dashboard.updateDate')}
             </Button>
           </View>
         </Modal>

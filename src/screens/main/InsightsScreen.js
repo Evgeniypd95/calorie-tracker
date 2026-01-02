@@ -5,12 +5,14 @@ import { LineChart, PieChart } from 'react-native-chart-kit';
 import { useAuth } from '../../context/AuthContext';
 import { generateInsightsBackend } from '../../services/geminiService';
 import { mealService } from '../../services/firebase';
+import { useLocalization } from '../../localization/i18n';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 export default function InsightsScreen({ navigation }) {
   const { user, userProfile } = useAuth();
   const theme = useTheme();
+  const { t } = useLocalization();
   const colorScheme = useColorScheme();
   const [weeklyChartData, setWeeklyChartData] = useState(null);
   const [macroChartData, setMacroChartData] = useState([]);
@@ -152,9 +154,9 @@ export default function InsightsScreen({ navigation }) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.loadingContainer}>
-          <Text variant="bodyLarge" style={[styles.loadingText, { color: theme.colors.onSurfaceVariant }]}>
-            📊 Analyzing your nutrition data...
-          </Text>
+            <Text variant="bodyLarge" style={[styles.loadingText, { color: theme.colors.onSurfaceVariant }]}>
+            {t('insights.analyzing')}
+            </Text>
         </View>
       </View>
     );
@@ -164,10 +166,10 @@ export default function InsightsScreen({ navigation }) {
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
         <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.onBackground }]}>
-          My Goals
+          {t('insights.title')}
         </Text>
         <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
-          Track your progress and nutrition
+          {t('insights.subtitle')}
         </Text>
       </View>
 
@@ -182,13 +184,13 @@ export default function InsightsScreen({ navigation }) {
               <View style={styles.compactPlanHeader}>
                 <View>
                   <Text variant="labelSmall" style={[styles.compactPlanLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    YOUR DAILY TARGET
+                    {t('insights.dailyTarget')}
                   </Text>
                   <Text variant="headlineLarge" style={[styles.compactPlanCalories, { color: '#6366F1' }]}>
                     {userProfile.dailyCalorieTarget}
                   </Text>
                   <Text variant="bodySmall" style={[styles.compactPlanUnit, { color: theme.colors.onSurfaceVariant }]}>
-                    calories/day
+                    {t('insights.caloriesPerDay')}
                   </Text>
                 </View>
                 <IconButton
@@ -205,7 +207,7 @@ export default function InsightsScreen({ navigation }) {
               <View style={styles.compactMacrosRow}>
                 <View style={styles.compactMacro}>
                   <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    Protein
+                    {t('insights.protein')}
                   </Text>
                   <Text variant="headlineSmall" style={[styles.compactMacroValue, { color: '#EF4444' }]}>
                     {userProfile.proteinTarget}g
@@ -214,7 +216,7 @@ export default function InsightsScreen({ navigation }) {
                 <View style={styles.compactMacroDivider} />
                 <View style={styles.compactMacro}>
                   <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    Carbs
+                    {t('insights.carbs')}
                   </Text>
                   <Text variant="headlineSmall" style={[styles.compactMacroValue, { color: '#10B981' }]}>
                     {userProfile.carbsTarget}g
@@ -223,7 +225,7 @@ export default function InsightsScreen({ navigation }) {
                 <View style={styles.compactMacroDivider} />
                 <View style={styles.compactMacro}>
                   <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    Fat
+                    {t('insights.fat')}
                   </Text>
                   <Text variant="headlineSmall" style={[styles.compactMacroValue, { color: '#F59E0B' }]}>
                     {userProfile.fatTarget}g
@@ -240,10 +242,10 @@ export default function InsightsScreen({ navigation }) {
         <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
           <Card.Content>
             <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              Calorie Target Adherence
+              {t('insights.calorieAdherence')}
             </Text>
             <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              Actual vs Target (Last 7 days)
+              {t('insights.actualVsTarget')}
             </Text>
             <LineChart
               data={{
@@ -262,7 +264,7 @@ export default function InsightsScreen({ navigation }) {
                     withDots: false
                   }
                 ],
-                legend: ['Actual', 'Target']
+                legend: [t('insights.actual'), t('insights.target')]
               }}
               width={screenWidth - 80}
               height={220}
@@ -286,10 +288,10 @@ export default function InsightsScreen({ navigation }) {
         <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
           <Card.Content>
             <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              Daily Protein
+              {t('insights.dailyProtein')}
             </Text>
             <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              Actual vs Target • Last 7 days
+              {t('insights.actualVsTargetShort')}
             </Text>
             <LineChart
               data={{
@@ -308,7 +310,7 @@ export default function InsightsScreen({ navigation }) {
                     withDots: false
                   }
                 ],
-                legend: ['Actual', 'Target']
+                legend: [t('insights.actual'), t('insights.target')]
               }}
               width={screenWidth - 80}
               height={200}
@@ -333,10 +335,10 @@ export default function InsightsScreen({ navigation }) {
         <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
           <Card.Content>
             <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              Daily Carbs
+              {t('insights.dailyCarbs')}
             </Text>
             <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              Actual vs Target • Last 7 days
+              {t('insights.actualVsTargetShort')}
             </Text>
             <LineChart
               data={{
@@ -355,7 +357,7 @@ export default function InsightsScreen({ navigation }) {
                     withDots: false
                   }
                 ],
-                legend: ['Actual', 'Target']
+                legend: [t('insights.actual'), t('insights.target')]
               }}
               width={screenWidth - 80}
               height={200}
@@ -380,10 +382,10 @@ export default function InsightsScreen({ navigation }) {
         <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
           <Card.Content>
             <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              Daily Fat
+              {t('insights.dailyFat')}
             </Text>
             <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              Actual vs Target • Last 7 days
+              {t('insights.actualVsTargetShort')}
             </Text>
             <LineChart
               data={{
@@ -402,7 +404,7 @@ export default function InsightsScreen({ navigation }) {
                     withDots: false
                   }
                 ],
-                legend: ['Actual', 'Target']
+                legend: [t('insights.actual'), t('insights.target')]
               }}
               width={screenWidth - 80}
               height={200}
@@ -434,10 +436,10 @@ export default function InsightsScreen({ navigation }) {
                 <Text style={styles.weightTrackingEmoji}>⚖️</Text>
                 <View>
                   <Text variant="titleMedium" style={[styles.weightTrackingTitle, { color: theme.colors.onSurface }]}>
-                    Weight Tracking
+                    {t('insights.weightTracking')}
                   </Text>
                   <Text variant="bodySmall" style={[styles.weightTrackingSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-                    Log weight & see progress
+                    {t('insights.weightTrackingSubtitle')}
                   </Text>
                 </View>
               </View>
@@ -459,12 +461,12 @@ export default function InsightsScreen({ navigation }) {
               <Text style={styles.pregnancyEmoji}>🤰</Text>
               <View style={styles.pregnancyInfo}>
                 <Text variant="titleLarge" style={styles.pregnancyTitle}>
-                  Pregnancy Nutrition
+                  {t('insights.pregnancyNutrition')}
                 </Text>
                 <Text variant="bodyMedium" style={styles.pregnancyTrimester}>
-                  {userProfile.trimester === 'FIRST' && '1st Trimester (Weeks 1-13)'}
-                  {userProfile.trimester === 'SECOND' && '2nd Trimester (Weeks 14-27)'}
-                  {userProfile.trimester === 'THIRD' && '3rd Trimester (Weeks 28-40)'}
+                  {userProfile.trimester === 'FIRST' && t('insights.trimesterFirst')}
+                  {userProfile.trimester === 'SECOND' && t('insights.trimesterSecond')}
+                  {userProfile.trimester === 'THIRD' && t('insights.trimesterThird')}
                 </Text>
               </View>
             </View>
@@ -472,7 +474,7 @@ export default function InsightsScreen({ navigation }) {
             <Divider style={[styles.pregnancyDivider, { backgroundColor: '#F59E0B' }]} />
 
             <Text variant="labelSmall" style={styles.pregnancyKeyNutrientsLabel}>
-              KEY NUTRIENTS THIS {userProfile.trimester === 'FIRST' ? 'TRIMESTER' : userProfile.trimester === 'SECOND' ? 'TRIMESTER' : 'TRIMESTER'}
+              {t('insights.keyNutrients')}
             </Text>
 
             <View style={styles.pregnancyNutrients}>
@@ -481,15 +483,15 @@ export default function InsightsScreen({ navigation }) {
                   <View style={styles.pregnancyNutrient}>
                     <IconButton icon="leaf" size={20} iconColor="#10B981" style={styles.nutrientIcon} />
                     <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>Folate</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>Prevents birth defects</Text>
+                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.folate')}</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.folateReason')}</Text>
                     </View>
                   </View>
                   <View style={styles.pregnancyNutrient}>
                     <IconButton icon="water" size={20} iconColor="#3B82F6" style={styles.nutrientIcon} />
                     <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>Vitamin B6</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>Reduces nausea</Text>
+                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.vitaminB6')}</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.vitaminB6Reason')}</Text>
                     </View>
                   </View>
                 </>
@@ -499,15 +501,15 @@ export default function InsightsScreen({ navigation }) {
                   <View style={styles.pregnancyNutrient}>
                     <IconButton icon="silverware-fork-knife" size={20} iconColor="#EF4444" style={styles.nutrientIcon} />
                     <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>Iron</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>Prevents anemia</Text>
+                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.iron')}</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.ironReason')}</Text>
                     </View>
                   </View>
                   <View style={styles.pregnancyNutrient}>
                     <IconButton icon="bone" size={20} iconColor="#6366F1" style={styles.nutrientIcon} />
                     <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>Calcium</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>Baby's bone growth</Text>
+                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.calcium')}</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.calciumReason')}</Text>
                     </View>
                   </View>
                 </>
@@ -517,15 +519,15 @@ export default function InsightsScreen({ navigation }) {
                   <View style={styles.pregnancyNutrient}>
                     <IconButton icon="fish" size={20} iconColor="#3B82F6" style={styles.nutrientIcon} />
                     <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>DHA/Omega-3</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>Brain development</Text>
+                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.dha')}</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.dhaReason')}</Text>
                     </View>
                   </View>
                   <View style={styles.pregnancyNutrient}>
                     <IconButton icon="silverware-fork-knife" size={20} iconColor="#EF4444" style={styles.nutrientIcon} />
                     <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>Iron</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>Extra blood volume</Text>
+                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.iron')}</Text>
+                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.extraBlood')}</Text>
                     </View>
                   </View>
                 </>
@@ -535,9 +537,9 @@ export default function InsightsScreen({ navigation }) {
             <Surface style={styles.pregnancyTip} elevation={0}>
               <IconButton icon="information" size={16} iconColor="#92400E" style={styles.tipIcon} />
               <Text variant="bodySmall" style={styles.pregnancyTipText}>
-                {userProfile.trimester === 'FIRST' && 'Focus on small, frequent meals if experiencing nausea. Folate is crucial now!'}
-                {userProfile.trimester === 'SECOND' && 'Your baby is growing fast! Iron and calcium are essential for development.'}
-                {userProfile.trimester === 'THIRD' && "Baby's brain is developing rapidly. Include DHA-rich foods like salmon and walnuts."}
+                {userProfile.trimester === 'FIRST' && t('insights.pregnancyTipFirst')}
+                {userProfile.trimester === 'SECOND' && t('insights.pregnancyTipSecond')}
+                {userProfile.trimester === 'THIRD' && t('insights.pregnancyTipThird')}
               </Text>
             </Surface>
           </Card.Content>
@@ -553,16 +555,16 @@ export default function InsightsScreen({ navigation }) {
                 <Text style={styles.streakEmoji}>🔥</Text>
                 <View>
                   <Text variant="headlineMedium" style={styles.streakNumber}>
-                    {userProfile.streakCount} days
+                    {t('insights.streakDays', { count: userProfile.streakCount })}
                   </Text>
                   <Text variant="bodySmall" style={[styles.streakLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    Current Streak
+                    {t('insights.currentStreak')}
                   </Text>
                 </View>
               </View>
               <View style={styles.streakRight}>
                 <Text variant="bodySmall" style={[styles.weeklyLabel, { color: theme.colors.onSurfaceVariant }]}>
-                  This week: {weeklyMealsData.filter(Boolean).length}/7 days
+                  {t('insights.thisWeek', { count: weeklyMealsData.filter(Boolean).length })}
                 </Text>
                 <View style={styles.weeklyDots}>
                   {weeklyMealsData.length === 7 ? weeklyMealsData.map((hasLog, i) => (
@@ -591,10 +593,10 @@ export default function InsightsScreen({ navigation }) {
         <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
           <Card.Content>
             <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              Weekly Calories
+              {t('insights.weeklyCalories')}
             </Text>
             <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              Last 7 days
+              {t('insights.last7Days')}
             </Text>
             <LineChart
               data={weeklyChartDataDisplay}
@@ -622,10 +624,10 @@ export default function InsightsScreen({ navigation }) {
         <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
           <Card.Content>
             <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              Macro Distribution
+              {t('insights.macroDistribution')}
             </Text>
             <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              Weekly breakdown
+              {t('insights.weeklyBreakdown')}
             </Text>
             <View style={styles.pieChartContainer}>
               <PieChart
@@ -650,7 +652,7 @@ export default function InsightsScreen({ navigation }) {
       {insights.length > 0 && (
         <View style={styles.insightsSection}>
           <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onBackground }]}>
-            Key Insights
+            {t('insights.keyInsights')}
           </Text>
           {insights.map((insight, index) => (
             <Card
@@ -689,14 +691,14 @@ export default function InsightsScreen({ navigation }) {
           <Card.Content style={styles.emptyContent}>
             <Text style={styles.emptyIcon}>📊</Text>
             <Text variant="titleLarge" style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
-              No data yet
+              {t('insights.noDataYet')}
             </Text>
             <Text variant="bodyMedium" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-              Log meals for at least 5 days to see your trends and insights!
+              {t('insights.noDataBody')}
             </Text>
             {daysWithData > 0 && (
               <Text variant="bodySmall" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant, marginTop: 8 }]}>
-                You have {daysWithData} day{daysWithData !== 1 ? 's' : ''} logged. Keep it up!
+                {t('insights.daysLogged', { count: daysWithData, plural: daysWithData !== 1 ? 's' : '' })}
               </Text>
             )}
           </Card.Content>

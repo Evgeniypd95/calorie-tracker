@@ -7,6 +7,7 @@ import { DateProvider } from './src/context/DateContext';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
 import SetCaloriesScreen from './src/screens/onboarding/SetCaloriesScreen';
+import { LocalizationProvider } from './src/localization/i18n';
 
 const lightTheme = {
   ...MD3LightTheme,
@@ -99,41 +100,43 @@ export default function App() {
   return (
     <View style={[styles.appContainer, { backgroundColor: theme.colors.background }]}>
       <PaperProvider theme={theme}>
-        <AuthProvider>
-          <DateProvider>
-            <NavigationContainer theme={{
-              dark: false,
-              colors: {
-                primary: lightTheme.colors.primary,
-                background: lightTheme.colors.background,
-                card: lightTheme.colors.surface,
-                text: lightTheme.colors.onBackground,
-                border: lightTheme.colors.outline,
-                notification: lightTheme.colors.primary,
-              },
-              fonts: {
-                regular: {
-                  fontFamily: 'System',
-                  fontWeight: '400',
+        <LocalizationProvider>
+          <AuthProvider>
+            <DateProvider>
+              <NavigationContainer theme={{
+                dark: false,
+                colors: {
+                  primary: lightTheme.colors.primary,
+                  background: lightTheme.colors.background,
+                  card: lightTheme.colors.surface,
+                  text: lightTheme.colors.onBackground,
+                  border: lightTheme.colors.outline,
+                  notification: lightTheme.colors.primary,
                 },
-                medium: {
-                  fontFamily: 'System',
-                  fontWeight: '500',
+                fonts: {
+                  regular: {
+                    fontFamily: 'System',
+                    fontWeight: '400',
+                  },
+                  medium: {
+                    fontFamily: 'System',
+                    fontWeight: '500',
+                  },
+                  bold: {
+                    fontFamily: 'System',
+                    fontWeight: '600',
+                  },
+                  heavy: {
+                    fontFamily: 'System',
+                    fontWeight: '700',
+                  },
                 },
-                bold: {
-                  fontFamily: 'System',
-                  fontWeight: '600',
-                },
-                heavy: {
-                  fontFamily: 'System',
-                  fontWeight: '700',
-                },
-              },
-            }}>
-              <AppContent />
-            </NavigationContainer>
-          </DateProvider>
-        </AuthProvider>
+              }}>
+                <AppContent />
+              </NavigationContainer>
+            </DateProvider>
+          </AuthProvider>
+        </LocalizationProvider>
       </PaperProvider>
     </View>
   );

@@ -4,6 +4,7 @@
  * Manages user feedback check-ins at 1 day, 7 days, and 1 month intervals
  * Adjusts calorie targets based on user feedback
  */
+import { t } from '../localization/i18n';
 
 /**
  * Check if user should see a check-in prompt
@@ -60,83 +61,83 @@ export function shouldShowCheckIn(userProfile) {
 export function getCheckInQuestions(checkInType) {
   const questions = {
     day1: {
-      title: "How's it going? 👋",
-      subtitle: "You've been using the app for a day!",
-      question: "How do you feel with your current calorie target?",
+      title: t('checkIn.day1Title'),
+      subtitle: t('checkIn.day1Subtitle'),
+      question: t('checkIn.day1Question'),
       options: [
         {
           value: 'TOO_HUNGRY',
           emoji: '😢',
-          label: 'Too hungry',
-          description: "I'm struggling to stay within my target"
+          label: t('checkIn.tooHungry'),
+          description: t('checkIn.tooHungryDesc')
         },
         {
           value: 'JUST_RIGHT',
           emoji: '😊',
-          label: 'Just right',
-          description: "Feeling good and sustainable"
+          label: t('checkIn.justRight'),
+          description: t('checkIn.justRightDesc')
         },
         {
           value: 'TOO_FULL',
           emoji: '😰',
-          label: 'Too full',
-          description: "Hard to eat this much food"
+          label: t('checkIn.tooFull'),
+          description: t('checkIn.tooFullDesc')
         }
       ]
     },
     week1: {
-      title: "One week check-in 🎉",
-      subtitle: "You've completed your first week!",
-      question: "How's your energy and progress?",
+      title: t('checkIn.week1Title'),
+      subtitle: t('checkIn.week1Subtitle'),
+      question: t('checkIn.week1Question'),
       options: [
         {
           value: 'STRUGGLING',
           emoji: '😓',
-          label: 'Struggling',
-          description: "Low energy, hard to stick to plan"
+          label: t('checkIn.struggling'),
+          description: t('checkIn.strugglingDesc')
         },
         {
           value: 'GOOD',
           emoji: '👍',
-          label: 'Feeling good',
-          description: "On track, sustainable pace"
+          label: t('checkIn.good'),
+          description: t('checkIn.goodDesc')
         },
         {
           value: 'TOO_SLOW',
           emoji: '😐',
-          label: 'Too slow',
-          description: "Not seeing results I expected"
+          label: t('checkIn.tooSlow'),
+          description: t('checkIn.tooSlowDesc')
         },
         {
           value: 'TOO_FAST',
           emoji: '😰',
-          label: 'Too aggressive',
-          description: "Losing/gaining weight too quickly"
+          label: t('checkIn.tooFast'),
+          description: t('checkIn.tooFastDesc')
         }
       ]
     },
     month1: {
-      title: "One month milestone! 🚀",
-      subtitle: "Amazing - you've stuck with it for a month!",
-      question: "How are your results compared to your goal?",
+      title: t('checkIn.month1Title'),
+      subtitle: t('checkIn.month1Subtitle'),
+      question: t('checkIn.month1Question'),
       options: [
         {
           value: 'BEHIND',
           emoji: '🐌',
-          label: 'Behind target',
-          description: "Not progressing as fast as I'd like"
+          label: t('checkIn.behind'),
+          description: t('checkIn.behindDesc')
         },
         {
           value: 'ON_TRACK',
           emoji: '🎯',
-          label: 'Right on track',
-          description: "Meeting my expectations perfectly"
+          label: t('checkIn.onTrack'),
+          description: t('checkIn.onTrackDesc')
         },
         {
           value: 'AHEAD',
           emoji: '🚀',
-          label: 'Ahead of schedule',
-          description: "Progressing faster than expected"
+          label: t('checkIn.ahead'),
+          description: t('checkIn.aheadDesc')
         }
       ]
     }
@@ -161,12 +162,12 @@ export function calculateTargetAdjustment(currentTarget, feedback, checkInType, 
   if (checkInType === 'day1') {
     if (feedback === 'TOO_HUNGRY') {
       adjustment = 200;
-      reason = "Added 200 calories to help with hunger and sustainability";
+      reason = t('checkIn.adjustHungry');
     } else if (feedback === 'TOO_FULL') {
       adjustment = -150;
-      reason = "Reduced 150 calories since you're struggling to eat this much";
+      reason = t('checkIn.adjustFull');
     } else {
-      reason = "Great! Keeping your current target since it's working well";
+      reason = t('checkIn.adjustKeep');
     }
   }
 
@@ -174,25 +175,25 @@ export function calculateTargetAdjustment(currentTarget, feedback, checkInType, 
   if (checkInType === 'week1') {
     if (feedback === 'STRUGGLING') {
       adjustment = 250;
-      reason = "Added 250 calories to boost energy and make this more sustainable";
+      reason = t('checkIn.adjustStruggling');
     } else if (feedback === 'TOO_SLOW') {
       if (goal === 'LOSE_WEIGHT') {
         adjustment = -200;
-        reason = "Reduced 200 calories to speed up weight loss";
+        reason = t('checkIn.adjustSlowLose');
       } else if (goal === 'BUILD_MUSCLE') {
         adjustment = 200;
-        reason = "Added 200 calories to accelerate muscle gain";
+        reason = t('checkIn.adjustSlowGain');
       }
     } else if (feedback === 'TOO_FAST') {
       if (goal === 'LOSE_WEIGHT') {
         adjustment = 200;
-        reason = "Added 200 calories to slow down weight loss to a healthier pace";
+        reason = t('checkIn.adjustFastLose');
       } else if (goal === 'BUILD_MUSCLE') {
         adjustment = -150;
-        reason = "Reduced 150 calories to minimize fat gain while building muscle";
+        reason = t('checkIn.adjustFastGain');
       }
     } else {
-      reason = "Perfect! Your target is working great, no changes needed";
+      reason = t('checkIn.adjustPerfect');
     }
   }
 
@@ -201,21 +202,21 @@ export function calculateTargetAdjustment(currentTarget, feedback, checkInType, 
     if (feedback === 'BEHIND') {
       if (goal === 'LOSE_WEIGHT') {
         adjustment = -150;
-        reason = "Reduced 150 calories to accelerate progress";
+        reason = t('checkIn.adjustBehindLose');
       } else if (goal === 'BUILD_MUSCLE') {
         adjustment = 150;
-        reason = "Added 150 calories to boost muscle gains";
+        reason = t('checkIn.adjustBehindGain');
       }
     } else if (feedback === 'AHEAD') {
       if (goal === 'LOSE_WEIGHT') {
         adjustment = 150;
-        reason = "Added 150 calories to maintain steady, healthy progress";
+        reason = t('checkIn.adjustAheadLose');
       } else if (goal === 'BUILD_MUSCLE') {
         adjustment = -100;
-        reason = "Reduced 100 calories to keep gains lean";
+        reason = t('checkIn.adjustAheadGain');
       }
     } else {
-      reason = "Excellent! You're right on track, maintaining your current plan";
+      reason = t('checkIn.adjustExcellent');
     }
   }
 

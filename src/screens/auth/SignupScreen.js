@@ -3,10 +3,12 @@ import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 're
 import { TextInput, Button, Text, Snackbar } from 'react-native-paper';
 import { authService, userService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../localization/i18n';
 
 export default function SignupScreen({ navigation, route }) {
   const { refreshUserProfile } = useAuth();
-  const onboardingData = route.params || {};
+  const { t } = useLocalization();
+  const onboardingData = route.params?.onboardingData || {};
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -15,21 +17,27 @@ export default function SignupScreen({ navigation, route }) {
   const [error, setError] = useState('');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
 
+  const getNextCheckInDate = (daysFromNow) => {
+    const date = new Date();
+    date.setDate(date.getDate() + daysFromNow);
+    return date;
+  };
+
   const handleSignup = async () => {
     if (!email || !password || !confirmPassword) {
-      setError('Please fill in all fields');
+      setError(t('auth.fillAllFields'));
       setSnackbarVisible(true);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('auth.passwordsNoMatch'));
       setSnackbarVisible(true);
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError(t('auth.passwordTooShort'));
       setSnackbarVisible(true);
       return;
     }
@@ -47,7 +55,11 @@ export default function SignupScreen({ navigation, route }) {
         // Save onboarding data if available
         ...(onboardingData.name && { name: onboardingData.name }),
         ...(onboardingData.age && { age: onboardingData.age }),
+        ...(onboardingData.birthMonth && { birthMonth: onboardingData.birthMonth }),
+        ...(onboardingData.birthYear && { birthYear: onboardingData.birthYear }),
         ...(onboardingData.weight && { weight: onboardingData.weight }),
+        ...(onboardingData.currentWeight && { currentWeight: onboardingData.currentWeight }),
+        ...(onboardingData.targetWeight && { targetWeight: onboardingData.targetWeight }),
         ...(onboardingData.weightUnit && { weightUnit: onboardingData.weightUnit }),
         ...(onboardingData.height && { height: onboardingData.height }),
         ...(onboardingData.heightUnit && { heightUnit: onboardingData.heightUnit }),
@@ -55,12 +67,19 @@ export default function SignupScreen({ navigation, route }) {
         ...(onboardingData.goal && { goal: onboardingData.goal }),
         ...(onboardingData.activityLevel && { activityLevel: onboardingData.activityLevel }),
         ...(onboardingData.workoutsPerWeek && { workoutsPerWeek: onboardingData.workoutsPerWeek }),
+        ...(onboardingData.targetDate && { targetDate: onboardingData.targetDate }),
         // Save calculated plan if available
         ...(onboardingData.calculatedPlan && {
           dailyCalorieTarget: onboardingData.calculatedPlan.dailyCalories,
           proteinTarget: onboardingData.calculatedPlan.protein,
           carbsTarget: onboardingData.calculatedPlan.carbs,
           fatTarget: onboardingData.calculatedPlan.fat
+        }),
+        ...(onboardingData.calculatedPlan && {
+          onboardingCompleted: true,
+          onboardingCompletedAt: new Date(),
+          nextCheckInDate: getNextCheckInDate(1),
+          checkInHistory: []
         })
       };
 
@@ -96,7 +115,11 @@ export default function SignupScreen({ navigation, route }) {
           createdAt: new Date(),
           ...(onboardingData.name && { name: onboardingData.name }),
           ...(onboardingData.age && { age: onboardingData.age }),
+          ...(onboardingData.birthMonth && { birthMonth: onboardingData.birthMonth }),
+          ...(onboardingData.birthYear && { birthYear: onboardingData.birthYear }),
           ...(onboardingData.weight && { weight: onboardingData.weight }),
+          ...(onboardingData.currentWeight && { currentWeight: onboardingData.currentWeight }),
+          ...(onboardingData.targetWeight && { targetWeight: onboardingData.targetWeight }),
           ...(onboardingData.weightUnit && { weightUnit: onboardingData.weightUnit }),
           ...(onboardingData.height && { height: onboardingData.height }),
           ...(onboardingData.heightUnit && { heightUnit: onboardingData.heightUnit }),
@@ -104,11 +127,18 @@ export default function SignupScreen({ navigation, route }) {
           ...(onboardingData.goal && { goal: onboardingData.goal }),
           ...(onboardingData.activityLevel && { activityLevel: onboardingData.activityLevel }),
           ...(onboardingData.workoutsPerWeek && { workoutsPerWeek: onboardingData.workoutsPerWeek }),
+          ...(onboardingData.targetDate && { targetDate: onboardingData.targetDate }),
           ...(onboardingData.calculatedPlan && {
             dailyCalorieTarget: onboardingData.calculatedPlan.dailyCalories,
             proteinTarget: onboardingData.calculatedPlan.protein,
             carbsTarget: onboardingData.calculatedPlan.carbs,
             fatTarget: onboardingData.calculatedPlan.fat
+          }),
+          ...(onboardingData.calculatedPlan && {
+            onboardingCompleted: true,
+            onboardingCompletedAt: new Date(),
+            nextCheckInDate: getNextCheckInDate(1),
+            checkInHistory: []
           })
         };
 
@@ -122,9 +152,9 @@ export default function SignupScreen({ navigation, route }) {
     } catch (error) {
       console.error('Google Sign-In error:', error);
       if (error.code === 'ERR_CANCELED') {
-        setError('Sign-in cancelled');
+        setError(t('auth.signInCancelled'));
       } else {
-        setError(error.message || 'Failed to sign in with Google');
+        setError(error.message || t('auth.signInGoogleFailed'));
       }
       setSnackbarVisible(true);
     } finally {
@@ -140,10 +170,10 @@ export default function SignupScreen({ navigation, route }) {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           <Text variant="displaySmall" style={styles.title}>
-            Create Account
+            {t('auth.signupTitle')}
           </Text>
           <Text variant="bodyLarge" style={styles.subtitle}>
-            Start your fitness journey today
+            {t('auth.signupSubtitle')}
           </Text>
 
           {/* iOS/Android: Show only Google Sign-In */}
@@ -158,7 +188,7 @@ export default function SignupScreen({ navigation, route }) {
               labelStyle={styles.googleButtonLabel}
               contentStyle={styles.googleButtonContent}
             >
-              Continue with Google
+              {t('auth.continueGoogle')}
             </Button>
           )}
 
@@ -166,7 +196,7 @@ export default function SignupScreen({ navigation, route }) {
           {Platform.OS === 'web' && (
             <>
               <TextInput
-                label="Email"
+                label={t('auth.email')}
                 value={email}
                 onChangeText={setEmail}
                 mode="outlined"
@@ -176,7 +206,7 @@ export default function SignupScreen({ navigation, route }) {
               />
 
               <TextInput
-                label="Password"
+                label={t('auth.password')}
                 value={password}
                 onChangeText={setPassword}
                 mode="outlined"
@@ -185,7 +215,7 @@ export default function SignupScreen({ navigation, route }) {
               />
 
               <TextInput
-                label="Confirm Password"
+                label={t('auth.confirmPassword')}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 mode="outlined"
@@ -200,7 +230,7 @@ export default function SignupScreen({ navigation, route }) {
                 disabled={loading}
                 style={styles.button}
               >
-                Sign Up
+                {t('auth.signUp')}
               </Button>
             </>
           )}
@@ -210,7 +240,7 @@ export default function SignupScreen({ navigation, route }) {
             onPress={() => navigation.navigate('Login')}
             style={styles.linkButton}
           >
-            Already have an account? Log In
+            {t('auth.alreadyAccount')}
           </Button>
         </View>
       </ScrollView>

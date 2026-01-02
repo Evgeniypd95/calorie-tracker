@@ -9,6 +9,7 @@ import { mealService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { lookupBarcode, formatBarcodeProductForParsing } from '../../services/barcodeService';
 import MealGradeCard from '../../components/MealGradeCard';
+import { useLocalization, getMealTypeLabel, getMealTypeLabelLower } from '../../localization/i18n';
 
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
@@ -17,6 +18,7 @@ const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
 export default function ChatLogMealScreen({ navigation, route }) {
   const { user, userProfile } = useAuth();
+  const { t, localeCode } = useLocalization();
   const { selectedDate, action, editingMeal, reparse } = route.params || {};
   const scrollViewRef = useRef(null);
   const actionHandledRef = useRef(false);
@@ -27,7 +29,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
     {
       id: Date.now(),
       role: 'ai',
-      content: "Hey! 👋 Just tell me what you ate and I'll figure out the nutrition for you. You can type, speak, or send a photo!",
+      content: t('chat.intro'),
       timestamp: new Date()
     },
     {
@@ -111,7 +113,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
   const handleShowRecentMeals = () => {
     if (recentMeals.length === 0) {
-      showAlert('No Recent Meals', 'You haven\'t logged any meals in the last 3 days.');
+      showAlert(t('chat.noRecentMeals'), t('chat.noRecentMealsBody'));
       return;
     }
 
@@ -125,7 +127,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
     addMessage('user', meal.description);
 
     // Use the selected meal's data
-    addMessage('ai', `Great choice! Using "${meal.description}"`);
+    addMessage('ai', t('chat.usingRecentMeal', { name: meal.description }));
 
     setParsedData({
       items: meal.items,
@@ -135,10 +137,16 @@ export default function ChatLogMealScreen({ navigation, route }) {
     // Show the nutrition breakdown
     const totalCal = meal.totals.calories;
     const itemsList = meal.items.map(item =>
-      `• ${item.quantity} ${item.food} (${item.calories} cal)`
+      `• ${item.quantity} ${item.food} (${item.calories} ${t('dashboard.calShort')})`
     ).join('\n');
 
-    const response = `Here's the breakdown:\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${meal.totals.protein}g | Carbs: ${meal.totals.carbs}g | Fat: ${meal.totals.fat}g`;
+    const response = t('chat.breakdownIntro', {
+      items: itemsList,
+      calories: totalCal,
+      protein: meal.totals.protein,
+      carbs: meal.totals.carbs,
+      fat: meal.totals.fat
+    });
 
     setTimeout(() => {
       addMessage('ai', response, { parsedData: { items: meal.items, totals: meal.totals } });
@@ -165,7 +173,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
         const recognitionInstance = new SpeechRecognition();
         recognitionInstance.continuous = true;
         recognitionInstance.interimResults = true;
-        recognitionInstance.lang = 'en-US';
+        recognitionInstance.lang = localeCode;
 
         recognitionInstance.onresult = (event) => {
           let transcript = '';
@@ -289,7 +297,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const startVoiceRecording = async () => {
     if (Platform.OS === 'web') {
       if (!recognition) {
-        showAlert('Not Supported', 'Speech recognition is not supported in this browser.');
+        showAlert(t('chat.notSupported'), t('chat.speechNotSupported'));
         return;
       }
       textBeforeVoiceRef.current = inputText;
@@ -298,11 +306,11 @@ export default function ChatLogMealScreen({ navigation, route }) {
     } else {
       try {
         textBeforeVoiceRef.current = inputText;
-        await Voice.start('en-US');
+        await Voice.start(localeCode);
         setIsListening(true);
       } catch (error) {
         console.error('Voice error:', error);
-        showAlert('Error', 'Failed to start voice recognition.');
+        showAlert(t('common.error'), t('chat.voiceStartFailed'));
       }
     }
   };
@@ -343,15 +351,15 @@ export default function ChatLogMealScreen({ navigation, route }) {
         if (canAskAgain === false) {
           // Permission permanently denied
           if (Platform.OS === 'web') {
-            window.alert('Photo library access is required to upload meal photos. Please enable it in your browser settings.');
+            window.alert(t('chat.photoPermissionWeb'));
           } else {
             Alert.alert(
-              'Photo Library Permission Required',
-              'Photo library access is needed to upload meal photos. Please enable it in your device Settings.',
+              t('chat.photoLibraryPermissionTitle'),
+              t('chat.photoLibraryPermissionBody'),
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                  text: 'Open Settings',
+                  text: t('chat.openSettings'),
                   onPress: () => {
                     if (Platform.OS === 'ios') {
                       Linking.openURL('app-settings:');
@@ -364,7 +372,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
             );
           }
         } else {
-          showAlert('Permission Required', 'We need camera roll permissions to upload meal photos.');
+          showAlert(t('chat.permissionRequired'), t('chat.cameraRollPermission'));
         }
         return;
       }
@@ -383,7 +391,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      showAlert('Error', 'Failed to pick image.');
+      showAlert(t('common.error'), t('chat.pickImageFailed'));
     }
   };
 
@@ -394,15 +402,15 @@ export default function ChatLogMealScreen({ navigation, route }) {
         if (canAskAgain === false) {
           // Permission permanently denied
           if (Platform.OS === 'web') {
-            window.alert('Camera access is required to take meal photos. Please enable it in your browser settings.');
+            window.alert(t('chat.cameraPermissionWeb'));
           } else {
             Alert.alert(
-              'Camera Permission Required',
-              'Camera access is needed to take meal photos. Please enable it in your device Settings.',
+              t('chat.cameraPermissionTitle'),
+              t('chat.cameraPermissionBody'),
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                  text: 'Open Settings',
+                  text: t('chat.openSettings'),
                   onPress: () => {
                     if (Platform.OS === 'ios') {
                       Linking.openURL('app-settings:');
@@ -415,7 +423,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
             );
           }
         } else {
-          showAlert('Permission Required', 'We need camera permissions to take meal photos.');
+          showAlert(t('chat.permissionRequired'), t('chat.cameraPermission'));
         }
         return;
       }
@@ -433,7 +441,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      showAlert('Error', 'Failed to take photo.');
+      showAlert(t('common.error'), t('chat.takePhotoFailed'));
     }
   };
 
@@ -442,12 +450,12 @@ export default function ChatLogMealScreen({ navigation, route }) {
       pickImage();
     } else {
       Alert.alert(
-        'Add Meal Photo',
-        'Choose an option',
+        t('chat.addMealPhoto'),
+        t('chat.chooseOption'),
         [
-          { text: 'Take Photo', onPress: takePhoto },
-          { text: 'Choose from Library', onPress: pickImage },
-          { text: 'Cancel', style: 'cancel' }
+          { text: t('chat.takePhoto'), onPress: takePhoto },
+          { text: t('chat.chooseFromLibrary'), onPress: pickImage },
+          { text: t('common.cancel'), style: 'cancel' }
         ]
       );
     }
@@ -465,15 +473,15 @@ export default function ChatLogMealScreen({ navigation, route }) {
         if (result.canAskAgain === false) {
           // Permission was permanently denied - guide them to Settings
           if (Platform.OS === 'web') {
-            window.alert('Camera permission is required to scan barcodes. Please enable camera access in your browser settings.');
+            window.alert(t('chat.barcodePermissionWeb'));
           } else {
             Alert.alert(
-              'Camera Permission Required',
-              'Camera access is needed to scan barcodes. Please enable it in your device Settings.',
+              t('chat.cameraPermissionTitle'),
+              t('chat.cameraPermissionBody'),
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                  text: 'Open Settings',
+                  text: t('chat.openSettings'),
                   onPress: () => {
                     if (Platform.OS === 'ios') {
                       Linking.openURL('app-settings:');
@@ -487,7 +495,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
           }
         } else {
           // Permission was just denied this time
-          showAlert('Permission Required', 'Camera permission is required to scan barcodes.');
+          showAlert(t('chat.permissionRequired'), t('chat.barcodePermission'));
         }
         return;
       }
@@ -516,8 +524,8 @@ export default function ChatLogMealScreen({ navigation, route }) {
     setLookingUpBarcode(true);
 
     // Store barcode ID temporarily
-    const tempUserMessage = addMessage('user', `🔍 Scanning...`);
-    addMessage('ai', 'Looking up product...');
+    const tempUserMessage = addMessage('user', t('chat.barcodeScanning'));
+    addMessage('ai', t('chat.lookingUpProduct'));
 
     try {
       // Look up the barcode in multiple databases
@@ -560,7 +568,15 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
           setParsedData(parsedResult);
 
-          const response = `Found it! 🎉\n\n• ${result.product.name}${result.product.brand ? ' (' + result.product.brand + ')' : ''}\n• Serving: ${servingSize}\n\nNutrition:\n• ${parsedResult.totals.calories} cal\n• Protein: ${parsedResult.totals.protein}g\n• Carbs: ${parsedResult.totals.carbs}g\n• Fat: ${parsedResult.totals.fat}g\n\nSource: ${result.source}`;
+          const response = t('chat.foundProduct', {
+            name: `${result.product.name}${result.product.brand ? ' (' + result.product.brand + ')' : ''}`,
+            serving: servingSize,
+            calories: parsedResult.totals.calories,
+            protein: parsedResult.totals.protein,
+            carbs: parsedResult.totals.carbs,
+            fat: parsedResult.totals.fat,
+            source: result.source
+          });
 
           addMessage('ai', response, { parsedData: parsedResult });
 
@@ -573,10 +589,10 @@ export default function ChatLogMealScreen({ navigation, route }) {
         // Update the user message with barcode if product not found
         setMessages(prev => prev.map(msg =>
           msg.id === tempUserMessage.id
-            ? { ...msg, content: `🔍 Scanned barcode: ${data}` }
+            ? { ...msg, content: t('chat.barcodeScanned', { code: data }) }
             : msg
         ));
-        addMessage('ai', `Sorry, couldn't find that product in our databases. 😕\n\nBarcode: ${data}\n\nYou can still describe it manually!`);
+        addMessage('ai', t('chat.productNotFound', { code: data }));
       }
     } catch (error) {
       console.error('Error looking up barcode:', error);
@@ -584,10 +600,10 @@ export default function ChatLogMealScreen({ navigation, route }) {
       // Update the user message with barcode if error
       setMessages(prev => prev.map(msg =>
         msg.id === tempUserMessage.id
-          ? { ...msg, content: `🔍 Scanned barcode: ${data}` }
+          ? { ...msg, content: t('chat.barcodeScanned', { code: data }) }
           : msg
       ));
-      addMessage('ai', 'Oops, something went wrong looking up that barcode. Try again or enter manually!');
+      addMessage('ai', t('chat.lookupFailed'));
     } finally {
       setLookingUpBarcode(false);
       isScanningBarcodeRef.current = false;
@@ -596,8 +612,8 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
   const processImage = async (image) => {
     setIsProcessing(true);
-    const tempUserMessage = addMessage('user', '📷 Analyzing photo...', { imageUri: image.uri });
-    addMessage('ai', '🔍 Let me analyze that photo...');
+    const tempUserMessage = addMessage('user', t('chat.analyzingPhoto'), { imageUri: image.uri });
+    addMessage('ai', t('chat.analyzingPhotoAi'));
 
     try {
       const base64Data = `data:image/jpeg;base64,${image.base64}`;
@@ -620,11 +636,11 @@ export default function ChatLogMealScreen({ navigation, route }) {
       // Update the user message to show it was a photo even if processing failed
       setMessages(prev => prev.map(msg =>
         msg.id === tempUserMessage.id
-          ? { ...msg, content: '📷 [Photo of meal]' }
+          ? { ...msg, content: t('chat.photoMealFallback') }
           : msg
       ));
       setMessages(prev => prev.slice(0, -1));
-      addMessage('ai', "Hmm, I couldn't analyze that photo. Could you describe it for me instead?");
+      addMessage('ai', t('chat.analyzingFailed'));
     } finally {
       setIsProcessing(false);
       setSelectedImage(null);
@@ -634,7 +650,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const parseAndRespond = async (text) => {
     console.log('🔍 [ChatLogMeal] parseAndRespond called with text:', text);
     setIsProcessing(true);
-    addMessage('ai', '🤔 Let me calculate the nutrition...');
+    addMessage('ai', t('chat.calculatingNutrition'));
 
     try {
       console.log('🤖 [ChatLogMeal] Calling parseMealDescription API');
@@ -654,7 +670,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       if (isZeroOrLowCalories || hasNoItems) {
         console.log('⚠️ [ChatLogMeal] Zero/low calories or no items detected');
         // Show error message and ask user to clarify
-        addMessage('ai', `Hmm, I couldn't identify any food items from "${text}" 🤔\n\nThis might be because:\n• The description is too vague or abbreviated\n• It contains typos or unusual shorthand\n• It's not a food item\n\nCould you try describing your meal more clearly? For example:\n• "M&M's chocolate candy"\n• "1 pack of M&Ms"\n• "chicken breast with rice"\n\nOr you can try again with a different description!`);
+        addMessage('ai', t('chat.lowCaloriePrompt', { text }));
         setParsedData(null); // Clear any existing parsed data
         console.log('⚠️ [ChatLogMeal] User prompted to provide clearer description');
         return; // Exit early, don't save zero-calorie meal
@@ -665,7 +681,13 @@ export default function ChatLogMealScreen({ navigation, route }) {
         `• ${item.quantity} ${item.food} (${item.calories} cal)`
       ).join('\n');
 
-      const response = `Got it! 🍽️ Here's what I found:\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${result.totals.protein}g | Carbs: ${result.totals.carbs}g | Fat: ${result.totals.fat}g`;
+      const response = t('chat.gotIt', {
+        items: itemsList,
+        calories: totalCal,
+        protein: result.totals.protein,
+        carbs: result.totals.carbs,
+        fat: result.totals.fat
+      });
 
       addMessage('ai', response, { parsedData: result });
 
@@ -679,7 +701,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       console.error('❌ [ChatLogMeal] Error parsing meal:', error);
       console.error('❌ [ChatLogMeal] Error details:', error.message, error.stack);
       setMessages(prev => prev.slice(0, -1));
-      addMessage('ai', "Oops, I had trouble with that. Could you try describing it differently?");
+      addMessage('ai', t('chat.parseFailed'));
     } finally {
       setIsProcessing(false);
       console.log('🏁 [ChatLogMeal] parseAndRespond finished');
@@ -720,7 +742,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       addMessage('user', text);
 
       // AI acknowledges the refinement
-      addMessage('ai', "👍 Let me adjust that for you...");
+      addMessage('ai', t('chat.adjustPrompt'));
 
       setIsProcessing(true);
       try {
@@ -736,7 +758,13 @@ export default function ChatLogMealScreen({ navigation, route }) {
           `• ${item.quantity} ${item.food} (${item.calories} cal)`
         ).join('\n');
 
-        const response = `Updated! ✨\n\n${itemsList}\n\nTotal: **${totalCal} calories**\nProtein: ${result.totals.protein}g | Carbs: ${result.totals.carbs}g | Fat: ${result.totals.fat}g`;
+        const response = t('chat.updated', {
+          items: itemsList,
+          calories: totalCal,
+          protein: result.totals.protein,
+          carbs: result.totals.carbs,
+          fat: result.totals.fat
+        });
 
         addMessage('ai', response, { parsedData: result });
 
@@ -749,7 +777,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       } catch (error) {
         console.error('❌ [ChatLogMeal] Error refining meal:', error);
         setMessages(prev => prev.slice(0, -1));
-        addMessage('ai', "Hmm, could you rephrase that adjustment?");
+        addMessage('ai', t('chat.rephraseAdjustment'));
       } finally {
         setIsProcessing(false);
         console.log('✅ [ChatLogMeal] Refinement complete');
@@ -772,7 +800,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
     if (!parsedData || !selectedMealType) {
       console.log('⚠️ [ChatLogMeal] Missing parsedData or selectedMealType');
-      showAlert('Error', 'Please select a meal type first!');
+      showAlert(t('common.error'), t('chat.saveMealError'));
       return;
     }
 
@@ -805,7 +833,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
       const mealData = {
         mealType: selectedMealType,
-        description: description || 'Meal from photo',
+        description: description || t('chat.photoMealDescription'),
         items: parsedData.items,
         totals: parsedData.totals,
         date: mealDate,
@@ -817,7 +845,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       const mealId = await mealService.logMeal(user.uid, mealData);
       console.log('✅ [ChatLogMeal] Meal saved successfully with ID:', mealId);
 
-      addMessage('ai', `Perfect! Your ${selectedMealType.toLowerCase()} has been logged. Keep up the great work! 💪`);
+      addMessage('ai', t('chat.mealLogged', { mealType: getMealTypeLabelLower(selectedMealType, t) }));
 
       // Grade the meal using backend based on user's goals
       console.log('🔍 [ChatLogMeal] Checking grading conditions:');
@@ -829,7 +857,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       // Grade if user has profile and daily calorie target set
       if (userProfile && userProfile.dailyCalorieTarget && mealId) {
         console.log('🎯 [ChatLogMeal] Grading meal via backend');
-        addMessage('ai', '📊 Analyzing your meal...');
+        addMessage('ai', t('chat.analyzingMeal'));
         try {
           const gradeData = await gradeMealBackend(mealId, parsedData, userProfile);
           console.log('📊 [ChatLogMeal] Meal grade from backend:', gradeData);
@@ -852,7 +880,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
     } catch (error) {
       console.error('❌ [ChatLogMeal] Error saving meal:', error);
       console.error('❌ [ChatLogMeal] Error details:', error.message, error.stack);
-      showAlert('Error', 'Failed to save meal');
+      showAlert(t('common.error'), t('chat.saveFailed'));
       setIsSaving(false);
     }
   };
@@ -865,7 +893,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       {
         id: Date.now(),
         role: 'ai',
-        content: "No problem! Let's start fresh. What did you eat? 🍽️",
+        content: t('chat.freshStart'),
         timestamp: new Date()
       }
     ]);
@@ -892,7 +920,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
         return (
           <View key={message.id} style={styles.feedbackSuggestionsContainer}>
             <Surface style={styles.confirmationCard} elevation={1}>
-              <Text style={styles.confirmationText}>Does this look correct?</Text>
+              <Text style={styles.confirmationText}>{t('chat.confirmQuestion')}</Text>
               <View style={styles.confirmationButtons}>
                 <Button
                   mode="outlined"
@@ -904,7 +932,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
                   contentStyle={styles.buttonContent}
                   textColor="#6366F1"
                 >
-                  Make changes
+                  {t('chat.makeChanges')}
                 </Button>
                 <Button
                   mode="contained"
@@ -915,7 +943,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
                   contentStyle={styles.buttonContent}
                   buttonColor="#6366F1"
                 >
-                  Looks good!
+                  {t('chat.looksGood')}
                 </Button>
               </View>
             </Surface>
@@ -931,19 +959,19 @@ export default function ChatLogMealScreen({ navigation, route }) {
     if (message.showRecentMealsButton && !parsedData) {
       return (
         <View key={message.id} style={[styles.messageContainer, styles.aiMessageContainer]}>
-          <Surface style={[styles.messageBubble, styles.aiBubble]}>
-            <Button
-              mode="outlined"
-              icon="clock-outline"
-              onPress={handleShowRecentMeals}
-              style={styles.recentMealsButtonInChat}
-              contentStyle={styles.recentMealsButtonContent}
-            >
-              View recent meals
-            </Button>
-          </Surface>
-        </View>
-      );
+            <Surface style={[styles.messageBubble, styles.aiBubble]}>
+              <Button
+                mode="outlined"
+                icon="clock-outline"
+                onPress={handleShowRecentMeals}
+                style={styles.recentMealsButtonInChat}
+                contentStyle={styles.recentMealsButtonContent}
+              >
+                {t('chat.viewRecentMeals')}
+              </Button>
+            </Surface>
+          </View>
+        );
     }
 
     // Meal grade card
@@ -1041,12 +1069,12 @@ export default function ChatLogMealScreen({ navigation, route }) {
         >
           <View style={styles.countdownContent}>
             <Text style={styles.countdownNumber}>{countdown}</Text>
-            <Text style={styles.countdownTitle}>Get ready!</Text>
+            <Text style={styles.countdownTitle}>{t('chat.getReady')}</Text>
             <Text style={styles.countdownSuggestion}>
-              Try saying: "I just had a..."
+              {t('chat.trySaying')}
             </Text>
             <Text style={styles.countdownSkipHint}>
-              Tap to skip
+              {t('chat.tapToSkip')}
             </Text>
           </View>
         </TouchableOpacity>
@@ -1088,9 +1116,9 @@ export default function ChatLogMealScreen({ navigation, route }) {
               </View>
 
               <View style={styles.barcodeInstructions}>
-                <Text style={styles.barcodeTitle}>Scan Barcode</Text>
+                <Text style={styles.barcodeTitle}>{t('chat.scanBarcodeTitle')}</Text>
                 <Text style={styles.barcodeSubtitle}>
-                  Position the barcode within the frame
+                  {t('chat.scanBarcodeSubtitle')}
                 </Text>
               </View>
             </View>
@@ -1109,11 +1137,13 @@ export default function ChatLogMealScreen({ navigation, route }) {
               yesterday.setDate(yesterday.getDate() - 1);
 
               if (date.toDateString() === today.toDateString()) {
-                return '📅 Adding meal for Today';
+                return t('chat.addMealToday');
               } else if (date.toDateString() === yesterday.toDateString()) {
-                return '📅 Adding meal for Yesterday';
+                return t('chat.addMealYesterday');
               } else {
-                return `📅 Adding meal for ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+                return t('chat.addMealDate', {
+                  date: date.toLocaleDateString(localeCode, { month: 'short', day: 'numeric', year: 'numeric' })
+                });
               }
             })()}
           </Text>
@@ -1142,14 +1172,18 @@ export default function ChatLogMealScreen({ navigation, route }) {
             <View style={[styles.messageContainer, styles.aiMessageContainer]}>
               <Surface style={[styles.messageBubble, styles.aiBubble]}>
                 <Text style={styles.aiMessageText}>
-                  Pick a recent meal:
+                  {t('chat.pickRecentMeal')}
                 </Text>
               </Surface>
             </View>
             {recentMeals.slice(0, 5).map((meal, index) => {
               const mealDate = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
               const daysAgo = Math.floor((new Date() - mealDate) / (1000 * 60 * 60 * 24));
-              const timeLabel = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo}d ago`;
+              const timeLabel = daysAgo === 0
+                ? t('chat.today')
+                : daysAgo === 1
+                ? t('chat.yesterday')
+                : t('social.daysAgo', { count: daysAgo });
 
               return (
                 <TouchableOpacity
@@ -1162,7 +1196,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
                       {meal.description.substring(0, 50)}{meal.description.length > 50 ? '...' : ''}
                     </Text>
                     <Text style={styles.recentMealMeta}>
-                      {meal.totals.calories} cal • {timeLabel}
+                      {t('chat.recentCalories', { calories: meal.totals.calories, time: timeLabel })}
                     </Text>
                   </Surface>
                 </TouchableOpacity>
@@ -1173,7 +1207,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
               onPress={() => setShowRecentMeals(false)}
               style={styles.cancelRecentButton}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
           </View>
         )}
@@ -1181,7 +1215,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
         {/* Meal Type Selector - shows when we have parsed data AND meal is confirmed */}
         {parsedData && !mealSaved && mealConfirmed && (
           <View style={styles.mealTypeContainer}>
-            <Text style={styles.mealTypeTitle}>Pick a meal type:</Text>
+            <Text style={styles.mealTypeTitle}>{t('chat.selectMealType')}</Text>
             <View style={styles.chipContainer}>
               {MEAL_TYPES.map((type) => (
                 <Chip
@@ -1195,7 +1229,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
                     selectedMealType === type && styles.chipSelected
                   ]}
                 >
-                  {type}
+                  {getMealTypeLabel(type, t)}
                 </Chip>
               ))}
             </View>
@@ -1208,7 +1242,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
                   style={styles.startOverButton}
                   textColor="#64748B"
                 >
-                  Start Over
+                  {t('chat.startOver')}
                 </Button>
                 <Button
                   mode="contained"
@@ -1218,7 +1252,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
                   loading={isSaving}
                   disabled={isSaving}
                 >
-                  {isSaving ? 'Saving...' : 'Save Meal'}
+                  {isSaving ? t('chat.saving') : t('chat.saveMeal')}
                 </Button>
               </View>
             )}
@@ -1240,7 +1274,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
               style={styles.doneButton}
               icon="check"
             >
-              Done
+              {t('chat.done')}
             </Button>
           </View>
         )}
@@ -1259,7 +1293,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
               }}
             >
               <IconButton icon="camera" size={24} iconColor="#6366F1" />
-              <Text style={styles.plusMenuText}>Camera</Text>
+              <Text style={styles.plusMenuText}>{t('chat.camera')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.plusMenuItem}
@@ -1269,7 +1303,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
               }}
             >
               <IconButton icon="barcode-scan" size={24} iconColor="#6366F1" />
-              <Text style={styles.plusMenuText}>Scan Barcode</Text>
+              <Text style={styles.plusMenuText}>{t('chat.scanBarcode')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1286,7 +1320,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
           <TextInput
             ref={textInputRef}
             mode="outlined"
-            placeholder={parsedData ? "Tell me what to improve..." : "Describe your meal..."}
+            placeholder={parsedData ? t('chat.improveMeal') : t('chat.describeMeal')}
             value={inputText}
             onChangeText={setInputText}
             style={styles.textInput}
@@ -1308,7 +1342,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
         {isListening && (
           <View style={styles.listeningIndicator}>
             <View style={styles.listeningDot} />
-            <Text style={styles.listeningText}>Listening...</Text>
+            <Text style={styles.listeningText}>{t('chat.listening')}</Text>
           </View>
         )}
       </Surface>

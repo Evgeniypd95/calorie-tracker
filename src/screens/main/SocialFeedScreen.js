@@ -4,6 +4,7 @@ import { Text, Card, IconButton, Surface, Divider, Avatar, Button, TextInput, Sn
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { socialService, mealService } from '../../services/firebase';
+import { useLocalization, getDayNameShort, getMealTypeLabel, getMealTypeLabelLower } from '../../localization/i18n';
 
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
@@ -19,10 +20,9 @@ const getDateRange = () => {
 };
 
 // Helper function to format date
-const formatDate = (date) => {
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const formatDate = (date, t) => {
   return {
-    day: days[date.getDay()],
+    day: getDayNameShort(date.getDay(), t),
     date: date.getDate()
   };
 };
@@ -38,6 +38,7 @@ const ITEM_WIDTH = 60;
 
 export default function SocialFeedScreen({ navigation }) {
   const { user } = useAuth();
+  const { t, localeCode } = useLocalization();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [feedMeals, setFeedMeals] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,7 +117,7 @@ export default function SocialFeedScreen({ navigation }) {
     if (!commentText) return;
 
     try {
-      const userName = user.email?.split('@')[0] || 'You';
+      const userName = user.email?.split('@')[0] || t('common.you');
       const updatedComments = await mealService.addComment(mealId, user.uid, userName, commentText);
 
       // Update local state
@@ -184,12 +185,12 @@ export default function SocialFeedScreen({ navigation }) {
 
       setMealTypeDialogVisible(false);
       setSelectedMealForCopy(null);
-      setSnackbarMessage(`Added to your ${mealType}! 🎉`);
+      setSnackbarMessage(t('social.addedToMeal', { mealType: getMealTypeLabelLower(mealType, t) }));
       setSnackbarVisible(true);
     } catch (error) {
       console.error('Error copying meal:', error);
       setMealTypeDialogVisible(false);
-      setSnackbarMessage('Failed to add meal');
+      setSnackbarMessage(t('social.failedToAdd'));
       setSnackbarVisible(true);
     }
   };
@@ -197,7 +198,13 @@ export default function SocialFeedScreen({ navigation }) {
   const handleShare = async (meal) => {
     try {
       await Share.share({
-        message: `Check out this meal: ${meal.description}\n\n🔥 ${meal.totals.calories} cal | 💪 ${meal.totals.protein}g protein | 🍞 ${meal.totals.carbs}g carbs | 🥑 ${meal.totals.fat}g fat`,
+        message: t('social.shareMessage', {
+          description: meal.description,
+          calories: meal.totals.calories,
+          protein: meal.totals.protein,
+          carbs: meal.totals.carbs,
+          fat: meal.totals.fat
+        }),
       });
     } catch (error) {
       console.error('Error sharing:', error);
@@ -213,22 +220,22 @@ export default function SocialFeedScreen({ navigation }) {
 
     switch (action) {
       case 'hide':
-        setSnackbarMessage('Post hidden (placeholder)');
+        setSnackbarMessage(t('social.postHidden'));
         setSnackbarVisible(true);
         break;
       case 'report':
-        setSnackbarMessage('Post reported (placeholder)');
+        setSnackbarMessage(t('social.postReported'));
         setSnackbarVisible(true);
         break;
       case 'unfollow':
-        setSnackbarMessage(`Unfollowed ${meal.userName} (placeholder)`);
+        setSnackbarMessage(t('social.unfollowed', { name: meal.userName }));
         setSnackbarVisible(true);
         break;
       case 'breakdown':
         // Show full nutrition breakdown
         Alert.alert(
-          'Nutrition Breakdown',
-          meal.items.map(item => `${item.quantity} ${item.food}: ${item.calories} cal`).join('\n')
+          t('social.nutritionBreakdown'),
+          meal.items.map(item => `${item.quantity} ${item.food}: ${item.calories} ${t('dashboard.calShort')}`).join('\n')
         );
         break;
     }
@@ -243,11 +250,11 @@ export default function SocialFeedScreen({ navigation }) {
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    if (diffMins < 1) return t('social.justNow');
+    if (diffMins < 60) return t('social.minutesAgo', { count: diffMins });
+    if (diffHours < 24) return t('social.hoursAgo', { count: diffHours });
+    if (diffDays < 7) return t('social.daysAgo', { count: diffDays });
+    return date.toLocaleDateString(localeCode);
   };
 
   const renderMealCard = (meal) => {
@@ -266,28 +273,28 @@ export default function SocialFeedScreen({ navigation }) {
                 style={styles.menuItem}
                 onPress={() => handleMenuAction('breakdown', meal)}
               >
-                <Text style={styles.menuText}>See full nutrition</Text>
+                <Text style={styles.menuText}>{t('social.seeFullNutrition')}</Text>
               </TouchableOpacity>
               <Divider />
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => handleMenuAction('hide', meal)}
               >
-                <Text style={styles.menuText}>Hide this post</Text>
+                <Text style={styles.menuText}>{t('social.hidePost')}</Text>
               </TouchableOpacity>
               <Divider />
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => handleMenuAction('report', meal)}
               >
-                <Text style={styles.menuText}>Report</Text>
+                <Text style={styles.menuText}>{t('social.report')}</Text>
               </TouchableOpacity>
               <Divider />
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => handleMenuAction('unfollow', meal)}
               >
-                <Text style={[styles.menuText, styles.menuTextDanger]}>Unfollow {meal.userName}</Text>
+                <Text style={[styles.menuText, styles.menuTextDanger]}>{t('social.unfollow', { name: meal.userName })}</Text>
               </TouchableOpacity>
             </Card>
           </View>
@@ -304,7 +311,7 @@ export default function SocialFeedScreen({ navigation }) {
             <View style={styles.userNameContainer}>
               <Text style={styles.userName}>{meal.userName}</Text>
               <Text style={styles.mealTime}>
-                {meal.mealType} • {formatTime(meal.createdAt)}
+                {getMealTypeLabel(meal.mealType, t)} • {formatTime(meal.createdAt)}
               </Text>
             </View>
           </View>
@@ -351,7 +358,7 @@ export default function SocialFeedScreen({ navigation }) {
         {/* Like count */}
         {likesCount > 0 && (
           <Text style={styles.likesText}>
-            {likesCount} {likesCount === 1 ? 'like' : 'likes'}
+            {likesCount} {likesCount === 1 ? t('social.like') : t('social.likes')}
           </Text>
         )}
 
@@ -361,14 +368,17 @@ export default function SocialFeedScreen({ navigation }) {
             {meal.copiedBy?.includes(user.uid) && (
               <View style={styles.engagementBadge}>
                 <IconButton icon="check-circle" size={14} iconColor="#10B981" style={styles.engagementIcon} />
-                <Text style={styles.engagementText}>You added this</Text>
+                <Text style={styles.engagementText}>{t('social.youAddedThis')}</Text>
               </View>
             )}
             {meal.copiedByCount > 0 && (
               <View style={styles.engagementBadge}>
                 <IconButton icon="account-multiple" size={14} iconColor="#6366F1" style={styles.engagementIcon} />
                 <Text style={styles.engagementText}>
-                  Added {meal.copiedByCount} {meal.copiedByCount === 1 ? 'time' : 'times'}
+                  {t('social.addedTimes', {
+                    count: meal.copiedByCount,
+                    timeWord: meal.copiedByCount === 1 ? t('social.time') : t('social.times')
+                  })}
                 </Text>
               </View>
             )}
@@ -386,19 +396,19 @@ export default function SocialFeedScreen({ navigation }) {
           <View style={styles.nutritionRow}>
             <View style={styles.nutritionBadge}>
               <Text style={styles.nutritionValue}>{meal.totals.calories}</Text>
-              <Text style={styles.nutritionLabel}>cal</Text>
+              <Text style={styles.nutritionLabel}>{t('social.caloriesShort')}</Text>
             </View>
             <View style={styles.nutritionBadge}>
               <Text style={styles.nutritionValue}>{Math.round(meal.totals.protein)}</Text>
-              <Text style={styles.nutritionLabel}>protein</Text>
+              <Text style={styles.nutritionLabel}>{t('social.protein')}</Text>
             </View>
             <View style={styles.nutritionBadge}>
               <Text style={styles.nutritionValue}>{Math.round(meal.totals.carbs)}</Text>
-              <Text style={styles.nutritionLabel}>carbs</Text>
+              <Text style={styles.nutritionLabel}>{t('social.carbs')}</Text>
             </View>
             <View style={styles.nutritionBadge}>
               <Text style={styles.nutritionValue}>{Math.round(meal.totals.fat)}</Text>
-              <Text style={styles.nutritionLabel}>fat</Text>
+              <Text style={styles.nutritionLabel}>{t('social.fat')}</Text>
             </View>
           </View>
 
@@ -406,7 +416,10 @@ export default function SocialFeedScreen({ navigation }) {
           {commentsCount > 0 && !commentsVisible && (
             <TouchableOpacity onPress={() => toggleComments(meal.id)}>
               <Text style={styles.viewCommentsText}>
-                View {commentsCount === 1 ? '1 comment' : `all ${commentsCount} comments`}
+                {commentsCount === 1
+                  ? t('social.viewCommentsSingle')
+                  : t('social.viewCommentsAll', { count: commentsCount })
+                }
               </Text>
             </TouchableOpacity>
           )}
@@ -428,7 +441,7 @@ export default function SocialFeedScreen({ navigation }) {
           {/* Add comment input */}
           <View style={styles.addCommentRow}>
             <RNTextInput
-              placeholder="Add a comment..."
+              placeholder={t('social.addComment')}
               value={commentInputs[meal.id] || ''}
               onChangeText={(text) =>
                 setCommentInputs(prev => ({ ...prev, [meal.id]: text }))
@@ -439,7 +452,7 @@ export default function SocialFeedScreen({ navigation }) {
             />
             {commentInputs[meal.id]?.trim() && (
               <TouchableOpacity onPress={() => handleAddComment(meal.id)}>
-                <Text style={styles.postButton}>Post</Text>
+                <Text style={styles.postButton}>{t('social.post')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -459,7 +472,7 @@ export default function SocialFeedScreen({ navigation }) {
           ref={calendarRef}
         >
           {days.map((day, index) => {
-            const { day: dayName, date } = formatDate(day);
+            const { day: dayName, date } = formatDate(day, t);
             const isSelected = isSameDay(day, selectedDate);
             const isToday = isSameDay(day, new Date());
 
@@ -502,15 +515,15 @@ export default function SocialFeedScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
       >
         {feedMeals.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Card.Content>
-              <Text style={styles.emptyIcon}>🍽️</Text>
-              <Text style={styles.emptyTitle}>No meals yet</Text>
-              <Text style={styles.emptyText}>
-                Add connections in your profile to see their meals here!
-              </Text>
-            </Card.Content>
-          </Card>
+            <Card style={styles.emptyCard}>
+              <Card.Content>
+                <Text style={styles.emptyIcon}>🍽️</Text>
+                <Text style={styles.emptyTitle}>{t('social.noMealsYet')}</Text>
+                <Text style={styles.emptyText}>
+                {t('social.noMealsBody')}
+                </Text>
+              </Card.Content>
+            </Card>
         ) : (
           feedMeals.map(renderMealCard)
         )}
@@ -527,8 +540,8 @@ export default function SocialFeedScreen({ navigation }) {
         >
           <Card style={styles.modalCard}>
             <Card.Content>
-              <Text style={styles.modalTitle}>Add to My Day</Text>
-              <Text style={styles.modalSubtitle}>Which meal type?</Text>
+              <Text style={styles.modalTitle}>{t('social.addToMyDayTitle')}</Text>
+              <Text style={styles.modalSubtitle}>{t('social.whichMealType')}</Text>
 
               <View style={styles.mealTypeChips}>
                 {MEAL_TYPES.map((type) => (
@@ -538,7 +551,7 @@ export default function SocialFeedScreen({ navigation }) {
                     onPress={() => confirmCopyMeal(type)}
                     style={styles.mealTypeChip}
                   >
-                    {type}
+                    {getMealTypeLabel(type, t)}
                   </Chip>
                 ))}
               </View>
@@ -548,7 +561,7 @@ export default function SocialFeedScreen({ navigation }) {
                 onPress={() => setMealTypeDialogVisible(false)}
                 style={styles.cancelButton}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
             </Card.Content>
           </Card>

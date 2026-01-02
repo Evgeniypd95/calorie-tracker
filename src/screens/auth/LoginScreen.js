@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { View, StyleSheet, Platform, KeyboardAvoidingView } from 'react-native';
 import { Button, Text, Snackbar, TextInput } from 'react-native-paper';
 import { authService, userService } from '../../services/firebase';
+import { useLocalization } from '../../localization/i18n';
 
 export default function LoginScreen({ navigation }) {
+  const { t } = useLocalization();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,7 +15,7 @@ export default function LoginScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      setError('Please fill in all fields');
+      setError(t('auth.fillAllFields'));
       setSnackbarVisible(true);
       return;
     }
@@ -54,9 +56,9 @@ export default function LoginScreen({ navigation }) {
       console.error('Google Sign-In error:', error);
       if (error.code === 'ERR_CANCELED') {
         // User cancelled the sign-in
-        setError('Sign-in cancelled');
+        setError(t('auth.signInCancelled'));
       } else {
-        setError(error.message || 'Failed to sign in with Google');
+        setError(error.message || t('auth.signInGoogleFailed'));
       }
       setSnackbarVisible(true);
     } finally {
@@ -71,10 +73,10 @@ export default function LoginScreen({ navigation }) {
     >
       <View style={styles.content}>
         <Text variant="displaySmall" style={styles.title}>
-          Welcome to Calorie Tracker
+          {t('auth.loginTitle')}
         </Text>
         <Text variant="bodyLarge" style={styles.subtitle}>
-          Track your nutrition and reach your health goals
+          {t('auth.loginSubtitle')}
         </Text>
 
         {/* Mobile: Show only Google Sign-In and Get Started */}
@@ -82,12 +84,12 @@ export default function LoginScreen({ navigation }) {
           <>
             <Button
               mode="contained"
-              onPress={() => navigation.navigate('Signup')}
+              onPress={() => navigation.navigate('OnboardingGoals')}
               style={styles.primaryButton}
               contentStyle={styles.buttonContent}
               labelStyle={styles.buttonLabel}
             >
-              Get Started
+              {t('auth.getStarted')}
             </Button>
 
             <Button
@@ -100,7 +102,7 @@ export default function LoginScreen({ navigation }) {
               contentStyle={styles.buttonContent}
               labelStyle={styles.googleButtonLabel}
             >
-              Continue with Google
+              {t('auth.continueGoogle')}
             </Button>
           </>
         )}
@@ -109,7 +111,7 @@ export default function LoginScreen({ navigation }) {
         {Platform.OS === 'web' && (
           <>
             <TextInput
-              label="Email"
+              label={t('auth.email')}
               value={email}
               onChangeText={setEmail}
               mode="outlined"
@@ -119,7 +121,7 @@ export default function LoginScreen({ navigation }) {
             />
 
             <TextInput
-              label="Password"
+              label={t('auth.password')}
               value={password}
               onChangeText={setPassword}
               mode="outlined"
@@ -134,15 +136,15 @@ export default function LoginScreen({ navigation }) {
               disabled={loading}
               style={styles.button}
             >
-              Log In
+              {t('auth.logIn')}
             </Button>
 
             <Button
               mode="text"
-              onPress={() => navigation.navigate('Signup')}
+              onPress={() => navigation.navigate('OnboardingGoals')}
               style={styles.linkButton}
             >
-              Don't have an account? Sign Up
+              {t('auth.noAccount')}
             </Button>
           </>
         )}

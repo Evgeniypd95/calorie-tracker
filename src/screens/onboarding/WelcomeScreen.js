@@ -1,25 +1,28 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Button, Text } from 'react-native-paper';
+import { useLocalization } from '../../localization/i18n';
 
 export default function WelcomeScreen({ navigation }) {
+  const { t } = useLocalization();
+
   return (
     <View style={styles.container}>
       <View style={styles.content}>
         <Text variant="displayLarge" style={styles.title}>
-          Welcome to{'\n'}Calorie Tracker
+          {t('onboarding.welcomeTitle')}
         </Text>
         <Text variant="bodyLarge" style={styles.subtitle}>
-          Your AI-powered nutrition coach
+          {t('onboarding.welcomeSubtitle')}
         </Text>
 
         <View style={styles.buttonContainer}>
           <Button
             mode="contained"
-            onPress={() => navigation.navigate('ConversationalOnboarding')}
+            onPress={() => navigation.navigate('OnboardingGoals')}
             style={styles.button}
           >
-            Get Started
+            {t('onboarding.getStarted')}
           </Button>
 
           <Button
@@ -27,7 +30,7 @@ export default function WelcomeScreen({ navigation }) {
             onPress={() => navigation.navigate('Login')}
             style={styles.linkButton}
           >
-            Already have an account? Log In
+            {t('onboarding.alreadyAccount')}
           </Button>
         </View>
       </View>
