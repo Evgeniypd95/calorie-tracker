@@ -11,7 +11,7 @@ const functions = getFunctions(app, 'us-central1');
 // Uncomment to use local emulator during development
 // connectFunctionsEmulator(functions, 'localhost', 5001);
 
-export const parseMealDescription = async (mealDescription, existingParsedData = null) => {
+export const parseMealDescription = async (mealDescription, existingParsedData = null, locale = null) => {
   // Check auth status
   const auth = getAuth();
   const currentUser = auth.currentUser;
@@ -42,7 +42,8 @@ export const parseMealDescription = async (mealDescription, existingParsedData =
     const parseMeal = httpsCallable(functions, 'parseMeal');
     const result = await parseMeal({
       mealDescription,
-      existingData: existingParsedData
+      existingData: existingParsedData,
+      locale
     });
 
     console.log('✅ parseMeal response:', result.data);
@@ -61,7 +62,7 @@ export const parseMealDescription = async (mealDescription, existingParsedData =
   }
 };
 
-export const convertImageToDescription = async (imageData) => {
+export const convertImageToDescription = async (imageData, locale = null) => {
   const auth = getAuth();
   const currentUser = auth.currentUser;
 
@@ -76,7 +77,7 @@ export const convertImageToDescription = async (imageData) => {
 
   try {
     const imageToDescription = httpsCallable(functions, 'imageToDescription');
-    const result = await imageToDescription({ imageData });
+    const result = await imageToDescription({ imageData, locale });
 
     console.log('✅ imageToDescription response:', result.data);
 
@@ -94,7 +95,7 @@ export const convertImageToDescription = async (imageData) => {
   }
 };
 
-export const analyzeDietContext = async (dietContext, goal, biometrics) => {
+export const analyzeDietContext = async (dietContext, goal, biometrics, locale = null) => {
   console.log('🧠 Analyzing diet context with AI');
 
   try {
@@ -102,7 +103,8 @@ export const analyzeDietContext = async (dietContext, goal, biometrics) => {
     const result = await analyzeDiet({
       dietContext,
       goal,
-      biometrics
+      biometrics,
+      locale
     });
 
     console.log('✅ analyzeDietContext response:', result.data);
@@ -136,14 +138,15 @@ export const analyzeDietContext = async (dietContext, goal, biometrics) => {
   }
 };
 
-export const chatOnboarding = async (conversationHistory, userMessage) => {
+export const chatOnboarding = async (conversationHistory, userMessage, locale = null) => {
   console.log('💬 Onboarding chat with AI');
 
   try {
     const chatOnboardingFn = httpsCallable(functions, 'chatOnboarding');
     const result = await chatOnboardingFn({
       conversationHistory,
-      userMessage
+      userMessage,
+      locale
     });
 
     console.log('✅ chatOnboarding response:', result.data);
