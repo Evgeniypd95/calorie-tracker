@@ -18,7 +18,7 @@ const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
 export default function ChatLogMealScreen({ navigation, route }) {
   const { user, userProfile } = useAuth();
-  const { t, localeCode } = useLocalization();
+  const { t, localeCode, locale } = useLocalization();
   const { selectedDate, action, editingMeal, reparse } = route.params || {};
   const scrollViewRef = useRef(null);
   const actionHandledRef = useRef(false);
@@ -60,7 +60,13 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [mealSaved, setMealSaved] = useState(false);
   const [mealConfirmed, setMealConfirmed] = useState(false);
+  const [showAdjustmentHints, setShowAdjustmentHints] = useState(false);
   const isScanningBarcodeRef = useRef(false);
+  const adjustmentExamples = [
+    t('chat.adjustHintExample1'),
+    t('chat.adjustHintExample2'),
+    t('chat.adjustHintExample3')
+  ];
 
   // Load recent meals on mount
   useEffect(() => {
@@ -617,7 +623,8 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
     try {
       const base64Data = `data:image/jpeg;base64,${image.base64}`;
-      const description = await convertImageToDescription(base64Data);
+      setShowAdjustmentHints(false);
+      const description = await convertImageToDescription(base64Data, locale || localeCode);
 
       // Update the user message with the actual description
       setMessages(prev => prev.map(msg =>
@@ -650,11 +657,12 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const parseAndRespond = async (text) => {
     console.log('🔍 [ChatLogMeal] parseAndRespond called with text:', text);
     setIsProcessing(true);
+    setShowAdjustmentHints(false);
     addMessage('ai', t('chat.calculatingNutrition'));
 
     try {
       console.log('🤖 [ChatLogMeal] Calling parseMealDescription API');
-      const result = await parseMealDescription(text);
+      const result = await parseMealDescription(text, null, locale || localeCode);
       console.log('✅ [ChatLogMeal] Parse result:', JSON.stringify(result, null, 2));
 
       // Remove the "calculating" message
@@ -729,6 +737,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
     // Clear input immediately
     setInputText('');
     textBeforeVoiceRef.current = '';
+    setShowAdjustmentHints(false);
     console.log('🧹 [ChatLogMeal] Input cleared');
 
     // If we already have parsed data, treat this as a refinement
@@ -748,7 +757,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       try {
         console.log('🤖 [ChatLogMeal] Calling parseMealDescription for refinement');
         // Re-parse with the feedback AND existing data context
-        const result = await parseMealDescription(text, parsedData);
+        const result = await parseMealDescription(text, parsedData, locale || localeCode);
         console.log('✅ [ChatLogMeal] Refinement result:', result);
 
         setMessages(prev => prev.slice(0, -1));
@@ -830,6 +839,13 @@ export default function ChatLogMealScreen({ navigation, route }) {
       const imageMessage = messages.find(m => m.data?.imageUri);
       const imageUri = imageMessage?.data?.imageUri || null;
       console.log('🖼️ [ChatLogMeal] Image URI:', imageUri);
+      let imageUrl = null;
+
+      if (imageUri) {
+        console.log('☁️ [ChatLogMeal] Uploading meal image');
+        imageUrl = await mealService.uploadMealImage(user.uid, imageUri);
+        console.log('✅ [ChatLogMeal] Image upload result:', imageUrl ? 'uploaded' : 'missing');
+      }
 
       const mealData = {
         mealType: selectedMealType,
@@ -837,7 +853,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
         items: parsedData.items,
         totals: parsedData.totals,
         date: mealDate,
-        ...(imageUri && { imageUrl: imageUri }) // Add image URL if available
+        ...(imageUrl && { imageUrl }) // Add image URL if available
       };
       console.log('📦 [ChatLogMeal] Meal data to save:', JSON.stringify(mealData, null, 2));
 
@@ -889,6 +905,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
     setParsedData(null);
     setSelectedMealType(null);
     setMealConfirmed(false);
+    setShowAdjustmentHints(false);
     setMessages([
       {
         id: Date.now(),
@@ -926,6 +943,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
                   mode="outlined"
                   onPress={() => {
                     // User wants to make changes - focus on input
+                    setShowAdjustmentHints(true);
                     textInputRef.current?.focus();
                   }}
                   style={styles.editButton}
@@ -938,6 +956,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
                   mode="contained"
                   onPress={() => {
                     setMealConfirmed(true);
+                    setShowAdjustmentHints(false);
                   }}
                   style={styles.confirmButton}
                   contentStyle={styles.buttonContent}
@@ -1306,6 +1325,26 @@ export default function ChatLogMealScreen({ navigation, route }) {
               <Text style={styles.plusMenuText}>{t('chat.scanBarcode')}</Text>
             </TouchableOpacity>
           </View>
+        )}
+
+        {showAdjustmentHints && parsedData && !mealSaved && (
+          <Surface style={styles.feedbackSuggestionsCard} elevation={0}>
+            <Text style={styles.feedbackTitle}>{t('chat.adjustHintTitle')}</Text>
+            <View style={styles.feedbackExamplesCompact}>
+              {adjustmentExamples.map((example, index) => (
+                <TouchableOpacity
+                  key={`${example}-${index}`}
+                  style={styles.feedbackChipCompact}
+                  onPress={() => {
+                    setInputText(example);
+                    textInputRef.current?.focus();
+                  }}
+                >
+                  <Text style={styles.feedbackChipTitleCompact}>{example}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Surface>
         )}
 
         <View style={styles.inputRow}>

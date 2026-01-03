@@ -28,7 +28,7 @@ export const imageToDescription = onCall(async (request: any) => {
   console.log("Has auth?", !!request.auth);
   console.log("User ID:", request.auth?.uid);
 
-  const {imageData} = request.data;
+  const {imageData, locale} = request.data;
   console.log("📸 Image data received:", imageData ? "Yes" : "No");
 
   if (!imageData) {
@@ -37,6 +37,11 @@ export const imageToDescription = onCall(async (request: any) => {
 
   try {
     const model = genAI.getGenerativeModel({model: "gemini-2.0-flash"});
+    const localeNormalized = String(locale || "").toLowerCase();
+    const shouldUseRussian = localeNormalized.startsWith("ru");
+    const languageInstruction = shouldUseRussian ?
+      "Return food item names in Russian." :
+      "Return food item names in English.";
 
     const prompt = `Analyze this food image and list ONLY the food items with quantities in METRIC units.
 
@@ -46,6 +51,7 @@ Format as a simple list, like a person describing what they ate:
 - Include quantities (e.g., "2 poached eggs", "60ml hollandaise sauce", "170g chicken breast")
 - Include cooking methods when visible (grilled, fried, poached, etc.)
 - Be specific but concise
+${languageInstruction}
 
 Example good output:
 "2 poached eggs, 60ml hollandaise sauce, 2 hash browns, 1 large grilled portobello mushroom, 60g grilled halloumi cheese, 250ml baked beans, small watercress salad, 6 grilled cherry tomatoes, 4 slices brown bread, 10g butter"
@@ -101,7 +107,7 @@ export const parseMeal = onCall(async (request: any) => {
   console.log("Has auth?", !!request.auth);
   console.log("User ID:", request.auth?.uid);
 
-  const {mealDescription, existingData} = request.data;
+  const {mealDescription, existingData, locale} = request.data;
   console.log("📝 Meal description:", mealDescription);
   console.log("📊 Existing data:", existingData);
 
@@ -111,6 +117,11 @@ export const parseMeal = onCall(async (request: any) => {
 
   try {
     const model = genAI.getGenerativeModel({model: "gemini-2.0-flash"});
+    const localeNormalized = String(locale || "").toLowerCase();
+    const shouldUseRussian = localeNormalized.startsWith("ru");
+    const languageInstruction = shouldUseRussian ?
+      "Return food item names in Russian and translate existing items if needed (keep JSON keys in English)." :
+      "Return food item names in English.";
 
     let prompt = "";
 
@@ -135,6 +146,7 @@ IMPORTANT - KEEP THE EXISTING MEAL AND MODIFY IT:
 - If they say "remove X", REMOVE only that item from the list
 - If they mention cooking method changes, update the affected item
 - PRESERVE all other items that weren't mentioned
+${languageInstruction}
 
 Return the COMPLETE meal (all items including unchanged ones) in valid JSON:
 {
@@ -231,6 +243,7 @@ Use metric measurements:
 - Weights in grams (g)
 - Liquids in milliliters (ml)
 - Counts as pieces/items
+${languageInstruction}
 
 REMEMBER: Be conservative with estimates. It's better to slightly underestimate than overestimate.`;
     }
