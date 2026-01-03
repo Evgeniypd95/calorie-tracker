@@ -101,6 +101,7 @@ export default function LoginScreen({ navigation }) {
               icon="google"
               contentStyle={styles.buttonContent}
               labelStyle={styles.googleButtonLabel}
+              textColor="#3C4043"
             >
               {t('auth.continueGoogle')}
             </Button>
@@ -202,7 +203,9 @@ const styles = StyleSheet.create({
   },
   googleButton: {
     borderWidth: 1,
-    borderColor: '#E5E7EB'
+    borderColor: '#DADCE0',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8
   },
   buttonContent: {
     paddingVertical: 12
@@ -213,7 +216,8 @@ const styles = StyleSheet.create({
   },
   googleButtonLabel: {
     fontSize: 16,
-    fontWeight: '600'
+    fontWeight: '600',
+    color: '#3C4043'
   },
   linkButton: {
     marginTop: 24

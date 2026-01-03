@@ -14,9 +14,19 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.evgenypavlovd.texttocalai",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice input when logging meals.",
-        "NSSpeechRecognitionUsageDescription": "This app needs access to speech recognition to convert your voice to text when logging meals."
+        "NSSpeechRecognitionUsageDescription": "This app needs access to speech recognition to convert your voice to text when logging meals.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.91528684167-8le1u3voe1s99dkpkijqc8ppvaqkoe0m",
+              "com.googleusercontent.apps.91528684167-l7p756837slij4o5vmb9ebl26jgjn43o",
+              "com.evgenypavlovd.texttocalai"
+            ]
+          }
+        ]
       },
       "scheme": "com.googleusercontent.apps.91528684167-8le1u3voe1s99dkpkijqc8ppvaqkoe0m"
     },
@@ -36,7 +46,8 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "@react-native-google-signin/google-signin"
     ]
   }
 }
