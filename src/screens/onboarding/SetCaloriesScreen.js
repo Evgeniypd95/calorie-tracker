@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { TextInput, Button, Text } from 'react-native-paper';
-import { userService } from '../../services/firebase';
+import { TextInput, Button, Text, IconButton } from 'react-native-paper';
+import { userService, authService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLocalization } from '../../localization/i18n';
 
@@ -40,6 +40,15 @@ export default function SetCaloriesScreen({ navigation }) {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+      // Navigation will be handled by auth state listener
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -47,6 +56,12 @@ export default function SetCaloriesScreen({ navigation }) {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
+          <IconButton
+            icon="logout"
+            size={24}
+            onPress={handleLogout}
+            style={styles.logoutButton}
+          />
           <Text variant="displaySmall" style={styles.title}>
             {t('setTargets.title')}
           </Text>
@@ -128,6 +143,11 @@ const styles = StyleSheet.create({
     maxWidth: 480,
     alignSelf: 'center',
     width: '100%'
+  },
+  logoutButton: {
+    alignSelf: 'flex-end',
+    marginTop: -16,
+    marginBottom: 8
   },
   title: {
     marginBottom: 12,
