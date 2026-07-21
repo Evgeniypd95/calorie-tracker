@@ -3,8 +3,10 @@ import { View, StyleSheet } from 'react-native';
 import { Text, Surface, Chip } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getGradeEmoji } from '../services/mealScoringService';
+import { useLocalization } from '../localization/i18n';
 
 export default function MealGradeCard({ gradeData }) {
+  const { t } = useLocalization();
   if (!gradeData) return null;
 
   const { grade, summary, feedback, positives, color, macroBreakdown } = gradeData;
@@ -41,13 +43,13 @@ export default function MealGradeCard({ gradeData }) {
           </View>
           <View style={styles.macroLabels}>
             <Text style={[styles.macroLabel, { color: '#8B5CF6' }]}>
-              {macroBreakdown.protein}% Protein
+              {t('mealGrade.proteinLabel', { value: macroBreakdown.protein })}
             </Text>
             <Text style={[styles.macroLabel, { color: '#F59E0B' }]}>
-              {macroBreakdown.carbs}% Carbs
+              {t('mealGrade.carbsLabel', { value: macroBreakdown.carbs })}
             </Text>
             <Text style={[styles.macroLabel, { color: '#EC4899' }]}>
-              {macroBreakdown.fat}% Fat
+              {t('mealGrade.fatLabel', { value: macroBreakdown.fat })}
             </Text>
           </View>
         </View>
@@ -56,7 +58,7 @@ export default function MealGradeCard({ gradeData }) {
       {/* Positives */}
       {positives && positives.length > 0 && (
         <View style={styles.feedbackSection}>
-          <Text style={styles.sectionTitle}>What's good:</Text>
+          <Text style={styles.sectionTitle}>{t('mealGrade.good')}</Text>
           {positives.map((positive, index) => (
             <View key={index} style={styles.feedbackItem}>
               <Text style={styles.positiveText}>{positive}</Text>
@@ -68,7 +70,7 @@ export default function MealGradeCard({ gradeData }) {
       {/* Feedback */}
       {feedback && feedback.length > 0 && (
         <View style={styles.feedbackSection}>
-          <Text style={styles.sectionTitle}>How to improve:</Text>
+          <Text style={styles.sectionTitle}>{t('mealGrade.improve')}</Text>
           {feedback.map((item, index) => (
             <View key={index} style={styles.feedbackItem}>
               <Text style={styles.feedbackText}>{item}</Text>
@@ -82,7 +84,7 @@ export default function MealGradeCard({ gradeData }) {
         <View style={styles.ctaHint}>
           <MaterialCommunityIcons name="lightbulb-on-outline" size={16} color="#6366F1" />
           <Text style={styles.ctaText}>
-            Try these tips in your next meal for a better grade!
+            {t('mealGrade.cta')}
           </Text>
         </View>
       )}

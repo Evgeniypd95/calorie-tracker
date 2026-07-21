@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { Text, Button, Surface } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useLocalization } from '../localization/i18n';
 
 export default function CheckInModal({ visible, checkInData, onComplete, onSkip }) {
+  const { t } = useLocalization();
   const [selectedOption, setSelectedOption] = useState(null);
 
   if (!checkInData) return null;
@@ -88,7 +90,7 @@ export default function CheckInModal({ visible, checkInData, onComplete, onSkip 
               style={styles.skipButton}
               labelStyle={styles.skipLabel}
             >
-              Skip for now
+              {t('checkIn.skipForNow')}
             </Button>
             <Button
               mode="contained"
@@ -98,7 +100,7 @@ export default function CheckInModal({ visible, checkInData, onComplete, onSkip 
               contentStyle={styles.buttonContent}
               labelStyle={styles.buttonLabel}
             >
-              Submit
+              {t('checkIn.submit')}
             </Button>
           </View>
         </View>

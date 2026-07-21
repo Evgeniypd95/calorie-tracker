@@ -4,12 +4,12 @@ import { Text, Card, FAB, IconButton, Surface, Button } from 'react-native-paper
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { socialService } from '../../services/firebase';
+import { useLocalization, getDayNameShort, getMealTypeLabel } from '../../localization/i18n';
 
 // Helper function to format date
-const formatDate = (date) => {
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const formatDate = (date, t) => {
   return {
-    day: days[date.getDay()],
+    day: getDayNameShort(date.getDay(), t),
     date: date.getDate()
   };
 };
@@ -34,6 +34,7 @@ const getDateRange = () => {
 
 export default function SharedMealsScreen({ navigation }) {
   const { user } = useAuth();
+  const { t, localeCode } = useLocalization();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [sharedMeals, setSharedMeals] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -66,7 +67,8 @@ export default function SharedMealsScreen({ navigation }) {
   };
 
   const handleCopyMeal = (meal) => {
-    const confirmMessage = `Copy "${meal.description.substring(0, 50)}${meal.description.length > 50 ? '...' : ''}" from ${meal.userName}?`;
+    const trimmedName = `${meal.description.substring(0, 50)}${meal.description.length > 50 ? '...' : ''}`;
+    const confirmMessage = t('sharedMeals.copyConfirm', { name: trimmedName, user: meal.userName });
 
     if (Platform.OS === 'web') {
       if (window.confirm(confirmMessage)) {
@@ -74,12 +76,12 @@ export default function SharedMealsScreen({ navigation }) {
       }
     } else {
       Alert.alert(
-        'Copy Meal',
+        t('sharedMeals.copyMealTitle'),
         confirmMessage,
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('common.cancel'), style: 'cancel' },
           {
-            text: 'Copy',
+            text: t('profile.copy'),
             onPress: () => copyMeal(meal)
           }
         ]
@@ -90,10 +92,10 @@ export default function SharedMealsScreen({ navigation }) {
   const copyMeal = async (meal) => {
     try {
       await socialService.copyMealToUser(user.uid, meal);
-      showAlert('Success', 'Meal copied to your log!');
+      showAlert(t('common.success'), t('sharedMeals.copySuccess'));
     } catch (error) {
       console.error('Error copying meal:', error);
-      showAlert('Error', 'Failed to copy meal');
+      showAlert(t('common.error'), t('sharedMeals.copyFailed'));
     }
   };
 
@@ -129,7 +131,7 @@ export default function SharedMealsScreen({ navigation }) {
           ref={calendarRef}
         >
           {days.map((day, index) => {
-            const { day: dayName, date } = formatDate(day);
+            const { day: dayName, date } = formatDate(day, t);
             const isSelected = isSameDay(day, selectedDate);
             const isToday = isSameDay(day, new Date());
 
@@ -178,7 +180,7 @@ export default function SharedMealsScreen({ navigation }) {
             <Card style={styles.emptyCard}>
               <Card.Content>
                 <Text style={styles.emptyText}>
-                  No meals from your connections on this day. Add connections in your profile to see their meals!
+                  {t('sharedMeals.emptyText')}
                 </Text>
               </Card.Content>
             </Card>
@@ -192,10 +194,10 @@ export default function SharedMealsScreen({ navigation }) {
                         {meal.userName}
                       </Text>
                       <Text variant="titleMedium" style={styles.mealType}>
-                        {meal.mealType}
+                        {getMealTypeLabel(meal.mealType, t)}
                       </Text>
                       <Text variant="bodySmall" style={styles.timeText}>
-                        {meal.date?.toDate?.()?.toLocaleTimeString?.('en-US', {
+                        {meal.date?.toDate?.()?.toLocaleTimeString?.(localeCode, {
                           hour: 'numeric',
                           minute: '2-digit'
                         })}
@@ -208,7 +210,7 @@ export default function SharedMealsScreen({ navigation }) {
                       style={styles.addButton}
                       contentStyle={{ paddingHorizontal: 8 }}
                     >
-                      Add to My Day
+                      {t('sharedMeals.addToMyDay')}
                     </Button>
                   </View>
                   <Text variant="bodyMedium" style={styles.descriptionText}>
@@ -217,7 +219,7 @@ export default function SharedMealsScreen({ navigation }) {
                   <View style={styles.nutrientsContainer}>
                     <View style={styles.nutrientItem}>
                       <Text variant="labelSmall" style={styles.nutrientLabel}>
-                        Calories
+                        {t('sharedMeals.calories')}
                       </Text>
                       <Text variant="titleSmall" style={styles.caloriesValue}>
                         {meal.totals.calories}
@@ -225,19 +227,19 @@ export default function SharedMealsScreen({ navigation }) {
                     </View>
                     <View style={styles.nutrientItem}>
                       <Text variant="labelSmall" style={styles.nutrientLabel}>
-                        Protein
+                        {t('sharedMeals.protein')}
                       </Text>
                       <Text variant="titleSmall">{Math.round(meal.totals.protein)}g</Text>
                     </View>
                     <View style={styles.nutrientItem}>
                       <Text variant="labelSmall" style={styles.nutrientLabel}>
-                        Carbs
+                        {t('sharedMeals.carbs')}
                       </Text>
                       <Text variant="titleSmall">{Math.round(meal.totals.carbs)}g</Text>
                     </View>
                     <View style={styles.nutrientItem}>
                       <Text variant="labelSmall" style={styles.nutrientLabel}>
-                        Fat
+                        {t('sharedMeals.fat')}
                       </Text>
                       <Text variant="titleSmall">{Math.round(meal.totals.fat)}g</Text>
                     </View>

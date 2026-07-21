@@ -13,18 +13,20 @@ import WeightTrackingScreen from '../screens/main/WeightTrackingScreen';
 import { IconButton, Icon, FAB, Text } from 'react-native-paper';
 import { authService } from '../services/firebase';
 import { useSelectedDate } from '../context/DateContext';
+import { useLocalization } from '../localization/i18n';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function DashboardStack() {
+  const { t } = useLocalization();
   return (
     <Stack.Navigator>
       <Stack.Screen
         name="DashboardMain"
         component={DashboardScreen}
         options={{
-          title: 'My Meals',
+          title: t('nav.myMeals'),
           headerShown: true,
           headerStyle: { backgroundColor: '#FFFFFF', elevation: 0, shadowOpacity: 0, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }
         }}
@@ -33,8 +35,8 @@ function DashboardStack() {
         name="LogMeal"
         component={ChatLogMealScreen}
         options={({ navigation }) => ({
-          title: 'Chat with AI',
-          headerBackTitle: 'Back',
+          title: t('nav.chatWithAi'),
+          headerBackTitle: t('nav.back'),
           headerRight: () => (
             <TouchableOpacity
               onPress={() => navigation.goBack()}
@@ -50,13 +52,14 @@ function DashboardStack() {
 }
 
 function SharedMealsStack() {
+  const { t } = useLocalization();
   return (
     <Stack.Navigator>
       <Stack.Screen
         name="SharedMealsMain"
         component={SocialFeedScreen}
         options={{
-          title: 'Feed',
+          title: t('nav.feed'),
           headerShown: true,
           headerStyle: { backgroundColor: '#FFFFFF', elevation: 0, shadowOpacity: 0, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }
         }}
@@ -66,13 +69,14 @@ function SharedMealsStack() {
 }
 
 function InsightsStack() {
+  const { t } = useLocalization();
   return (
     <Stack.Navigator>
       <Stack.Screen
         name="InsightsMain"
         component={InsightsScreen}
         options={{
-          title: 'My Goals',
+          title: t('nav.myGoals'),
           headerShown: false
         }}
       />
@@ -80,16 +84,16 @@ function InsightsStack() {
         name="BodyMetrics"
         component={BodyMetricsScreen}
         options={{
-          title: 'Body Metrics',
-          headerBackTitle: 'Back'
+          title: t('nav.bodyMetrics'),
+          headerBackTitle: t('nav.back')
         }}
       />
       <Stack.Screen
         name="WeightTracking"
         component={WeightTrackingScreen}
         options={{
-          title: 'Weight Tracking',
-          headerBackTitle: 'Back'
+          title: t('nav.weightTracking'),
+          headerBackTitle: t('nav.back')
         }}
       />
     </Stack.Navigator>
@@ -97,6 +101,7 @@ function InsightsStack() {
 }
 
 function ProfileStack() {
+  const { t } = useLocalization();
   const handleLogout = async () => {
     try {
       await authService.logout();
@@ -111,7 +116,7 @@ function ProfileStack() {
         name="ProfileMain"
         component={ProfileScreen}
         options={{
-          title: 'Profile',
+          title: t('nav.profile'),
           headerRight: () => (
             <IconButton
               icon="logout"
@@ -124,8 +129,8 @@ function ProfileStack() {
         name="BodyMetrics"
         component={BodyMetricsScreen}
         options={{
-          title: 'Body Metrics',
-          headerBackTitle: 'Back'
+          title: t('nav.bodyMetrics'),
+          headerBackTitle: t('nav.back')
         }}
       />
     </Stack.Navigator>
@@ -150,6 +155,7 @@ function CustomTabBarButton({ children, onPress }) {
 export default function MainNavigator() {
   const insets = useSafeAreaInsets();
   const { selectedDate } = useSelectedDate();
+  const { t } = useLocalization();
   // Force light mode - dark mode not fully implemented
   const isDark = false;
 
@@ -173,7 +179,7 @@ export default function MainNavigator() {
         name="Dashboard"
         component={DashboardStack}
         options={{
-          tabBarLabel: 'My Meals',
+          tabBarLabel: t('nav.myMeals'),
           tabBarIcon: ({ color, size }) => (
             <Icon source="food" size={size} color={color} />
           ),
@@ -183,7 +189,7 @@ export default function MainNavigator() {
         name="Insights"
         component={InsightsStack}
         options={{
-          tabBarLabel: 'My Goals',
+          tabBarLabel: t('nav.myGoals'),
           tabBarIcon: ({ color, size }) => (
             <Icon source="chart-line" size={size} color={color} />
           ),
@@ -215,7 +221,7 @@ export default function MainNavigator() {
         name="SharedMeals"
         component={SharedMealsStack}
         options={{
-          tabBarLabel: 'Feed',
+          tabBarLabel: t('nav.feed'),
           tabBarIcon: ({ color, size }) => (
             <Icon source="earth" size={size} color={color} />
           ),
@@ -225,7 +231,7 @@ export default function MainNavigator() {
         name="Profile"
         component={ProfileStack}
         options={{
-          tabBarLabel: 'Profile',
+          tabBarLabel: t('nav.profile'),
           tabBarIcon: ({ color, size }) => (
             <Icon source="account" size={size} color={color} />
           ),

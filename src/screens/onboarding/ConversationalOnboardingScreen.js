@@ -3,15 +3,17 @@ import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TextInput
 import { Button, Text, Surface, ActivityIndicator, IconButton } from 'react-native-paper';
 import Voice from '@react-native-voice/voice';
 import { chatOnboarding } from '../../services/geminiService';
+import { useLocalization } from '../../localization/i18n';
 
 export default function ConversationalOnboardingScreen({ navigation, route }) {
+  const { t, localeCode } = useLocalization();
   const scrollViewRef = useRef(null);
 
   // Conversation state
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: "Hey! 👋 I'm your AI nutrition coach. Let's create your personalized plan.\n\nTell me about yourself - your name, age, weight, height, gender, fitness goals, and how often you work out. You can type or use voice!"
+      content: t('onboarding.introMessage')
     }
   ]);
   const [userInput, setUserInput] = useState('');
@@ -35,7 +37,7 @@ export default function ConversationalOnboardingScreen({ navigation, route }) {
         const recognitionInstance = new SpeechRecognition();
         recognitionInstance.continuous = false;
         recognitionInstance.interimResults = false;
-        recognitionInstance.lang = 'en-US';
+        recognitionInstance.lang = localeCode;
 
         recognitionInstance.onresult = (event) => {
           const transcript = event.results[0][0].transcript;
@@ -123,7 +125,7 @@ export default function ConversationalOnboardingScreen({ navigation, route }) {
         if (Platform.OS === 'web') {
           recognition?.start();
         } else {
-          await Voice.start('en-US');
+          await Voice.start(localeCode);
         }
         setIsListening(true);
       } catch (error) {
@@ -181,7 +183,7 @@ export default function ConversationalOnboardingScreen({ navigation, route }) {
       console.error('Error in chat:', error);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: "I'm having trouble connecting. Let me try again - could you repeat that?"
+        content: t('onboarding.connectionIssue')
       }]);
     } finally {
       setIsLoading(false);
@@ -209,8 +211,8 @@ export default function ConversationalOnboardingScreen({ navigation, route }) {
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Your AI Coach</Text>
-        <Text style={styles.headerSubtitle}>Speak or type naturally</Text>
+        <Text style={styles.headerTitle}>{t('onboarding.coachTitle')}</Text>
+        <Text style={styles.headerSubtitle}>{t('onboarding.coachSubtitle')}</Text>
       </View>
 
       {/* Messages */}
@@ -239,27 +241,27 @@ export default function ConversationalOnboardingScreen({ navigation, route }) {
         {/* Show plan if calculated */}
         {calculatedPlan && (
           <Surface style={styles.planCard}>
-            <Text style={styles.planTitle}>Your Personalized Plan 🎯</Text>
+            <Text style={styles.planTitle}>{t('onboarding.planTitle')}</Text>
 
             <View style={styles.planStats}>
               <View style={styles.planStat}>
                 <Text style={styles.planStatValue}>{calculatedPlan.dailyCalories}</Text>
-                <Text style={styles.planStatLabel}>Daily Calories</Text>
+                <Text style={styles.planStatLabel}>{t('onboarding.dailyCalories')}</Text>
               </View>
             </View>
 
             <View style={styles.macrosContainer}>
               <View style={styles.macroItem}>
                 <Text style={styles.macroValue}>{calculatedPlan.protein}g</Text>
-                <Text style={styles.macroLabel}>Protein</Text>
+                <Text style={styles.macroLabel}>{t('onboarding.protein')}</Text>
               </View>
               <View style={styles.macroItem}>
                 <Text style={styles.macroValue}>{calculatedPlan.carbs}g</Text>
-                <Text style={styles.macroLabel}>Carbs</Text>
+                <Text style={styles.macroLabel}>{t('onboarding.carbs')}</Text>
               </View>
               <View style={styles.macroItem}>
                 <Text style={styles.macroValue}>{calculatedPlan.fat}g</Text>
-                <Text style={styles.macroLabel}>Fat</Text>
+                <Text style={styles.macroLabel}>{t('onboarding.fat')}</Text>
               </View>
             </View>
 
@@ -272,7 +274,7 @@ export default function ConversationalOnboardingScreen({ navigation, route }) {
         {isLoading && (
           <View style={styles.loadingBubble}>
             <ActivityIndicator size="small" color="#6366F1" />
-            <Text style={styles.loadingText}>AI is thinking...</Text>
+            <Text style={styles.loadingText}>{t('onboarding.thinking')}</Text>
           </View>
         )}
       </ScrollView>
@@ -280,14 +282,14 @@ export default function ConversationalOnboardingScreen({ navigation, route }) {
       {/* Finish Button (shown when ALL fields captured) */}
       {showFinishButton && (
         <View style={styles.finishButtonContainer}>
-          <Button
-            mode="contained"
-            onPress={handleFinish}
-            style={styles.finishButton}
-            icon="check-circle"
-          >
-            Finish & Create Account
-          </Button>
+            <Button
+              mode="contained"
+              onPress={handleFinish}
+              style={styles.finishButton}
+              icon="check-circle"
+            >
+            {t('onboarding.finishCreateAccount')}
+            </Button>
         </View>
       )}
 
@@ -308,7 +310,7 @@ export default function ConversationalOnboardingScreen({ navigation, route }) {
 
         <RNTextInput
           style={styles.textInput}
-          placeholder={isListening ? "Listening..." : "Type or tap mic to speak..."}
+          placeholder={isListening ? t('onboarding.listening') : t('onboarding.typeOrTap')}
           value={userInput}
           onChangeText={setUserInput}
           onSubmitEditing={sendMessage}

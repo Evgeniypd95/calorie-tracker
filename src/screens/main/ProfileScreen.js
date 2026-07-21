@@ -4,10 +4,12 @@ import { Text, Card, Button, TextInput, Divider, List, IconButton, Switch, useTh
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '../../context/AuthContext';
 import { userService, socialService } from '../../services/firebase';
+import { useLocalization } from '../../localization/i18n';
 
 export default function ProfileScreen({ navigation }) {
   const { user, userProfile: authProfile } = useAuth();
   const theme = useTheme();
+  const { t } = useLocalization();
 
   // Social features
   const [shareCode, setShareCode] = useState('');
@@ -37,13 +39,13 @@ export default function ProfileScreen({ navigation }) {
 
   const copyToClipboard = async () => {
     await Clipboard.setStringAsync(shareCode);
-    showAlert('Copied!', 'Your share code has been copied to clipboard');
+    showAlert(t('profile.copiedTitle'), t('profile.copiedMessage'));
   };
 
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Join me on Calorie Tracker! Use my code: ${shareCode}`,
+        message: t('profile.shareMessage', { code: shareCode }),
       });
     } catch (error) {
       console.error('Error sharing:', error);
@@ -52,7 +54,7 @@ export default function ProfileScreen({ navigation }) {
 
   const handleAddConnection = async () => {
     if (!newConnectionCode.trim()) {
-      showAlert('Error', 'Please enter a share code');
+      showAlert(t('common.error'), t('profile.enterShareCode'));
       return;
     }
 
@@ -61,10 +63,10 @@ export default function ProfileScreen({ navigation }) {
       await socialService.followUser(user.uid, newConnectionCode.toUpperCase());
       setNewConnectionCode('');
       await loadSocialData();
-      showAlert('Success', 'Connection added!');
+      showAlert(t('common.success'), t('profile.connectionAdded'));
     } catch (error) {
       console.error('Error adding connection:', error);
-      showAlert('Error', error.message || 'Failed to add connection');
+      showAlert(t('common.error'), error.message || t('profile.addConnectionError'));
     } finally {
       setLoading(false);
     }
@@ -72,17 +74,17 @@ export default function ProfileScreen({ navigation }) {
 
   const handleRemoveConnection = (connection) => {
     if (Platform.OS === 'web') {
-      if (window.confirm(`Remove ${connection.email || 'this user'}?`)) {
+      if (window.confirm(t('profile.removeConfirm', { name: connection.email || t('profile.user') }))) {
         removeConnection(connection.id);
       }
     } else {
       Alert.alert(
-        'Remove Connection',
-        `Remove ${connection.email || 'this user'}?`,
+        t('profile.removeConnectionTitle'),
+        t('profile.removeConfirm', { name: connection.email || t('profile.user') }),
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('common.cancel'), style: 'cancel' },
           {
-            text: 'Remove',
+            text: t('profile.remove'),
             style: 'destructive',
             onPress: () => removeConnection(connection.id)
           }
@@ -95,10 +97,10 @@ export default function ProfileScreen({ navigation }) {
     try {
       await socialService.unfollowUser(user.uid, userId);
       await loadSocialData();
-      showAlert('Success', 'Connection removed');
+      showAlert(t('common.success'), t('profile.connectionRemoved'));
     } catch (error) {
       console.error('Error removing connection:', error);
-      showAlert('Error', 'Failed to remove connection');
+      showAlert(t('common.error'), t('profile.removeConnectionFailed'));
     }
   };
 
@@ -109,7 +111,7 @@ export default function ProfileScreen({ navigation }) {
     } catch (error) {
       console.error('Error updating profile visibility:', error);
       setIsPublic(!value);
-      showAlert('Error', 'Failed to update profile visibility');
+      showAlert(t('common.error'), t('profile.updateVisibilityFailed'));
     }
   };
 
@@ -124,10 +126,10 @@ export default function ProfileScreen({ navigation }) {
   return (
     <ScrollView style={styles.container}>
       <Text variant="headlineMedium" style={styles.pageTitle}>
-        My Profile
+        {t('profile.title')}
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
-        Manage your nutrition plan and connections
+        {t('profile.subtitle')}
       </Text>
 
       {/* Compact Personalized Plan Card */}
@@ -141,13 +143,13 @@ export default function ProfileScreen({ navigation }) {
               <View style={styles.compactPlanHeader}>
                 <View>
                   <Text variant="labelSmall" style={styles.compactPlanLabel}>
-                    YOUR DAILY TARGET
+                    {t('profile.dailyTarget')}
                   </Text>
                   <Text variant="headlineLarge" style={styles.compactPlanCalories}>
                     {authProfile.dailyCalorieTarget}
                   </Text>
                   <Text variant="bodySmall" style={styles.compactPlanUnit}>
-                    calories/day
+                    {t('profile.caloriesPerDay')}
                   </Text>
                 </View>
                 <IconButton
@@ -165,7 +167,7 @@ export default function ProfileScreen({ navigation }) {
                 <View style={styles.compactMacro}>
                   <View style={[styles.compactMacroBar, { backgroundColor: '#EF4444' }]} />
                   <Text variant="labelSmall" style={styles.compactMacroLabel}>
-                    Protein
+                    {t('profile.protein')}
                   </Text>
                   <Text variant="titleMedium" style={styles.compactMacroValue}>
                     {authProfile.proteinTarget}g
@@ -174,7 +176,7 @@ export default function ProfileScreen({ navigation }) {
                 <View style={styles.compactMacro}>
                   <View style={[styles.compactMacroBar, { backgroundColor: '#10B981' }]} />
                   <Text variant="labelSmall" style={styles.compactMacroLabel}>
-                    Carbs
+                    {t('profile.carbs')}
                   </Text>
                   <Text variant="titleMedium" style={styles.compactMacroValue}>
                     {authProfile.carbsTarget}g
@@ -183,7 +185,7 @@ export default function ProfileScreen({ navigation }) {
                 <View style={styles.compactMacro}>
                   <View style={[styles.compactMacroBar, { backgroundColor: '#F59E0B' }]} />
                   <Text variant="labelSmall" style={styles.compactMacroLabel}>
-                    Fat
+                    {t('profile.fat')}
                   </Text>
                   <Text variant="titleMedium" style={styles.compactMacroValue}>
                     {authProfile.fatTarget}g
@@ -199,21 +201,21 @@ export default function ProfileScreen({ navigation }) {
       <Card style={styles.card}>
         <Card.Content>
           <Text variant="titleLarge" style={styles.sectionTitle}>
-            🔗 Your Share Code
+            {t('profile.shareCodeTitle')}
           </Text>
           <Text variant="bodySmall" style={styles.helpText}>
-            Share this code with friends so they can connect with you
+            {t('profile.shareCodeSubtitle')}
           </Text>
 
           <View style={styles.shareCodeContainer}>
             <Text variant="headlineMedium" style={styles.shareCodeText}>
-              {shareCode || 'Loading...'}
+              {shareCode || t('profile.shareCodeLoading')}
             </Text>
           </View>
 
           {!shareCode && (
             <Text variant="bodySmall" style={styles.warningText}>
-              If your code doesn't appear, try restarting the app.
+              {t('profile.shareCodeWarning')}
             </Text>
           )}
 
@@ -224,7 +226,7 @@ export default function ProfileScreen({ navigation }) {
               style={styles.halfButton}
               icon="content-copy"
             >
-              Copy
+              {t('profile.copy')}
             </Button>
             <Button
               mode="contained"
@@ -232,7 +234,7 @@ export default function ProfileScreen({ navigation }) {
               style={styles.halfButton}
               icon="share"
             >
-              Share
+              {t('profile.share')}
             </Button>
           </View>
         </Card.Content>
@@ -244,12 +246,12 @@ export default function ProfileScreen({ navigation }) {
           <View style={styles.toggleRow}>
             <View style={styles.toggleTextContainer}>
               <Text variant="titleMedium" style={styles.sectionTitle}>
-                🌐 Public Profile
+                {t('profile.publicProfile')}
               </Text>
               <Text variant="bodySmall" style={styles.helpText}>
                 {isPublic
-                  ? 'Anyone can discover and follow you'
-                  : 'Only people with your share code can connect'}
+                  ? t('profile.publicOn')
+                  : t('profile.publicOff')}
               </Text>
             </View>
             <Switch value={isPublic} onValueChange={handleTogglePublic} />
@@ -261,18 +263,18 @@ export default function ProfileScreen({ navigation }) {
       <Card style={styles.card}>
         <Card.Content>
           <Text variant="titleLarge" style={styles.sectionTitle}>
-            ➕ Add Connection
+            {t('profile.addConnection')}
           </Text>
           <Text variant="bodySmall" style={styles.helpText}>
-            Enter someone's share code to see their meals
+            {t('profile.addConnectionSubtitle')}
           </Text>
 
           <TextInput
-            label="Share Code"
+            label={t('profile.shareCodeLabel')}
             value={newConnectionCode}
             onChangeText={setNewConnectionCode}
             mode="outlined"
-            placeholder="FIT-XXXXX"
+            placeholder={t('profile.shareCodePlaceholder')}
             autoCapitalize="characters"
             style={styles.input}
           />
@@ -284,7 +286,7 @@ export default function ProfileScreen({ navigation }) {
             disabled={loading}
             style={styles.addButton}
           >
-            Add Connection
+            {t('profile.addConnectionButton')}
           </Button>
         </Card.Content>
       </Card>
@@ -293,19 +295,19 @@ export default function ProfileScreen({ navigation }) {
       <Card style={styles.card}>
         <Card.Content>
           <Text variant="titleLarge" style={styles.sectionTitle}>
-            👥 My Connections ({connections.length})
+            {t('profile.connectionsTitle', { count: connections.length })}
           </Text>
 
           {connections.length === 0 ? (
             <Text variant="bodyMedium" style={styles.emptyText}>
-              No connections yet. Add someone using their share code!
+              {t('profile.noConnections')}
             </Text>
           ) : (
             connections.map((connection) => (
               <View key={connection.id}>
                 <List.Item
-                  title={connection.email || 'User'}
-                  description={`Code: ${connection.personalCode}`}
+                  title={connection.email || t('profile.user')}
+                  description={t('profile.codeLabel', { code: connection.personalCode })}
                   left={(props) => <List.Icon {...props} icon="account" />}
                   right={(props) => (
                     <IconButton

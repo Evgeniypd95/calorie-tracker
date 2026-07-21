@@ -17,9 +17,17 @@ import {
   updateDoc,
   deleteDoc
 } from 'firebase/firestore';
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from 'firebase/storage';
 import { auth, db } from '../config/firebase.config';
 import { Platform } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+
+const storage = getStorage();
 
 // Configure Google Sign-In
 // Get the Client IDs from environment variables
@@ -154,6 +162,23 @@ export const userService = {
 };
 
 export const mealService = {
+  uploadMealImage: async (userId, imageUri) => {
+    if (!userId || !imageUri) return null;
+
+    try {
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const fileName = `meal-images/${userId}/${Date.now()}.jpg`;
+      const storageRef = ref(storage, fileName);
+      const metadata = { contentType: blob.type || 'image/jpeg' };
+
+      await uploadBytes(storageRef, blob, metadata);
+      return await getDownloadURL(storageRef);
+    } catch (error) {
+      console.error('❌ [Firebase] Error uploading meal image:', error);
+      return null;
+    }
+  },
   logMeal: async (userId, mealData) => {
     console.log('🔥 [Firebase] logMeal called');
     console.log('👤 [Firebase] User ID:', userId);

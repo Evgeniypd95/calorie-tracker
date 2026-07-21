@@ -1,7 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import WelcomeScreen from '../screens/onboarding/WelcomeScreen';
-import ConversationalOnboardingScreen from '../screens/onboarding/ConversationalOnboardingScreen';
+import GoalsOnboardingScreen from '../screens/onboarding/GoalsOnboardingScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignupScreen from '../screens/auth/SignupScreen';
 
@@ -18,7 +18,7 @@ export default function AuthNavigator() {
       initialRouteName="Welcome"
     >
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
-      <Stack.Screen name="ConversationalOnboarding" component={ConversationalOnboardingScreen} />
+      <Stack.Screen name="OnboardingGoals" component={GoalsOnboardingScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Signup" component={SignupScreen} />
     </Stack.Navigator>

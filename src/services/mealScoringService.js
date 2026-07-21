@@ -4,6 +4,7 @@
  * Grades meals (A+ to F) based on user's goals and nutritional content
  * Provides actionable feedback on why a meal is good/bad for their specific goals
  */
+import { t } from '../localization/i18n';
 
 // List of common vegetables for detection
 const VEGETABLES = [
@@ -79,9 +80,9 @@ export function scoreMeal(meal, userProfile) {
     return {
       grade: 'N/A',
       score: 0,
-      feedback: ['Unable to score meal'],
+      feedback: [t('mealScoring.unavailable')],
       color: '#94A3B8',
-      summary: 'No data available'
+      summary: t('mealScoring.noData')
     };
   }
 
@@ -113,64 +114,64 @@ export function scoreMeal(meal, userProfile) {
 
   if (calorieRatio > 1.5) {
     score -= 25;
-    feedback.push(`⚠️ High calories for one meal (${Math.round(calorieRatio * 100)}% of target)`);
+    feedback.push(t('mealScoring.highCalories', { percent: Math.round(calorieRatio * 100) }));
   } else if (calorieRatio < 0.5 && goal !== 'LOSE_WEIGHT') {
     score -= 15;
-    feedback.push('💡 Quite low in calories - consider adding more food');
+    feedback.push(t('mealScoring.lowCalories'));
   } else if (calorieRatio >= 0.8 && calorieRatio <= 1.2) {
-    positives.push('✓ Perfect calorie amount');
+    positives.push(t('mealScoring.perfectCalories'));
   }
 
   // 2. PROTEIN SCORE (30 points) - CRITICAL
   if (goal === 'BUILD_MUSCLE') {
     if (proteinPercent < 20) {
       score -= 30;
-      feedback.push(`💪 Low protein (${Math.round(proteinPercent)}%) - aim for 25%+ for muscle building`);
+      feedback.push(t('mealScoring.lowProteinBuild', { percent: Math.round(proteinPercent) }));
     } else if (proteinPercent >= 30) {
-      positives.push(`💪 Excellent protein (${Math.round(proteinPercent)}%)!`);
+      positives.push(t('mealScoring.excellentProteinBuild', { percent: Math.round(proteinPercent) }));
     } else if (proteinPercent >= 25) {
-      positives.push('✓ Good protein content');
+      positives.push(t('mealScoring.goodProtein'));
     } else {
       score -= 10;
-      feedback.push('💪 Could use a bit more protein for muscle building');
+      feedback.push(t('mealScoring.moreProteinBuild'));
     }
   } else if (goal === 'LOSE_WEIGHT') {
     if (proteinPercent < 15) {
       score -= 25;
-      feedback.push('🎯 Add more protein for satiety and muscle preservation');
+      feedback.push(t('mealScoring.moreProteinLose'));
     } else if (proteinPercent >= 25) {
-      positives.push(`🎯 Great protein (${Math.round(proteinPercent)}%) for weight loss!`);
+      positives.push(t('mealScoring.greatProteinLose', { percent: Math.round(proteinPercent) }));
     } else {
-      positives.push('✓ Good protein content');
+      positives.push(t('mealScoring.goodProtein'));
     }
   } else {
     // MAINTAIN or EXPLORING
     if (proteinPercent < 12) {
       score -= 15;
-      feedback.push('Add more protein for balanced nutrition');
+      feedback.push(t('mealScoring.moreProtein'));
     } else if (proteinPercent >= 20) {
-      positives.push('✓ Excellent protein balance');
+      positives.push(t('mealScoring.excellentProtein'));
     }
   }
 
   // 3. FAT CONTENT (20 points)
   if (fatPercent > 45) {
     score -= 20;
-    feedback.push(`⚠️ Very high fat (${Math.round(fatPercent)}%) - may feel sluggish`);
+    feedback.push(t('mealScoring.highFat', { percent: Math.round(fatPercent) }));
   } else if (fatPercent < 15 && goal !== 'LOSE_WEIGHT') {
     score -= 10;
-    feedback.push('💡 Low fat - add healthy fats (avocado, nuts, olive oil)');
+    feedback.push(t('mealScoring.lowFat'));
   } else if (fatPercent >= 25 && fatPercent <= 35) {
-    positives.push('✓ Balanced fat content');
+    positives.push(t('mealScoring.balancedFat'));
   }
 
   // 4. CARBS (15 points)
   if (goal === 'LOSE_WEIGHT' && carbsPercent > 50) {
     score -= 15;
-    feedback.push('🎯 High carbs - consider reducing for better weight loss');
+    feedback.push(t('mealScoring.highCarbsLose'));
   } else if (goal === 'BUILD_MUSCLE' && carbsPercent < 30) {
     score -= 10;
-    feedback.push('💪 Add more carbs for energy and recovery');
+    feedback.push(t('mealScoring.addCarbs'));
   }
 
   // 5. VEGETABLES & FRUITS (15 points) - Made less strict
@@ -186,21 +187,21 @@ export function scoreMeal(meal, userProfile) {
   // Only penalize if BOTH veggies and fruits are missing
   if (veggieCount === 0 && fruitCount === 0) {
     score -= 12;
-    feedback.push('🥦 Add vegetables for fiber and micronutrients');
+    feedback.push(t('mealScoring.addVeggies'));
   } else if (veggieCount >= 2) {
-    positives.push('🥦 Great veggie variety!');
+    positives.push(t('mealScoring.veggieVariety'));
   } else if (veggieCount >= 1) {
-    positives.push('✓ Includes vegetables');
+    positives.push(t('mealScoring.includesVeggies'));
   } else if (fruitCount > 0) {
-    positives.push('🍎 Includes fruit');
+    positives.push(t('mealScoring.includesFruit'));
   }
 
   // 6. PORTION SIZE CHECK
   if (items.length === 1 && mealCals > 800) {
     score -= 10;
-    feedback.push('💡 Large single item - consider adding variety');
+    feedback.push(t('mealScoring.addVariety'));
   } else if (items.length >= 3) {
-    positives.push('✓ Good meal variety');
+    positives.push(t('mealScoring.goodVariety'));
   }
 
   // Create summary based on grade
@@ -209,18 +210,18 @@ export function scoreMeal(meal, userProfile) {
 
   if (finalGrade.startsWith('A')) {
     summary = goal === 'BUILD_MUSCLE'
-      ? 'High protein, balanced macros - perfect for muscle building!'
+      ? t('mealScoring.summaryAbuild')
       : goal === 'LOSE_WEIGHT'
-      ? 'High protein, good satiety - excellent for weight loss!'
-      : 'Well-balanced and nutritious meal!';
+      ? t('mealScoring.summaryAlose')
+      : t('mealScoring.summaryA');
   } else if (finalGrade.startsWith('B')) {
-    summary = 'Good meal! A few tweaks could make it perfect.';
+    summary = t('mealScoring.summaryB');
   } else if (finalGrade.startsWith('C')) {
-    summary = 'Decent meal, but room for improvement.';
+    summary = t('mealScoring.summaryC');
   } else if (finalGrade.startsWith('D')) {
-    summary = 'Consider adjusting portions or ingredients.';
+    summary = t('mealScoring.summaryD');
   } else {
-    summary = 'Let\'s work on improving this meal together!';
+    summary = t('mealScoring.summaryF');
   }
 
   return {
