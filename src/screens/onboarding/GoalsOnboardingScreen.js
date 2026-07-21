@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Platform, Alert } from 'react-native';
-import { Text, TextInput, Button, Card, SegmentedButtons, Surface } from 'react-native-paper';
+import { Text, TextInput, Button, Card, SegmentedButtons, Surface, IconButton } from 'react-native-paper';
 import { calculateNutritionPlanBackend } from '../../services/geminiService';
 import { useLocalization } from '../../localization/i18n';
 
@@ -157,6 +157,12 @@ export default function GoalsOnboardingScreen({ navigation }) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <IconButton
+        icon="arrow-left"
+        size={24}
+        onPress={() => navigation.goBack()}
+        style={styles.backButton}
+      />
       <Text variant="displaySmall" style={styles.title}>
         {t('onboardingGoals.title')}
       </Text>
@@ -347,6 +353,11 @@ const styles = StyleSheet.create({
   content: {
     padding: 24,
     paddingBottom: 40
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginLeft: -8,
+    marginBottom: 8
   },
   title: {
     fontWeight: '800',

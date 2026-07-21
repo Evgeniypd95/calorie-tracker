@@ -20,35 +20,45 @@ export const AuthProvider = ({ children }) => {
 
       if (firebaseUser) {
         setUser(firebaseUser);
-        // Load user profile
-        console.log('👤 AuthContext: Loading user profile...');
-        let profile = await userService.getUserProfile(firebaseUser.uid);
-        console.log('👤 AuthContext: Profile loaded:', {
-          hasProfile: !!profile,
-          hasDailyBudget: !!profile?.dailyBudget
-        });
+        try {
+          // Load user profile
+          console.log('👤 AuthContext: Loading user profile...');
+          let profile = await userService.getUserProfile(firebaseUser.uid);
+          console.log('👤 AuthContext: Profile loaded:', {
+            hasProfile: !!profile,
+            hasDailyBudget: !!profile?.dailyBudget
+          });
 
-        // If profile doesn't exist yet, initialize it now so UI has personalCode/share code
-        if (!profile) {
-          console.log('🆕 AuthContext: No profile found. Creating default profile...');
-          try {
-            await userService.createUserProfile(firebaseUser.uid, {
-              email: firebaseUser.email || ''
-            });
-            // Re-fetch profile after creation
-            profile = await userService.getUserProfile(firebaseUser.uid);
-          } catch (e) {
-            console.error('❌ AuthContext: Failed to create default profile', e);
+          // If profile doesn't exist yet, initialize it now so UI has personalCode/share code
+          if (!profile) {
+            console.log('🆕 AuthContext: No profile found. Creating default profile...');
+            try {
+              await userService.createUserProfile(firebaseUser.uid, {
+                email: firebaseUser.email || ''
+              });
+              // Re-fetch profile after creation
+              profile = await userService.getUserProfile(firebaseUser.uid);
+            } catch (e) {
+              console.error('❌ AuthContext: Failed to create default profile', e);
+              // Profile creation failed, but we still have a user - set profile to null
+              profile = null;
+            }
           }
-        }
 
-        setUserProfile(profile);
+          setUserProfile(profile);
+        } catch (error) {
+          console.error('❌ AuthContext: Error loading user profile:', error);
+          // Set profile to null if loading failed
+          setUserProfile(null);
+        } finally {
+          setLoading(false);
+        }
       } else {
         console.log('🚪 AuthContext: User logged out');
         setUser(null);
         setUserProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return unsubscribe;
@@ -57,12 +67,17 @@ export const AuthProvider = ({ children }) => {
   const refreshUserProfile = async () => {
     console.log('🔄 AuthContext: Manually refreshing user profile...');
     if (user) {
-      const profile = await userService.getUserProfile(user.uid);
-      console.log('🔄 AuthContext: Profile refreshed:', {
-        hasProfile: !!profile,
-        hasDailyBudget: !!profile?.dailyBudget
-      });
-      setUserProfile(profile);
+      try {
+        const profile = await userService.getUserProfile(user.uid);
+        console.log('🔄 AuthContext: Profile refreshed:', {
+          hasProfile: !!profile,
+          hasDailyBudget: !!profile?.dailyBudget
+        });
+        setUserProfile(profile);
+      } catch (error) {
+        console.error('❌ AuthContext: Error refreshing user profile:', error);
+        setUserProfile(null);
+      }
     } else {
       console.log('⚠️ AuthContext: Cannot refresh - no user');
     }

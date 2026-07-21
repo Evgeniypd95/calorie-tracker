@@ -36,7 +36,7 @@ export const imageToDescription = onCall(async (request: any) => {
   }
 
   try {
-    const model = genAI.getGenerativeModel({model: "gemini-2.0-flash"});
+    const model = genAI.getGenerativeModel({model: "gemini-3.5-flash"});
     const localeNormalized = String(locale || "").toLowerCase();
     const shouldUseRussian = localeNormalized.startsWith("ru");
     const languageInstruction = shouldUseRussian ?
@@ -116,7 +116,7 @@ export const parseMeal = onCall(async (request: any) => {
   }
 
   try {
-    const model = genAI.getGenerativeModel({model: "gemini-2.0-flash"});
+    const model = genAI.getGenerativeModel({model: "gemini-3.5-flash"});
     const localeNormalized = String(locale || "").toLowerCase();
     const shouldUseRussian = localeNormalized.startsWith("ru");
     const languageInstruction = shouldUseRussian ?
@@ -308,7 +308,7 @@ export const chatOnboarding = onCall(async (request: any) => {
   }
 
   try {
-    const model = genAI.getGenerativeModel({model: "gemini-2.0-flash"});
+    const model = genAI.getGenerativeModel({model: "gemini-3.5-flash"});
 
     const prompt = `You are a friendly, supportive AI nutrition coach conducting an onboarding conversation.
 

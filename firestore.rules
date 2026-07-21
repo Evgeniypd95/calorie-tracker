@@ -2,18 +2,41 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // User profiles - users can only read/write their own data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
 
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
+    // Meals collection (top-level) - users can read/write meals where they are the owner
+    // Users can also read meals from users they follow (for social features)
+    match /meals/{mealId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        request.auth.uid in get(/databases/$(database)/documents/users/$(resource.data.userId)).data.followers
+      );
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Weights collection (top-level) - users can only read/write their own weight entries
+    match /weights/{weightId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // User insights - users can only read/write their own insights
+    match /users/{userId}/insights/{insightId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // User suggestions - users can only read/write their own suggestions
+    match /users/{userId}/suggestions/{suggestionId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Deny all other access
     match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2025, 12, 1);
+      allow read, write: if false;
     }
   }
 }
