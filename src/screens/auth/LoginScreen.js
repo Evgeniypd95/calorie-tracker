@@ -1,37 +1,16 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Platform, KeyboardAvoidingView } from 'react-native';
-import { Button, Text, Snackbar, TextInput } from 'react-native-paper';
+import { View, StyleSheet, Platform, KeyboardAvoidingView, Text as RNText, TouchableOpacity } from 'react-native';
+import { Button, Text, Snackbar } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
 import { authService, userService } from '../../services/firebase';
 import { useLocalization } from '../../localization/i18n';
+import { colors, gradients, radius, shadows } from '../../theme';
 
 export default function LoginScreen({ navigation }) {
   const { t } = useLocalization();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
-
-  const handleLogin = async () => {
-    if (!email || !password) {
-      setError(t('auth.fillAllFields'));
-      setSnackbarVisible(true);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await authService.login(email, password);
-      // Navigation handled by auth state listener
-    } catch (error) {
-      console.error('Login error:', error);
-      setError(error.message);
-      setSnackbarVisible(true);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
@@ -39,11 +18,9 @@ export default function LoginScreen({ navigation }) {
       const userCredential = await authService.googleSignIn();
       const userId = userCredential.user.uid;
 
-      // Check if user profile exists
       const existingProfile = await userService.getUserProfile(userId);
 
       if (!existingProfile) {
-        // Create basic profile for new users
         const profileData = {
           email: userCredential.user.email,
           name: userCredential.user.displayName || '',
@@ -54,8 +31,7 @@ export default function LoginScreen({ navigation }) {
       // Navigation handled by auth state listener
     } catch (error) {
       console.error('Google Sign-In error:', error);
-      if (error.code === 'ERR_CANCELED') {
-        // User cancelled the sign-in
+      if (error.code === 'ERR_CANCELED' || error.code === 'auth/popup-closed-by-user') {
         setError(t('auth.signInCancelled'));
       } else {
         setError(error.message || t('auth.signInGoogleFailed'));
@@ -72,83 +48,46 @@ export default function LoginScreen({ navigation }) {
       style={styles.container}
     >
       <View style={styles.content}>
-        <Text variant="displaySmall" style={styles.title}>
-          {t('auth.loginTitle')}
-        </Text>
-        <Text variant="bodyLarge" style={styles.subtitle}>
-          {t('auth.loginSubtitle')}
-        </Text>
+        {/* Brand mark */}
+        <LinearGradient
+          colors={gradients.brand}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.logoBlob}
+        >
+          <RNText style={styles.logoEmoji}>🥗</RNText>
+        </LinearGradient>
 
-        {/* Mobile: Show only Google Sign-In and Get Started */}
-        {Platform.OS !== 'web' && (
-          <>
-            <Button
-              mode="contained"
-              onPress={() => navigation.navigate('OnboardingGoals')}
-              style={styles.primaryButton}
-              contentStyle={styles.buttonContent}
-              labelStyle={styles.buttonLabel}
-            >
-              {t('auth.getStarted')}
-            </Button>
+        <Text style={styles.title}>{t('auth.loginTitle')}</Text>
+        <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
 
-            <Button
-              mode="outlined"
-              onPress={handleGoogleSignIn}
-              loading={googleLoading}
-              disabled={googleLoading}
-              style={styles.googleButton}
-              icon="google"
-              contentStyle={styles.buttonContent}
-              labelStyle={styles.googleButtonLabel}
-              textColor="#3C4043"
-            >
-              {t('auth.continueGoogle')}
-            </Button>
-          </>
-        )}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('OnboardingGoals')}
+        >
+          <LinearGradient
+            colors={gradients.brand}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.primaryButton}
+          >
+            <RNText style={styles.primaryButtonLabel}>{t('auth.getStarted')}</RNText>
+          </LinearGradient>
+        </TouchableOpacity>
 
-        {/* Web: Show Email/Password Login */}
-        {Platform.OS === 'web' && (
-          <>
-            <TextInput
-              label={t('auth.email')}
-              value={email}
-              onChangeText={setEmail}
-              mode="outlined"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              style={styles.input}
-            />
-
-            <TextInput
-              label={t('auth.password')}
-              value={password}
-              onChangeText={setPassword}
-              mode="outlined"
-              secureTextEntry
-              style={styles.input}
-            />
-
-            <Button
-              mode="contained"
-              onPress={handleLogin}
-              loading={loading}
-              disabled={loading}
-              style={styles.button}
-            >
-              {t('auth.logIn')}
-            </Button>
-
-            <Button
-              mode="text"
-              onPress={() => navigation.navigate('OnboardingGoals')}
-              style={styles.linkButton}
-            >
-              {t('auth.noAccount')}
-            </Button>
-          </>
-        )}
+        <Button
+          mode="outlined"
+          onPress={handleGoogleSignIn}
+          loading={googleLoading}
+          disabled={googleLoading}
+          style={styles.googleButton}
+          icon="google"
+          contentStyle={styles.buttonContent}
+          labelStyle={styles.googleButtonLabel}
+          textColor="#3C4043"
+        >
+          {t('auth.continueGoogle')}
+        </Button>
       </View>
 
       <Snackbar
@@ -165,7 +104,7 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9'
+    backgroundColor: colors.background
   },
   content: {
     flex: 1,
@@ -175,51 +114,59 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%'
   },
+  logoBlob: {
+    width: 88,
+    height: 88,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: 28,
+    ...shadows.glow
+  },
+  logoEmoji: {
+    fontSize: 44
+  },
   title: {
-    marginBottom: 12,
+    marginBottom: 10,
     fontWeight: '800',
-    fontSize: 36,
-    color: '#1E293B',
+    fontSize: 32,
+    color: colors.ink,
     letterSpacing: -1,
     textAlign: 'center'
   },
   subtitle: {
-    marginBottom: 48,
-    color: '#64748B',
+    marginBottom: 44,
+    color: colors.muted,
     fontSize: 16,
     lineHeight: 24,
     textAlign: 'center'
   },
-  input: {
-    marginBottom: 20,
-    backgroundColor: '#FFFFFF'
-  },
-  button: {
-    marginTop: 12,
-    paddingVertical: 8
-  },
   primaryButton: {
-    marginBottom: 16
+    borderRadius: radius.pill,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 14,
+    ...shadows.glow
+  },
+  primaryButtonLabel: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.2
   },
   googleButton: {
     borderWidth: 1,
     borderColor: '#DADCE0',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill
   },
   buttonContent: {
-    paddingVertical: 12
-  },
-  buttonLabel: {
-    fontSize: 16,
-    fontWeight: '600'
+    paddingVertical: 8
   },
   googleButtonLabel: {
     fontSize: 16,
     fontWeight: '600',
     color: '#3C4043'
-  },
-  linkButton: {
-    marginTop: 24
   }
 });

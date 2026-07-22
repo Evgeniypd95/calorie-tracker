@@ -426,9 +426,17 @@ export const generateInsightsBackend = async (userId, userProfile) => {
 export const calculateNutritionPlanBackend = async (userData) => {
   console.log('🧮 Calculating nutrition plan via backend');
 
+  // Callable payloads cannot encode NaN (blank inputs parsed with
+  // parseInt/parseFloat produce NaN) — drop those keys instead of failing.
+  const sanitized = Object.fromEntries(
+    Object.entries(userData).filter(
+      ([, value]) => !(typeof value === 'number' && Number.isNaN(value))
+    )
+  );
+
   try {
     const calculatePlanFn = httpsCallable(functions, 'calculateNutritionPlan');
-    const result = await calculatePlanFn(userData);
+    const result = await calculatePlanFn(sanitized);
 
     console.log('✅ calculateNutritionPlan response:', result.data);
 

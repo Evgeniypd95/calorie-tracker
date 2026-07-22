@@ -131,7 +131,7 @@ export default function SetCaloriesScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9'
+    backgroundColor: '#F4F4F8'
   },
   scrollContent: {
     flexGrow: 1

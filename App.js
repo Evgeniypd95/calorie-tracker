@@ -14,20 +14,20 @@ const lightTheme = {
   fonts: MD3LightTheme.fonts,
   colors: {
     ...MD3LightTheme.colors,
-    primary: '#6366F1', // Modern indigo
-    secondary: '#8B5CF6', // Purple accent
-    tertiary: '#EC4899', // Pink accent
+    primary: '#059669', // Emerald
+    secondary: '#10B981', // Light emerald accent
+    tertiary: '#F59E0B', // Amber accent
     surface: '#FFFFFF',
     surfaceVariant: '#F8FAFC',
-    background: '#F1F5F9',
+    background: '#F4F4F8',
     error: '#EF4444',
     onPrimary: '#FFFFFF',
     onSecondary: '#FFFFFF',
-    onSurface: '#1E293B',
+    onSurface: '#0F172A',
     onSurfaceVariant: '#64748B',
-    onBackground: '#1E293B',
-    outline: '#E2E8F0',
-    outlineVariant: '#F1F5F9',
+    onBackground: '#0F172A',
+    outline: '#E8E9F1',
+    outlineVariant: '#F4F4F8',
   },
 };
 
@@ -36,9 +36,9 @@ const darkTheme = {
   fonts: MD3DarkTheme.fonts,
   colors: {
     ...MD3DarkTheme.colors,
-    primary: '#818CF8', // Lighter indigo for dark mode
-    secondary: '#A78BFA', // Lighter purple
-    tertiary: '#F472B6', // Lighter pink
+    primary: '#34D399', // Lighter emerald for dark mode
+    secondary: '#6EE7B7', // Lighter mint
+    tertiary: '#FBBF24', // Lighter amber
     surface: '#1E293B',
     surfaceVariant: '#334155',
     background: '#0F172A',
@@ -56,16 +56,11 @@ const darkTheme = {
 function AppContent() {
   const { user, userProfile, loading } = useAuth();
 
-  console.log('AppContent - user:', !!user, 'userProfile:', !!userProfile, 'loading:', loading);
-  if (userProfile) {
-    console.log('Profile has dailyCalorieTarget:', !!userProfile.dailyCalorieTarget);
-  }
-
   if (loading) {
     // Show loading while auth is initializing
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366F1" />
+        <ActivityIndicator size="large" color="#059669" />
       </View>
     );
   }
@@ -79,7 +74,7 @@ function AppContent() {
   if (user && !userProfile) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366F1" />
+        <ActivityIndicator size="large" color="#059669" />
       </View>
     );
   }
@@ -158,6 +153,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9'
+    backgroundColor: '#F4F4F8'
   }
 });

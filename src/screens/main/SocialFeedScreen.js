@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, Image, TouchableOpacity, TextInput as RNTextInput, Platform, Share, Alert, Modal } from 'react-native';
-import { Text, Card, IconButton, Surface, Divider, Avatar, Button, TextInput, Snackbar, Portal, Chip } from 'react-native-paper';
+import { Text, IconButton, Icon, Button, Snackbar, Portal, Chip } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { socialService, mealService } from '../../services/firebase';
 import { useLocalization, getDayNameShort, getMealTypeLabel, getMealTypeLabelLower } from '../../localization/i18n';
+import { colors, radius, shadows, type } from '../../theme';
+import { GradientAvatar } from '../../components/ui';
 
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
-// Helper function to get a date range (7 days past, today, 7 days future)
 const getDateRange = () => {
   const days = [];
   for (let i = -7; i <= 7; i++) {
@@ -19,25 +20,20 @@ const getDateRange = () => {
   return days;
 };
 
-// Helper function to format date
-const formatDate = (date, t) => {
-  return {
-    day: getDayNameShort(date.getDay(), t),
-    date: date.getDate()
-  };
-};
+const formatDate = (date, t) => ({
+  day: getDayNameShort(date.getDay(), t),
+  date: date.getDate()
+});
 
-// Helper function to check if two dates are the same day
-const isSameDay = (date1, date2) => {
-  return date1.getDate() === date2.getDate() &&
-         date1.getMonth() === date2.getMonth() &&
-         date1.getFullYear() === date2.getFullYear();
-};
+const isSameDay = (date1, date2) =>
+  date1.getDate() === date2.getDate() &&
+  date1.getMonth() === date2.getMonth() &&
+  date1.getFullYear() === date2.getFullYear();
 
-const ITEM_WIDTH = 60;
+const ITEM_WIDTH = 56;
 
 export default function SocialFeedScreen({ navigation }) {
-  const { user } = useAuth();
+  const { user, refreshUserProfile } = useAuth();
   const { t, localeCode } = useLocalization();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [feedMeals, setFeedMeals] = useState([]);
@@ -49,6 +45,7 @@ export default function SocialFeedScreen({ navigation }) {
   const [mealTypeDialogVisible, setMealTypeDialogVisible] = useState(false);
   const [selectedMealForCopy, setSelectedMealForCopy] = useState(null);
   const [menuVisible, setMenuVisible] = useState(null);
+  const [hiddenMeals, setHiddenMeals] = useState([]);
   const calendarRef = useRef(null);
 
   const days = getDateRange();
@@ -57,7 +54,6 @@ export default function SocialFeedScreen({ navigation }) {
     try {
       const meals = await socialService.getSocialFeed(user.uid, 20);
 
-      // Filter meals by selected date
       const filteredMeals = meals.filter(meal => {
         const mealDate = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
         return isSameDay(mealDate, date);
@@ -86,13 +82,11 @@ export default function SocialFeedScreen({ navigation }) {
     loadFeed(date);
   };
 
-  // Auto-scroll calendar ribbon to today on first render
   useEffect(() => {
     const indexOfToday = days.findIndex((d) => isSameDay(d, new Date()));
-
     if (calendarRef.current && indexOfToday >= 0) {
       setTimeout(() => {
-        calendarRef.current.scrollTo({ x: Math.max(0, (indexOfToday - 2) * ITEM_WIDTH), animated: true });
+        calendarRef.current.scrollTo({ x: Math.max(0, (indexOfToday - 3) * ITEM_WIDTH), animated: true });
       }, 0);
     }
   }, []);
@@ -100,8 +94,6 @@ export default function SocialFeedScreen({ navigation }) {
   const handleLike = async (mealId) => {
     try {
       const updatedLikes = await mealService.toggleLike(mealId, user.uid);
-
-      // Update local state
       setFeedMeals(prev =>
         prev.map(meal =>
           meal.id === mealId ? { ...meal, likes: updatedLikes } : meal
@@ -120,14 +112,12 @@ export default function SocialFeedScreen({ navigation }) {
       const userName = user.email?.split('@')[0] || t('common.you');
       const updatedComments = await mealService.addComment(mealId, user.uid, userName, commentText);
 
-      // Update local state
       setFeedMeals(prev =>
         prev.map(meal =>
           meal.id === mealId ? { ...meal, comments: updatedComments } : meal
         )
       );
 
-      // Clear input
       setCommentInputs(prev => ({ ...prev, [mealId]: '' }));
     } catch (error) {
       console.error('Error adding comment:', error);
@@ -147,22 +137,19 @@ export default function SocialFeedScreen({ navigation }) {
     if (!selectedMealForCopy) return;
 
     try {
-      // Copy meal with selected type
       const mealData = {
         mealType: mealType,
         description: selectedMealForCopy.description,
         items: selectedMealForCopy.items,
         totals: selectedMealForCopy.totals,
         date: new Date(),
-        copiedFrom: selectedMealForCopy.id // Track that this was copied from feed
+        copiedFrom: selectedMealForCopy.id
       };
 
       await mealService.logMeal(user.uid, mealData);
-
-      // Increment the "added by" count on the original meal
+      refreshUserProfile();
       await mealService.incrementMealCopyCount(selectedMealForCopy.id, user.uid);
 
-      // Update local state to reflect the change
       setFeedMeals(prev =>
         prev.map(meal => {
           if (meal.id === selectedMealForCopy.id) {
@@ -171,12 +158,9 @@ export default function SocialFeedScreen({ navigation }) {
               ...meal,
               copiedByCount: (meal.copiedByCount || 0) + 1
             };
-
-            // Add user to copiedBy if not already there (for green badge)
             if (!copiedBy.includes(user.uid)) {
               updates.copiedBy = [...copiedBy, user.uid];
             }
-
             return updates;
           }
           return meal;
@@ -215,11 +199,12 @@ export default function SocialFeedScreen({ navigation }) {
     setMenuVisible(mealId === menuVisible ? null : mealId);
   };
 
-  const handleMenuAction = (action, meal) => {
+  const handleMenuAction = async (action, meal) => {
     setMenuVisible(null);
 
     switch (action) {
       case 'hide':
+        setHiddenMeals(prev => [...prev, meal.id]);
         setSnackbarMessage(t('social.postHidden'));
         setSnackbarVisible(true);
         break;
@@ -228,11 +213,17 @@ export default function SocialFeedScreen({ navigation }) {
         setSnackbarVisible(true);
         break;
       case 'unfollow':
-        setSnackbarMessage(t('social.unfollowed', { name: meal.userName }));
+        try {
+          await socialService.unfollowUser(user.uid, meal.userId);
+          setFeedMeals(prev => prev.filter(m => m.userId !== meal.userId));
+          setSnackbarMessage(t('social.unfollowedName', { name: meal.userName }));
+        } catch (error) {
+          console.error('Error unfollowing:', error);
+          setSnackbarMessage(t('social.unfollowFailed'));
+        }
         setSnackbarVisible(true);
         break;
       case 'breakdown':
-        // Show full nutrition breakdown
         Alert.alert(
           t('social.nutritionBreakdown'),
           meal.items.map(item => `${item.quantity} ${item.food}: ${item.calories} ${t('dashboard.calShort')}`).join('\n')
@@ -264,60 +255,63 @@ export default function SocialFeedScreen({ navigation }) {
     const commentsVisible = showComments[meal.id];
 
     return (
-      <Card key={meal.id} style={styles.mealCard}>
+      <View key={meal.id} style={styles.mealCard}>
         {/* 3-Dot Menu Dropdown */}
         {menuVisible === meal.id && (
           <View style={styles.menuOverlay}>
-            <Card style={styles.menuCard}>
+            <View style={styles.menuCard}>
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => handleMenuAction('breakdown', meal)}
               >
+                <Icon source="chart-donut" size={18} color={colors.body} />
                 <Text style={styles.menuText}>{t('social.seeFullNutrition')}</Text>
               </TouchableOpacity>
-              <Divider />
+              <View style={styles.menuDivider} />
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => handleMenuAction('hide', meal)}
               >
+                <Icon source="eye-off-outline" size={18} color={colors.body} />
                 <Text style={styles.menuText}>{t('social.hidePost')}</Text>
               </TouchableOpacity>
-              <Divider />
+              <View style={styles.menuDivider} />
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => handleMenuAction('report', meal)}
               >
+                <Icon source="flag-outline" size={18} color={colors.body} />
                 <Text style={styles.menuText}>{t('social.report')}</Text>
               </TouchableOpacity>
-              <Divider />
+              <View style={styles.menuDivider} />
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => handleMenuAction('unfollow', meal)}
               >
-                <Text style={[styles.menuText, styles.menuTextDanger]}>{t('social.unfollow', { name: meal.userName })}</Text>
+                <Icon source="account-remove-outline" size={18} color={colors.danger} />
+                <Text style={[styles.menuText, styles.menuTextDanger]}>
+                  {t('social.unfollow', { name: meal.userName })}
+                </Text>
               </TouchableOpacity>
-            </Card>
+            </View>
           </View>
         )}
 
         {/* Header: User info */}
         <View style={styles.cardHeader}>
           <View style={styles.userInfo}>
-            <Avatar.Text
-              size={40}
-              label={meal.userName?.charAt(0).toUpperCase() || 'U'}
-              style={styles.avatar}
-            />
+            <GradientAvatar name={meal.userName} size={40} />
             <View style={styles.userNameContainer}>
               <Text style={styles.userName}>{meal.userName}</Text>
               <Text style={styles.mealTime}>
-                {getMealTypeLabel(meal.mealType, t)} • {formatTime(meal.createdAt)}
+                {getMealTypeLabel(meal.mealType, t)} · {formatTime(meal.createdAt)}
               </Text>
             </View>
           </View>
           <IconButton
-            icon="dots-vertical"
+            icon="dots-horizontal"
             size={20}
+            iconColor={colors.faint}
             onPress={() => handleMenu(meal.id)}
           />
         </View>
@@ -327,53 +321,73 @@ export default function SocialFeedScreen({ navigation }) {
           <Image source={{ uri: meal.imageUrl }} style={styles.mealImage} />
         )}
 
+        {/* Meal description */}
+        <View style={styles.cardContent}>
+          <Text style={styles.description}>{meal.description}</Text>
+
+          {/* Nutrition summary */}
+          <View style={styles.nutritionRow}>
+            <View style={styles.nutritionBadge}>
+              <Text style={[styles.nutritionValue, { color: colors.primary }]}>{meal.totals.calories}</Text>
+              <Text style={styles.nutritionLabel}>{t('social.caloriesShort')}</Text>
+            </View>
+            <View style={styles.nutritionDivider} />
+            <View style={styles.nutritionBadge}>
+              <Text style={[styles.nutritionValue, { color: colors.protein }]}>{Math.round(meal.totals.protein)}g</Text>
+              <Text style={styles.nutritionLabel}>{t('social.protein')}</Text>
+            </View>
+            <View style={styles.nutritionDivider} />
+            <View style={styles.nutritionBadge}>
+              <Text style={[styles.nutritionValue, { color: colors.carbs }]}>{Math.round(meal.totals.carbs)}g</Text>
+              <Text style={styles.nutritionLabel}>{t('social.carbs')}</Text>
+            </View>
+            <View style={styles.nutritionDivider} />
+            <View style={styles.nutritionBadge}>
+              <Text style={[styles.nutritionValue, { color: colors.fat }]}>{Math.round(meal.totals.fat)}g</Text>
+              <Text style={styles.nutritionLabel}>{t('social.fat')}</Text>
+            </View>
+          </View>
+        </View>
+
         {/* Actions: Like, Comment, Share, Add */}
         <View style={styles.actionsRow}>
           <View style={styles.leftActions}>
-            <IconButton
-              icon={isLiked ? 'heart' : 'heart-outline'}
-              iconColor={isLiked ? '#EF4444' : '#1E293B'}
-              size={26}
-              onPress={() => handleLike(meal.id)}
-            />
-            <IconButton
-              icon="comment-outline"
-              size={26}
-              onPress={() => toggleComments(meal.id)}
-            />
-            <IconButton
-              icon="share-outline"
-              size={26}
-              onPress={() => handleShare(meal)}
-            />
+            <TouchableOpacity style={styles.actionButton} onPress={() => handleLike(meal.id)}>
+              <Icon
+                source={isLiked ? 'heart' : 'heart-outline'}
+                size={22}
+                color={isLiked ? colors.danger : colors.body}
+              />
+              {likesCount > 0 && (
+                <Text style={[styles.actionCount, isLiked && { color: colors.danger }]}>{likesCount}</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={() => toggleComments(meal.id)}>
+              <Icon source="comment-outline" size={21} color={colors.body} />
+              {commentsCount > 0 && <Text style={styles.actionCount}>{commentsCount}</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={() => handleShare(meal)}>
+              <Icon source="share-outline" size={22} color={colors.body} />
+            </TouchableOpacity>
           </View>
-          <IconButton
-            icon="plus-circle-outline"
-            iconColor="#6366F1"
-            size={26}
-            onPress={() => handleCopyMeal(meal)}
-          />
+          <TouchableOpacity style={styles.addToDayButton} onPress={() => handleCopyMeal(meal)}>
+            <Icon source="plus" size={16} color={colors.primary} />
+            <Text style={styles.addToDayText}>{t('social.addToMyDay')}</Text>
+          </TouchableOpacity>
         </View>
-
-        {/* Like count */}
-        {likesCount > 0 && (
-          <Text style={styles.likesText}>
-            {likesCount} {likesCount === 1 ? t('social.like') : t('social.likes')}
-          </Text>
-        )}
 
         {/* Engagement Stats */}
         {(meal.copiedBy?.includes(user.uid) || meal.copiedByCount > 0) && (
           <View style={styles.engagementStats}>
             {meal.copiedBy?.includes(user.uid) && (
               <View style={styles.engagementBadge}>
-                <IconButton icon="check-circle" size={14} iconColor="#10B981" style={styles.engagementIcon} />
+                <Icon source="check-circle" size={14} color={colors.success} />
                 <Text style={styles.engagementText}>{t('social.youAddedThis')}</Text>
               </View>
             )}
             {meal.copiedByCount > 0 && (
               <View style={styles.engagementBadge}>
-                <IconButton icon="account-multiple" size={14} iconColor="#6366F1" style={styles.engagementIcon} />
+                <Icon source="account-multiple" size={14} color={colors.primary} />
                 <Text style={styles.engagementText}>
                   {t('social.addedTimes', {
                     count: meal.copiedByCount,
@@ -385,41 +399,14 @@ export default function SocialFeedScreen({ navigation }) {
           </View>
         )}
 
-        {/* Meal content */}
-        <View style={styles.cardContent}>
-          <Text style={styles.description}>
-            <Text style={styles.userNameInline}>{meal.userName} </Text>
-            {meal.description}
-          </Text>
-
-          {/* Nutrition summary */}
-          <View style={styles.nutritionRow}>
-            <View style={styles.nutritionBadge}>
-              <Text style={styles.nutritionValue}>{meal.totals.calories}</Text>
-              <Text style={styles.nutritionLabel}>{t('social.caloriesShort')}</Text>
-            </View>
-            <View style={styles.nutritionBadge}>
-              <Text style={styles.nutritionValue}>{Math.round(meal.totals.protein)}</Text>
-              <Text style={styles.nutritionLabel}>{t('social.protein')}</Text>
-            </View>
-            <View style={styles.nutritionBadge}>
-              <Text style={styles.nutritionValue}>{Math.round(meal.totals.carbs)}</Text>
-              <Text style={styles.nutritionLabel}>{t('social.carbs')}</Text>
-            </View>
-            <View style={styles.nutritionBadge}>
-              <Text style={styles.nutritionValue}>{Math.round(meal.totals.fat)}</Text>
-              <Text style={styles.nutritionLabel}>{t('social.fat')}</Text>
-            </View>
-          </View>
-
+        <View style={styles.commentsBlock}>
           {/* View comments button */}
           {commentsCount > 0 && !commentsVisible && (
             <TouchableOpacity onPress={() => toggleComments(meal.id)}>
               <Text style={styles.viewCommentsText}>
                 {commentsCount === 1
                   ? t('social.viewCommentsSingle')
-                  : t('social.viewCommentsAll', { count: commentsCount })
-                }
+                  : t('social.viewCommentsAll', { count: commentsCount })}
               </Text>
             </TouchableOpacity>
           )}
@@ -429,8 +416,9 @@ export default function SocialFeedScreen({ navigation }) {
             <View style={styles.commentsSection}>
               {meal.comments.map((comment, index) => (
                 <View key={index} style={styles.commentRow}>
+                  <GradientAvatar name={comment.userName} size={26} />
                   <Text style={styles.commentText}>
-                    <Text style={styles.commentUserName}>{comment.userName} </Text>
+                    <Text style={styles.commentUserName}>{comment.userName}  </Text>
                     {comment.text}
                   </Text>
                 </View>
@@ -442,6 +430,7 @@ export default function SocialFeedScreen({ navigation }) {
           <View style={styles.addCommentRow}>
             <RNTextInput
               placeholder={t('social.addComment')}
+              placeholderTextColor={colors.faint}
               value={commentInputs[meal.id] || ''}
               onChangeText={(text) =>
                 setCommentInputs(prev => ({ ...prev, [meal.id]: text }))
@@ -457,14 +446,16 @@ export default function SocialFeedScreen({ navigation }) {
             )}
           </View>
         </View>
-      </Card>
+      </View>
     );
   };
 
+  const visibleMeals = feedMeals.filter(meal => !hiddenMeals.includes(meal.id));
+
   return (
     <View style={styles.container}>
-      {/* Calendar Ribbon */}
-      <Surface style={styles.calendarRibbon} elevation={2}>
+      {/* Calendar Strip */}
+      <View style={styles.calendarRibbon}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -479,53 +470,39 @@ export default function SocialFeedScreen({ navigation }) {
             return (
               <TouchableOpacity
                 key={index}
-                style={[
-                  styles.dateItem,
-                  isSelected && styles.dateItemSelected
-                ]}
+                style={[styles.dateItem, isSelected && styles.dateItemSelected]}
                 onPress={() => handleDateSelect(day)}
+                activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.dayName,
-                    isSelected && styles.dayNameSelected
-                  ]}
-                >
+                <Text style={[styles.dayName, isSelected && styles.dayNameSelected]}>
                   {dayName}
                 </Text>
-                <Text
-                  style={[
-                    styles.dateNumber,
-                    isSelected && styles.dateNumberSelected,
-                    isToday && !isSelected && styles.todayDate
-                  ]}
-                >
+                <Text style={[
+                  styles.dateNumber,
+                  isSelected && styles.dateNumberSelected,
+                  isToday && !isSelected && styles.todayDate
+                ]}>
                   {date}
                 </Text>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
-      </Surface>
+      </View>
 
       <ScrollView
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        {feedMeals.length === 0 ? (
-            <Card style={styles.emptyCard}>
-              <Card.Content>
-                <Text style={styles.emptyIcon}>🍽️</Text>
-                <Text style={styles.emptyTitle}>{t('social.noMealsYet')}</Text>
-                <Text style={styles.emptyText}>
-                {t('social.noMealsBody')}
-                </Text>
-              </Card.Content>
-            </Card>
+        {visibleMeals.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyIcon}>🥗</Text>
+            <Text style={styles.emptyTitle}>{t('social.noMealsYet')}</Text>
+            <Text style={styles.emptyText}>{t('social.noMealsBody')}</Text>
+          </View>
         ) : (
-          feedMeals.map(renderMealCard)
+          visibleMeals.map(renderMealCard)
         )}
 
         <View style={{ height: 40 }} />
@@ -538,36 +515,34 @@ export default function SocialFeedScreen({ navigation }) {
           onDismiss={() => setMealTypeDialogVisible(false)}
           contentContainerStyle={styles.modalContainer}
         >
-          <Card style={styles.modalCard}>
-            <Card.Content>
-              <Text style={styles.modalTitle}>{t('social.addToMyDayTitle')}</Text>
-              <Text style={styles.modalSubtitle}>{t('social.whichMealType')}</Text>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{t('social.addToMyDayTitle')}</Text>
+            <Text style={styles.modalSubtitle}>{t('social.whichMealType')}</Text>
 
-              <View style={styles.mealTypeChips}>
-                {MEAL_TYPES.map((type) => (
-                  <Chip
-                    key={type}
-                    mode="outlined"
-                    onPress={() => confirmCopyMeal(type)}
-                    style={styles.mealTypeChip}
-                  >
-                    {getMealTypeLabel(type, t)}
-                  </Chip>
-                ))}
-              </View>
+            <View style={styles.mealTypeChips}>
+              {MEAL_TYPES.map((mealType) => (
+                <Chip
+                  key={mealType}
+                  mode="outlined"
+                  onPress={() => confirmCopyMeal(mealType)}
+                  style={styles.mealTypeChip}
+                >
+                  {getMealTypeLabel(mealType, t)}
+                </Chip>
+              ))}
+            </View>
 
-              <Button
-                mode="text"
-                onPress={() => setMealTypeDialogVisible(false)}
-                style={styles.cancelButton}
-              >
-                {t('common.cancel')}
-              </Button>
-            </Card.Content>
-          </Card>
+            <Button
+              mode="text"
+              textColor={colors.muted}
+              onPress={() => setMealTypeDialogVisible(false)}
+              style={styles.cancelButton}
+            >
+              {t('common.cancel')}
+            </Button>
+          </View>
         </Modal>
 
-        {/* Success/Error Snackbar */}
         <Snackbar
           visible={snackbarVisible}
           onDismiss={() => setSnackbarVisible(false)}
@@ -584,315 +559,331 @@ export default function SocialFeedScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9'
+    backgroundColor: colors.background
   },
   scrollContent: {
-    paddingVertical: 8
+    paddingVertical: 12,
+    paddingHorizontal: 16
   },
   mealCard: {
-    marginBottom: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 0,
+    marginBottom: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
     position: 'relative',
     overflow: 'visible',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.08)',
-      },
-    }),
+    ...shadows.card
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10
+    paddingHorizontal: 14,
+    paddingVertical: 12
   },
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center'
   },
-  avatar: {
-    backgroundColor: '#6366F1'
-  },
   userNameContainer: {
-    marginLeft: 12
+    marginLeft: 10
   },
   userName: {
     fontWeight: '700',
     fontSize: 15,
-    color: '#1E293B'
+    color: colors.ink,
+    letterSpacing: -0.2
   },
   mealTime: {
     fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 2
+    color: colors.faint,
+    marginTop: 1
   },
   mealImage: {
     width: '100%',
-    height: 400,
-    backgroundColor: '#F1F5F9'
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4
-  },
-  leftActions: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  likesText: {
-    paddingHorizontal: 16,
-    fontWeight: '700',
-    fontSize: 14,
-    color: '#1E293B',
-    marginBottom: 8
+    height: 300,
+    backgroundColor: colors.subtle
   },
   cardContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 12
+    paddingHorizontal: 14,
+    paddingTop: 12
   },
   description: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#1E293B',
+    color: colors.body,
     marginBottom: 12
-  },
-  userNameInline: {
-    fontWeight: '700'
   },
   nutritionRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-    paddingVertical: 8,
+    alignItems: 'center',
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12
+    backgroundColor: colors.subtle,
+    borderRadius: radius.md
   },
   nutritionBadge: {
     alignItems: 'center',
     flex: 1
   },
+  nutritionDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: colors.border
+  },
   nutritionValue: {
-    fontWeight: '700',
-    fontSize: 16,
-    color: '#6366F1'
+    fontWeight: '800',
+    fontSize: 15,
+    letterSpacing: -0.3
   },
   nutritionLabel: {
-    fontSize: 11,
-    color: '#94A3B8',
+    fontSize: 10,
+    color: colors.faint,
     marginTop: 2,
+    fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5
   },
+  actionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10
+  },
+  leftActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5
+  },
+  actionCount: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.body
+  },
+  addToDayButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.tint,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.pill
+  },
+  addToDayText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary
+  },
+  commentsBlock: {
+    paddingHorizontal: 14,
+    paddingBottom: 12
+  },
   viewCommentsText: {
-    color: '#94A3B8',
+    color: colors.faint,
     fontSize: 13,
     marginBottom: 8
   },
   commentsSection: {
-    marginBottom: 12
+    marginBottom: 8,
+    gap: 8
   },
   commentRow: {
-    marginBottom: 6
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8
   },
   commentText: {
+    flex: 1,
     fontSize: 14,
-    lineHeight: 18,
-    color: '#1E293B'
+    lineHeight: 19,
+    color: colors.body
   },
   commentUserName: {
-    fontWeight: '700'
+    fontWeight: '700',
+    color: colors.ink
   },
   addCommentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8
+    marginTop: 4
   },
   commentInput: {
     flex: 1,
     fontSize: 14,
-    color: '#1E293B',
+    color: colors.ink,
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    backgroundColor: colors.subtle,
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: '#E2E8F0'
+    borderColor: colors.border
   },
   postButton: {
-    color: '#6366F1',
+    color: colors.primary,
     fontWeight: '700',
     fontSize: 14,
     marginLeft: 12
   },
   emptyCard: {
-    margin: 20,
-    marginTop: 60,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 2px 12px rgba(0, 0, 0, 0.06)',
-      },
-    }),
+    marginTop: 48,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    ...shadows.card
   },
   emptyIcon: {
-    fontSize: 64,
-    textAlign: 'center',
-    marginBottom: 16
+    fontSize: 56,
+    marginBottom: 14
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1E293B',
+    ...type.heading,
+    fontSize: 19,
     textAlign: 'center',
-    marginBottom: 8
+    marginBottom: 6
   },
   emptyText: {
-    textAlign: 'center',
-    color: '#94A3B8',
-    fontSize: 15,
-    lineHeight: 22
+    ...type.body,
+    color: colors.muted,
+    textAlign: 'center'
   },
   menuOverlay: {
     position: 'absolute',
-    top: 40,
-    right: 8,
+    top: 46,
+    right: 10,
     zIndex: 1000
   },
   menuCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    minWidth: 220,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
-      },
-      default: {
-        elevation: 8,
-      }
-    }),
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    minWidth: 230,
+    paddingVertical: 4,
+    ...shadows.raised
   },
   menuItem: {
-    padding: 16
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: colors.subtle
   },
   menuText: {
-    fontSize: 15,
-    color: '#1E293B'
+    fontSize: 14,
+    color: colors.ink,
+    flex: 1
   },
   menuTextDanger: {
-    color: '#EF4444'
+    color: colors.danger
   },
   modalContainer: {
     padding: 20
   },
   modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 8
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: 24
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 8,
+    ...type.title,
+    fontSize: 20,
+    marginBottom: 6,
     textAlign: 'center'
   },
   modalSubtitle: {
-    fontSize: 15,
-    color: '#64748B',
-    marginBottom: 24,
+    ...type.body,
+    color: colors.muted,
+    marginBottom: 20,
     textAlign: 'center'
   },
   mealTypeChips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 12,
-    marginBottom: 16
+    gap: 10,
+    marginBottom: 12
   },
   mealTypeChip: {
-    marginBottom: 8
+    marginBottom: 4
   },
   cancelButton: {
-    marginTop: 8
+    marginTop: 4
   },
   snackbar: {
-    backgroundColor: '#1E293B'
+    backgroundColor: colors.ink
   },
-  // Calendar Ribbon Styles
+  // Calendar strip
   calendarRibbon: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    backgroundColor: colors.surface,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0'
+    borderBottomColor: colors.border
   },
   calendarContent: {
-    paddingHorizontal: 8
+    paddingHorizontal: 12
   },
   dateItem: {
-    width: ITEM_WIDTH,
+    width: 52,
     alignItems: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginHorizontal: 4,
-    borderRadius: 12
+    marginHorizontal: 2,
+    borderRadius: radius.md
   },
   dateItemSelected: {
-    backgroundColor: '#6366F1'
+    backgroundColor: colors.primary,
+    ...shadows.glow
   },
   dayName: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#64748B',
+    color: colors.faint,
     marginBottom: 4,
-    textTransform: 'uppercase'
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
   },
   dayNameSelected: {
-    color: '#E0E7FF'
+    color: 'rgba(255,255,255,0.85)'
   },
   dateNumber: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#1E293B'
+    color: colors.ink
   },
   dateNumberSelected: {
     color: '#FFFFFF'
   },
   todayDate: {
-    color: '#6366F1'
+    color: colors.primary
   },
-  // Engagement Stats Styles
+  // Engagement stats
   engagementStats: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     marginBottom: 8
   },
   engagementBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0'
-  },
-  engagementIcon: {
-    margin: 0,
-    marginRight: -4
+    gap: 5,
+    backgroundColor: colors.subtle,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: radius.pill
   },
   engagementText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#64748B'
+    color: colors.muted
   }
 });

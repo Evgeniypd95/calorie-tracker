@@ -176,65 +176,19 @@ export default function SignupScreen({ navigation, route }) {
             {t('auth.signupSubtitle')}
           </Text>
 
-          {/* iOS/Android: Show only Google Sign-In */}
-          {Platform.OS !== 'web' && (
-            <Button
-              mode="outlined"
-              onPress={handleGoogleSignIn}
-              loading={googleLoading}
-              disabled={googleLoading}
-              style={[styles.button, styles.googleButton]}
-              icon="google"
-              labelStyle={styles.googleButtonLabel}
-              contentStyle={styles.googleButtonContent}
-              textColor="#3C4043"
-            >
-              {t('auth.continueGoogle')}
-            </Button>
-          )}
-
-          {/* Web: Show Email/Password (only visible on web) */}
-          {Platform.OS === 'web' && (
-            <>
-              <TextInput
-                label={t('auth.email')}
-                value={email}
-                onChangeText={setEmail}
-                mode="outlined"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                style={styles.input}
-              />
-
-              <TextInput
-                label={t('auth.password')}
-                value={password}
-                onChangeText={setPassword}
-                mode="outlined"
-                secureTextEntry
-                style={styles.input}
-              />
-
-              <TextInput
-                label={t('auth.confirmPassword')}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                mode="outlined"
-                secureTextEntry
-                style={styles.input}
-              />
-
-              <Button
-                mode="contained"
-                onPress={handleSignup}
-                loading={loading}
-                disabled={loading}
-                style={styles.button}
-              >
-                {t('auth.signUp')}
-              </Button>
-            </>
-          )}
+          <Button
+            mode="outlined"
+            onPress={handleGoogleSignIn}
+            loading={googleLoading}
+            disabled={googleLoading}
+            style={[styles.button, styles.googleButton]}
+            icon="google"
+            labelStyle={styles.googleButtonLabel}
+            contentStyle={styles.googleButtonContent}
+            textColor="#3C4043"
+          >
+            {t('auth.continueGoogle')}
+          </Button>
 
           <Button
             mode="text"
@@ -260,7 +214,7 @@ export default function SignupScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9'
+    backgroundColor: '#F4F4F8'
   },
   scrollContent: {
     flexGrow: 1
@@ -276,29 +230,31 @@ const styles = StyleSheet.create({
   title: {
     marginBottom: 12,
     fontWeight: '800',
-    fontSize: 36,
-    color: '#1E293B',
-    letterSpacing: -1
+    fontSize: 32,
+    color: '#0F172A',
+    letterSpacing: -1,
+    textAlign: 'center'
   },
   subtitle: {
     marginBottom: 40,
     color: '#64748B',
     fontSize: 16,
-    lineHeight: 24
+    lineHeight: 24,
+    textAlign: 'center'
   },
   input: {
-    marginBottom: 20,
+    marginBottom: 16,
     backgroundColor: '#FFFFFF'
   },
   button: {
     marginTop: 12,
-    paddingVertical: 8
+    borderRadius: 999
   },
   googleButton: {
     borderWidth: 1,
     borderColor: '#DADCE0',
     backgroundColor: '#FFFFFF',
-    borderRadius: 8
+    borderRadius: 999
   },
   googleButtonLabel: {
     color: '#3C4043',

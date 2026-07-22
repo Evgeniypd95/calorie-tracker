@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform, Image, KeyboardAvoidingView, TouchableOpacity, Modal, Linking } from 'react-native';
-import { TextInput, Button, Text, IconButton, ActivityIndicator, Card, Chip, Surface } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert, Platform, Image, KeyboardAvoidingView, TouchableOpacity, Modal, Linking, Text as RNText } from 'react-native';
+import { TextInput, Button, Text, IconButton, Icon, ActivityIndicator } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Voice from '@react-native-voice/voice';
@@ -10,14 +11,47 @@ import { useAuth } from '../../context/AuthContext';
 import { lookupBarcode, formatBarcodeProductForParsing } from '../../services/barcodeService';
 import MealGradeCard from '../../components/MealGradeCard';
 import { useLocalization, getMealTypeLabel, getMealTypeLabelLower } from '../../localization/i18n';
+import { colors, gradients, radius, shadows } from '../../theme';
 
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
-// Message types: 'user', 'ai', 'system', 'loading'
-// AI messages can have parsedData attached
+const MEAL_TYPE_ICONS = {
+  Breakfast: 'weather-sunset-up',
+  Lunch: 'white-balance-sunny',
+  Dinner: 'weather-night',
+  Snack: 'food-apple-outline'
+};
+
+// Compact nutrition strip shown under parsed AI messages
+function NutritionStrip({ totals, t }) {
+  if (!totals) return null;
+  return (
+    <View style={styles.nutritionStrip}>
+      <View style={styles.nutritionStat}>
+        <RNText style={[styles.nutritionStatValue, { color: colors.primary }]}>{totals.calories}</RNText>
+        <RNText style={styles.nutritionStatLabel}>{t('dashboard.calShort')}</RNText>
+      </View>
+      <View style={styles.nutritionStatDivider} />
+      <View style={styles.nutritionStat}>
+        <RNText style={[styles.nutritionStatValue, { color: colors.protein }]}>{Math.round(totals.protein)}g</RNText>
+        <RNText style={styles.nutritionStatLabel}>{t('dashboard.proteinLabel')}</RNText>
+      </View>
+      <View style={styles.nutritionStatDivider} />
+      <View style={styles.nutritionStat}>
+        <RNText style={[styles.nutritionStatValue, { color: colors.carbs }]}>{Math.round(totals.carbs)}g</RNText>
+        <RNText style={styles.nutritionStatLabel}>{t('dashboard.carbsLabel')}</RNText>
+      </View>
+      <View style={styles.nutritionStatDivider} />
+      <View style={styles.nutritionStat}>
+        <RNText style={[styles.nutritionStatValue, { color: colors.fat }]}>{Math.round(totals.fat)}g</RNText>
+        <RNText style={styles.nutritionStatLabel}>{t('dashboard.fatLabel')}</RNText>
+      </View>
+    </View>
+  );
+}
 
 export default function ChatLogMealScreen({ navigation, route }) {
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, refreshUserProfile } = useAuth();
   const { t, localeCode, locale } = useLocalization();
   const { selectedDate, action, editingMeal, reparse } = route.params || {};
   const scrollViewRef = useRef(null);
@@ -77,8 +111,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
   useEffect(() => {
     if (editingMeal && reparse && !reparseHandledRef.current) {
       reparseHandledRef.current = true;
-
-      // Auto-submit the edited description for re-parsing
       setTimeout(() => {
         setInputText(editingMeal.description);
         handleSendMessage(editingMeal.description);
@@ -90,7 +122,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
     try {
       const meals = await mealService.getRecentMeals(user.uid, 10);
 
-      // Filter to last 3 days
       const threeDaysAgo = new Date();
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
@@ -99,7 +130,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
         return mealDate >= threeDaysAgo;
       });
 
-      // Remove duplicates by description (keep most recent)
       const uniqueMeals = [];
       const seenDescriptions = new Set();
 
@@ -122,17 +152,13 @@ export default function ChatLogMealScreen({ navigation, route }) {
       showAlert(t('chat.noRecentMeals'), t('chat.noRecentMealsBody'));
       return;
     }
-
     setShowRecentMeals(true);
   };
 
   const handleSelectRecentMeal = (meal) => {
     setShowRecentMeals(false);
 
-    // Add user message with the meal description so it gets saved correctly
     addMessage('user', meal.description);
-
-    // Use the selected meal's data
     addMessage('ai', t('chat.usingRecentMeal', { name: meal.description }));
 
     setParsedData({
@@ -140,7 +166,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
       totals: meal.totals
     });
 
-    // Show the nutrition breakdown
     const totalCal = meal.totals.calories;
     const itemsList = meal.items.map(item =>
       `• ${item.quantity} ${item.food} (${item.calories} ${t('dashboard.calShort')})`
@@ -156,8 +181,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
     setTimeout(() => {
       addMessage('ai', response, { parsedData: { items: meal.items, totals: meal.totals } });
-
-      // Add confirmation prompt for recent meals
       setTimeout(() => {
         addMessage('ai', '', { showFeedbackSuggestions: true });
       }, 500);
@@ -249,7 +272,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
           default:
             break;
         }
-      }, 300); // Small delay to let the screen render
+      }, 300);
     }
   }, [action]);
 
@@ -340,11 +363,9 @@ export default function ChatLogMealScreen({ navigation, route }) {
     if (isListening) {
       await stopVoiceRecording();
     } else {
-      // Only countdown on initial recording (no parsed data yet)
       if (!parsedData) {
         startCountdown();
       } else {
-        // Feedback mode - no countdown, direct recording
         startVoiceRecording();
       }
     }
@@ -355,7 +376,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
       const { status, canAskAgain } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         if (canAskAgain === false) {
-          // Permission permanently denied
           if (Platform.OS === 'web') {
             window.alert(t('chat.photoPermissionWeb'));
           } else {
@@ -406,7 +426,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
       const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         if (canAskAgain === false) {
-          // Permission permanently denied
           if (Platform.OS === 'web') {
             window.alert(t('chat.cameraPermissionWeb'));
           } else {
@@ -475,9 +494,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
     if (!permission.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        // Check if they can ask again or if it was permanently denied
         if (result.canAskAgain === false) {
-          // Permission was permanently denied - guide them to Settings
           if (Platform.OS === 'web') {
             window.alert(t('chat.barcodePermissionWeb'));
           } else {
@@ -500,7 +517,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
             );
           }
         } else {
-          // Permission was just denied this time
           showAlert(t('chat.permissionRequired'), t('chat.barcodePermission'));
         }
         return;
@@ -518,9 +534,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
   };
 
   const handleBarcodeScanned = async ({ type, data }) => {
-    // Prevent multiple scans using ref (immediate check)
     if (isScanningBarcodeRef.current) {
-      console.log('⚠️ Barcode scan already in progress, ignoring duplicate');
       return;
     }
 
@@ -529,19 +543,15 @@ export default function ChatLogMealScreen({ navigation, route }) {
     setShowBarcodeScanner(false);
     setLookingUpBarcode(true);
 
-    // Store barcode ID temporarily
     const tempUserMessage = addMessage('user', t('chat.barcodeScanning'));
     addMessage('ai', t('chat.lookingUpProduct'));
 
     try {
-      // Look up the barcode in multiple databases
       const result = await lookupBarcode(data);
 
-      // Remove the "looking up" message
       setMessages(prev => prev.slice(0, -1));
 
       if (result.found) {
-        // Update the user message with the product name
         setMessages(prev => prev.map(msg =>
           msg.id === tempUserMessage.id
             ? { ...msg, content: `${result.product.name}${result.product.brand ? ' (' + result.product.brand + ')' : ''}` }
@@ -554,7 +564,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
           const nutritionData = formattedProduct.nutritionData;
           const servingSize = formattedProduct.servingSize;
 
-          // Create parsed data structure
           const parsedResult = {
             items: [{
               food: result.product.name,
@@ -586,13 +595,11 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
           addMessage('ai', response, { parsedData: parsedResult });
 
-          // Add confirmation prompt for barcode scans
           setTimeout(() => {
             addMessage('ai', '', { showFeedbackSuggestions: true });
           }, 500);
         }
       } else {
-        // Update the user message with barcode if product not found
         setMessages(prev => prev.map(msg =>
           msg.id === tempUserMessage.id
             ? { ...msg, content: t('chat.barcodeScanned', { code: data }) }
@@ -603,7 +610,6 @@ export default function ChatLogMealScreen({ navigation, route }) {
     } catch (error) {
       console.error('Error looking up barcode:', error);
       setMessages(prev => prev.slice(0, -1));
-      // Update the user message with barcode if error
       setMessages(prev => prev.map(msg =>
         msg.id === tempUserMessage.id
           ? { ...msg, content: t('chat.barcodeScanned', { code: data }) }
@@ -626,21 +632,17 @@ export default function ChatLogMealScreen({ navigation, route }) {
       setShowAdjustmentHints(false);
       const description = await convertImageToDescription(base64Data, locale || localeCode);
 
-      // Update the user message with the actual description
       setMessages(prev => prev.map(msg =>
         msg.id === tempUserMessage.id
           ? { ...msg, content: description }
           : msg
       ));
 
-      // Remove the "analyzing" message
       setMessages(prev => prev.slice(0, -1));
 
-      // Process the description automatically
       await parseAndRespond(description);
     } catch (error) {
       console.error('Error processing image:', error);
-      // Update the user message to show it was a photo even if processing failed
       setMessages(prev => prev.map(msg =>
         msg.id === tempUserMessage.id
           ? { ...msg, content: t('chat.photoMealFallback') }
@@ -655,36 +657,25 @@ export default function ChatLogMealScreen({ navigation, route }) {
   };
 
   const parseAndRespond = async (text) => {
-    console.log('🔍 [ChatLogMeal] parseAndRespond called with text:', text);
     setIsProcessing(true);
     setShowAdjustmentHints(false);
     addMessage('ai', t('chat.calculatingNutrition'));
 
     try {
-      console.log('🤖 [ChatLogMeal] Calling parseMealDescription API');
       const result = await parseMealDescription(text, null, locale || localeCode);
-      console.log('✅ [ChatLogMeal] Parse result:', JSON.stringify(result, null, 2));
 
-      // Remove the "calculating" message
       setMessages(prev => prev.slice(0, -1));
 
-      // Check if result has zero or very low calories (< 20)
       const totalCal = result.totals.calories;
       const isZeroOrLowCalories = totalCal < 20;
-
-      // Check if items array is empty or has no recognizable food
       const hasNoItems = !result.items || result.items.length === 0;
 
       if (isZeroOrLowCalories || hasNoItems) {
-        console.log('⚠️ [ChatLogMeal] Zero/low calories or no items detected');
-        // Show error message and ask user to clarify
         addMessage('ai', t('chat.lowCaloriePrompt', { text }));
-        setParsedData(null); // Clear any existing parsed data
-        console.log('⚠️ [ChatLogMeal] User prompted to provide clearer description');
-        return; // Exit early, don't save zero-calorie meal
+        setParsedData(null);
+        return;
       }
 
-      // Create a friendly response
       const itemsList = result.items.map(item =>
         `• ${item.quantity} ${item.food} (${item.calories} cal)`
       ).join('\n');
@@ -699,66 +690,44 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
       addMessage('ai', response, { parsedData: result });
 
-      // Add explicit feedback prompt with examples
       setTimeout(() => {
         addMessage('ai', '', { showFeedbackSuggestions: true });
       }, 500);
       setParsedData(result);
-      console.log('✅ [ChatLogMeal] Parse and respond complete');
     } catch (error) {
-      console.error('❌ [ChatLogMeal] Error parsing meal:', error);
-      console.error('❌ [ChatLogMeal] Error details:', error.message, error.stack);
+      console.error('Error parsing meal:', error);
       setMessages(prev => prev.slice(0, -1));
       addMessage('ai', t('chat.parseFailed'));
     } finally {
       setIsProcessing(false);
-      console.log('🏁 [ChatLogMeal] parseAndRespond finished');
     }
   };
 
   const handleSendMessage = async () => {
-    console.log('🚀 [ChatLogMeal] handleSendMessage called');
-
-    // Stop recording if it's active
     if (isListening) {
-      console.log('🎤 [ChatLogMeal] Stopping voice recording');
       await stopVoiceRecording();
     }
 
     const text = inputText.trim();
-    console.log('📝 [ChatLogMeal] Input text:', text);
-    console.log('🖼️ [ChatLogMeal] Selected image:', !!selectedImage);
 
     if (!text && !selectedImage) {
-      console.log('⚠️ [ChatLogMeal] No text or image, returning early');
       return;
     }
 
-    // Clear input immediately
     setInputText('');
     textBeforeVoiceRef.current = '';
     setShowAdjustmentHints(false);
-    console.log('🧹 [ChatLogMeal] Input cleared');
 
     // If we already have parsed data, treat this as a refinement
     if (parsedData && text) {
-      console.log('🔄 [ChatLogMeal] Refining existing parsed data');
-      console.log('📊 [ChatLogMeal] Current parsed data:', parsedData);
-
-      // Reset confirmation since we're making changes
       setMealConfirmed(false);
 
       addMessage('user', text);
-
-      // AI acknowledges the refinement
       addMessage('ai', t('chat.adjustPrompt'));
 
       setIsProcessing(true);
       try {
-        console.log('🤖 [ChatLogMeal] Calling parseMealDescription for refinement');
-        // Re-parse with the feedback AND existing data context
         const result = await parseMealDescription(text, parsedData, locale || localeCode);
-        console.log('✅ [ChatLogMeal] Refinement result:', result);
 
         setMessages(prev => prev.slice(0, -1));
 
@@ -777,50 +746,39 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
         addMessage('ai', response, { parsedData: result });
 
-        // Add feedback prompt again
         setTimeout(() => {
           addMessage('ai', '', { showFeedbackSuggestions: true });
         }, 500);
 
         setParsedData(result);
       } catch (error) {
-        console.error('❌ [ChatLogMeal] Error refining meal:', error);
+        console.error('Error refining meal:', error);
         setMessages(prev => prev.slice(0, -1));
         addMessage('ai', t('chat.rephraseAdjustment'));
       } finally {
         setIsProcessing(false);
-        console.log('✅ [ChatLogMeal] Refinement complete');
       }
       return;
     }
 
     // Initial meal description
     if (text) {
-      console.log('📝 [ChatLogMeal] Processing initial meal description');
       addMessage('user', text);
       await parseAndRespond(text);
     }
   };
 
   const handleSaveMeal = async () => {
-    console.log('💾 [ChatLogMeal] handleSaveMeal called');
-    console.log('📊 [ChatLogMeal] Parsed data:', parsedData);
-    console.log('🍽️ [ChatLogMeal] Selected meal type:', selectedMealType);
-
     if (!parsedData || !selectedMealType) {
-      console.log('⚠️ [ChatLogMeal] Missing parsedData or selectedMealType');
       showAlert(t('common.error'), t('chat.saveMealError'));
       return;
     }
 
-    // Prevent duplicate saves
     if (isSaving) {
-      console.log('⚠️ [ChatLogMeal] Already saving, preventing duplicate');
       return;
     }
 
     setIsSaving(true);
-    console.log('🔄 [ChatLogMeal] Starting save process');
 
     try {
       const mealDate = selectedDate ? new Date(selectedDate) : new Date();
@@ -828,23 +786,16 @@ export default function ChatLogMealScreen({ navigation, route }) {
         const now = new Date();
         mealDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
       }
-      console.log('📅 [ChatLogMeal] Meal date:', mealDate);
 
-      // Get the original description from messages
       const userMessages = messages.filter(m => m.role === 'user' && !m.data?.imageUri);
       const description = userMessages.map(m => m.content).join(', ');
-      console.log('📝 [ChatLogMeal] Meal description:', description);
 
-      // Check if there's an image in the messages
       const imageMessage = messages.find(m => m.data?.imageUri);
       const imageUri = imageMessage?.data?.imageUri || null;
-      console.log('🖼️ [ChatLogMeal] Image URI:', imageUri);
       let imageUrl = null;
 
       if (imageUri) {
-        console.log('☁️ [ChatLogMeal] Uploading meal image');
         imageUrl = await mealService.uploadMealImage(user.uid, imageUri);
-        console.log('✅ [ChatLogMeal] Image upload result:', imageUrl ? 'uploaded' : 'missing');
       }
 
       const mealData = {
@@ -853,49 +804,31 @@ export default function ChatLogMealScreen({ navigation, route }) {
         items: parsedData.items,
         totals: parsedData.totals,
         date: mealDate,
-        ...(imageUrl && { imageUrl }) // Add image URL if available
+        ...(imageUrl && { imageUrl })
       };
-      console.log('📦 [ChatLogMeal] Meal data to save:', JSON.stringify(mealData, null, 2));
 
-      console.log('🔥 [ChatLogMeal] Calling mealService.logMeal');
       const mealId = await mealService.logMeal(user.uid, mealData);
-      console.log('✅ [ChatLogMeal] Meal saved successfully with ID:', mealId);
+      refreshUserProfile();
 
       addMessage('ai', t('chat.mealLogged', { mealType: getMealTypeLabelLower(selectedMealType, t) }));
 
-      // Grade the meal using backend based on user's goals
-      console.log('🔍 [ChatLogMeal] Checking grading conditions:');
-      console.log('  - userProfile exists:', !!userProfile);
-      console.log('  - onboardingCompleted:', userProfile?.onboardingCompleted);
-      console.log('  - mealId:', mealId);
-      console.log('  - dailyCalorieTarget:', userProfile?.dailyCalorieTarget);
-
       // Grade if user has profile and daily calorie target set
       if (userProfile && userProfile.dailyCalorieTarget && mealId) {
-        console.log('🎯 [ChatLogMeal] Grading meal via backend');
         addMessage('ai', t('chat.analyzingMeal'));
         try {
           const gradeData = await gradeMealBackend(mealId, parsedData, userProfile);
-          console.log('📊 [ChatLogMeal] Meal grade from backend:', gradeData);
-          // Remove the "analyzing" message
           setMessages(prev => prev.slice(0, -1));
           addMessage('ai', '', { gradeData });
         } catch (gradeError) {
-          console.error('❌ [ChatLogMeal] Error grading meal:', gradeError);
-          // Remove the "analyzing" message on error too
+          console.error('Error grading meal:', gradeError);
           setMessages(prev => prev.slice(0, -1));
         }
-      } else {
-        console.log('⚠️ [ChatLogMeal] Skipping grading - conditions not met');
       }
 
-      // Show "Done" button instead of auto-redirect
       setMealSaved(true);
       setIsSaving(false);
-      console.log('✅ [ChatLogMeal] Save process complete');
     } catch (error) {
-      console.error('❌ [ChatLogMeal] Error saving meal:', error);
-      console.error('❌ [ChatLogMeal] Error details:', error.message, error.stack);
+      console.error('Error saving meal:', error);
       showAlert(t('common.error'), t('chat.saveFailed'));
       setIsSaving(false);
     }
@@ -918,59 +851,56 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
   const renderMessage = (message) => {
     const isUser = message.role === 'user';
-    const isAI = message.role === 'ai';
 
     if (message.data?.imageUri) {
       return (
         <View key={message.id} style={[styles.messageContainer, styles.userMessageContainer]}>
-          <Surface style={[styles.messageBubble, styles.userBubble]}>
+          <View style={[styles.messageBubble, styles.userBubble, styles.imageBubble]}>
             <Image source={{ uri: message.data.imageUri }} style={styles.messageImage} />
-          </Surface>
+          </View>
         </View>
       );
     }
 
     // Feedback suggestions (show after parsing)
     if (message.data?.showFeedbackSuggestions && parsedData && !mealSaved) {
-      // Show confirmation button if meal not yet confirmed
       if (!mealConfirmed) {
         return (
-          <View key={message.id} style={styles.feedbackSuggestionsContainer}>
-            <Surface style={styles.confirmationCard} elevation={1}>
-              <Text style={styles.confirmationText}>{t('chat.confirmQuestion')}</Text>
-              <View style={styles.confirmationButtons}>
-                <Button
-                  mode="outlined"
-                  onPress={() => {
-                    // User wants to make changes - focus on input
-                    setShowAdjustmentHints(true);
-                    textInputRef.current?.focus();
-                  }}
-                  style={styles.editButton}
-                  contentStyle={styles.buttonContent}
-                  textColor="#6366F1"
-                >
-                  {t('chat.makeChanges')}
-                </Button>
-                <Button
-                  mode="contained"
-                  onPress={() => {
-                    setMealConfirmed(true);
-                    setShowAdjustmentHints(false);
-                  }}
+          <View key={message.id} style={styles.confirmationCard}>
+            <RNText style={styles.confirmationText}>{t('chat.confirmQuestion')}</RNText>
+            <View style={styles.confirmationButtons}>
+              <TouchableOpacity
+                style={styles.editButton}
+                activeOpacity={0.7}
+                onPress={() => {
+                  setShowAdjustmentHints(true);
+                  textInputRef.current?.focus();
+                }}
+              >
+                <RNText style={styles.editButtonLabel}>{t('chat.makeChanges')}</RNText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.confirmButtonWrap}
+                onPress={() => {
+                  setMealConfirmed(true);
+                  setShowAdjustmentHints(false);
+                }}
+              >
+                <LinearGradient
+                  colors={gradients.brand}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
                   style={styles.confirmButton}
-                  contentStyle={styles.buttonContent}
-                  buttonColor="#6366F1"
                 >
-                  {t('chat.looksGood')}
-                </Button>
-              </View>
-            </Surface>
+                  <Icon source="check" size={18} color="#FFFFFF" />
+                  <RNText style={styles.confirmButtonLabel}>{t('chat.looksGood')}</RNText>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
         );
       }
-
-      // Show compact edit options after confirmation (optional - can be removed if you want)
       return null;
     }
 
@@ -978,19 +908,16 @@ export default function ChatLogMealScreen({ navigation, route }) {
     if (message.showRecentMealsButton && !parsedData) {
       return (
         <View key={message.id} style={[styles.messageContainer, styles.aiMessageContainer]}>
-            <Surface style={[styles.messageBubble, styles.aiBubble]}>
-              <Button
-                mode="outlined"
-                icon="clock-outline"
-                onPress={handleShowRecentMeals}
-                style={styles.recentMealsButtonInChat}
-                contentStyle={styles.recentMealsButtonContent}
-              >
-                {t('chat.viewRecentMeals')}
-              </Button>
-            </Surface>
-          </View>
-        );
+          <TouchableOpacity
+            style={styles.recentMealsButton}
+            activeOpacity={0.7}
+            onPress={handleShowRecentMeals}
+          >
+            <Icon source="history" size={18} color={colors.primary} />
+            <RNText style={styles.recentMealsButtonLabel}>{t('chat.viewRecentMeals')}</RNText>
+          </TouchableOpacity>
+        </View>
+      );
     }
 
     // Meal grade card
@@ -1002,41 +929,27 @@ export default function ChatLogMealScreen({ navigation, route }) {
       );
     }
 
-    // Don't render empty messages (messages with no content and no special data)
     if (!message.content || message.content.trim() === '') {
       return null;
     }
 
     // Helper to render text with markdown bold
     const renderFormattedText = (text) => {
-      // Split by **bold** patterns
       const parts = [];
       const regex = /\*\*(.*?)\*\*/g;
       let lastIndex = 0;
       let match;
 
       while ((match = regex.exec(text)) !== null) {
-        // Add text before the match
         if (match.index > lastIndex) {
-          parts.push({
-            text: text.substring(lastIndex, match.index),
-            bold: false
-          });
+          parts.push({ text: text.substring(lastIndex, match.index), bold: false });
         }
-        // Add the bold text
-        parts.push({
-          text: match[1],
-          bold: true
-        });
+        parts.push({ text: match[1], bold: true });
         lastIndex = regex.lastIndex;
       }
 
-      // Add remaining text
       if (lastIndex < text.length) {
-        parts.push({
-          text: text.substring(lastIndex),
-          bold: false
-        });
+        parts.push({ text: text.substring(lastIndex), bold: false });
       }
 
       return parts.map((part, index) => (
@@ -1058,7 +971,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
         styles.messageContainer,
         isUser ? styles.userMessageContainer : styles.aiMessageContainer
       ]}>
-        <Surface style={[
+        <View style={[
           styles.messageBubble,
           isUser ? styles.userBubble : styles.aiBubble
         ]}>
@@ -1068,7 +981,10 @@ export default function ChatLogMealScreen({ navigation, route }) {
           ]}>
             {renderFormattedText(message.content)}
           </Text>
-        </Surface>
+        </View>
+        {message.data?.parsedData?.totals && (
+          <NutritionStrip totals={message.data.parsedData.totals} t={t} />
+        )}
       </View>
     );
   };
@@ -1087,14 +1003,10 @@ export default function ChatLogMealScreen({ navigation, route }) {
           activeOpacity={1}
         >
           <View style={styles.countdownContent}>
-            <Text style={styles.countdownNumber}>{countdown}</Text>
-            <Text style={styles.countdownTitle}>{t('chat.getReady')}</Text>
-            <Text style={styles.countdownSuggestion}>
-              {t('chat.trySaying')}
-            </Text>
-            <Text style={styles.countdownSkipHint}>
-              {t('chat.tapToSkip')}
-            </Text>
+            <RNText style={styles.countdownNumber}>{countdown}</RNText>
+            <RNText style={styles.countdownTitle}>{t('chat.getReady')}</RNText>
+            <RNText style={styles.countdownSuggestion}>{t('chat.trySaying')}</RNText>
+            <RNText style={styles.countdownSkipHint}>{t('chat.tapToSkip')}</RNText>
           </View>
         </TouchableOpacity>
       )}
@@ -1135,10 +1047,8 @@ export default function ChatLogMealScreen({ navigation, route }) {
               </View>
 
               <View style={styles.barcodeInstructions}>
-                <Text style={styles.barcodeTitle}>{t('chat.scanBarcodeTitle')}</Text>
-                <Text style={styles.barcodeSubtitle}>
-                  {t('chat.scanBarcodeSubtitle')}
-                </Text>
+                <RNText style={styles.barcodeTitle}>{t('chat.scanBarcodeTitle')}</RNText>
+                <RNText style={styles.barcodeSubtitle}>{t('chat.scanBarcodeSubtitle')}</RNText>
               </View>
             </View>
           </CameraView>
@@ -1147,25 +1057,28 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
       {/* Date Indicator */}
       {selectedDate && (
-        <View style={styles.dateIndicator}>
-          <Text style={styles.dateIndicatorText}>
-            {(() => {
-              const date = new Date(selectedDate);
-              const today = new Date();
-              const yesterday = new Date(today);
-              yesterday.setDate(yesterday.getDate() - 1);
+        <View style={styles.dateIndicatorRow}>
+          <View style={styles.dateIndicator}>
+            <Icon source="calendar-outline" size={15} color={colors.primaryDark} />
+            <RNText style={styles.dateIndicatorText}>
+              {(() => {
+                const date = new Date(selectedDate);
+                const today = new Date();
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
 
-              if (date.toDateString() === today.toDateString()) {
-                return t('chat.addMealToday');
-              } else if (date.toDateString() === yesterday.toDateString()) {
-                return t('chat.addMealYesterday');
-              } else {
-                return t('chat.addMealDate', {
-                  date: date.toLocaleDateString(localeCode, { month: 'short', day: 'numeric', year: 'numeric' })
-                });
-              }
-            })()}
-          </Text>
+                if (date.toDateString() === today.toDateString()) {
+                  return t('chat.addMealToday');
+                } else if (date.toDateString() === yesterday.toDateString()) {
+                  return t('chat.addMealYesterday');
+                } else {
+                  return t('chat.addMealDate', {
+                    date: date.toLocaleDateString(localeCode, { month: 'short', day: 'numeric', year: 'numeric' })
+                  });
+                }
+              })()}
+            </RNText>
+          </View>
         </View>
       )}
 
@@ -1179,23 +1092,21 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
         {isProcessing && (
           <View style={[styles.messageContainer, styles.aiMessageContainer]}>
-            <Surface style={[styles.messageBubble, styles.aiBubble]}>
-              <ActivityIndicator size="small" color="#6366F1" />
-            </Surface>
+            <View style={[styles.messageBubble, styles.aiBubble]}>
+              <ActivityIndicator size="small" color={colors.primary} />
+            </View>
           </View>
         )}
 
-        {/* Recent Meals Bubbles */}
+        {/* Recent Meals list */}
         {showRecentMeals && (
           <View style={styles.recentMealsContainer}>
             <View style={[styles.messageContainer, styles.aiMessageContainer]}>
-              <Surface style={[styles.messageBubble, styles.aiBubble]}>
-                <Text style={styles.aiMessageText}>
-                  {t('chat.pickRecentMeal')}
-                </Text>
-              </Surface>
+              <View style={[styles.messageBubble, styles.aiBubble]}>
+                <Text style={styles.aiMessageText}>{t('chat.pickRecentMeal')}</Text>
+              </View>
             </View>
-            {recentMeals.slice(0, 5).map((meal, index) => {
+            {recentMeals.slice(0, 5).map((meal) => {
               const mealDate = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
               const daysAgo = Math.floor((new Date() - mealDate) / (1000 * 60 * 60 * 24));
               const timeLabel = daysAgo === 0
@@ -1208,21 +1119,24 @@ export default function ChatLogMealScreen({ navigation, route }) {
                 <TouchableOpacity
                   key={meal.id}
                   onPress={() => handleSelectRecentMeal(meal)}
-                  style={[styles.messageContainer, styles.aiMessageContainer]}
+                  style={styles.recentMealCard}
+                  activeOpacity={0.7}
                 >
-                  <Surface style={[styles.messageBubble, styles.recentMealBubble]}>
-                    <Text style={styles.recentMealTitle}>
-                      {meal.description.substring(0, 50)}{meal.description.length > 50 ? '...' : ''}
-                    </Text>
-                    <Text style={styles.recentMealMeta}>
+                  <View style={styles.recentMealInfo}>
+                    <RNText style={styles.recentMealTitle} numberOfLines={1}>
+                      {meal.description}
+                    </RNText>
+                    <RNText style={styles.recentMealMeta}>
                       {t('chat.recentCalories', { calories: meal.totals.calories, time: timeLabel })}
-                    </Text>
-                  </Surface>
+                    </RNText>
+                  </View>
+                  <Icon source="chevron-right" size={20} color={colors.faint} />
                 </TouchableOpacity>
               );
             })}
             <Button
               mode="text"
+              textColor={colors.muted}
               onPress={() => setShowRecentMeals(false)}
               style={styles.cancelRecentButton}
             >
@@ -1234,45 +1148,59 @@ export default function ChatLogMealScreen({ navigation, route }) {
         {/* Meal Type Selector - shows when we have parsed data AND meal is confirmed */}
         {parsedData && !mealSaved && mealConfirmed && (
           <View style={styles.mealTypeContainer}>
-            <Text style={styles.mealTypeTitle}>{t('chat.selectMealType')}</Text>
-            <View style={styles.chipContainer}>
-              {MEAL_TYPES.map((type) => (
-                <Chip
-                  key={type}
-                  selected={selectedMealType === type}
-                  onPress={() => setSelectedMealType(type)}
-                  mode={selectedMealType === type ? 'flat' : 'outlined'}
-                  selectedColor={selectedMealType === type ? '#FFFFFF' : '#6366F1'}
-                  style={[
-                    styles.chip,
-                    selectedMealType === type && styles.chipSelected
-                  ]}
-                >
-                  {getMealTypeLabel(type, t)}
-                </Chip>
-              ))}
+            <RNText style={styles.mealTypeTitle}>{t('chat.selectMealType')}</RNText>
+            <View style={styles.mealTypeGrid}>
+              {MEAL_TYPES.map((mealType) => {
+                const selected = selectedMealType === mealType;
+                return (
+                  <TouchableOpacity
+                    key={mealType}
+                    style={[styles.mealTypeOption, selected && styles.mealTypeOptionSelected]}
+                    onPress={() => setSelectedMealType(mealType)}
+                    activeOpacity={0.7}
+                  >
+                    <Icon
+                      source={MEAL_TYPE_ICONS[mealType]}
+                      size={20}
+                      color={selected ? colors.primary : colors.faint}
+                    />
+                    <RNText style={[styles.mealTypeLabel, selected && styles.mealTypeLabelSelected]}>
+                      {getMealTypeLabel(mealType, t)}
+                    </RNText>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {selectedMealType && (
               <View style={styles.actionButtons}>
-                <Button
-                  mode="outlined"
-                  onPress={handleStartOver}
+                <TouchableOpacity
                   style={styles.startOverButton}
-                  textColor="#64748B"
+                  onPress={handleStartOver}
+                  activeOpacity={0.7}
                 >
-                  {t('chat.startOver')}
-                </Button>
-                <Button
-                  mode="contained"
+                  <RNText style={styles.startOverLabel}>{t('chat.startOver')}</RNText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.saveButtonWrap}
                   onPress={handleSaveMeal}
-                  style={styles.saveButton}
-                  icon="check-circle"
-                  loading={isSaving}
                   disabled={isSaving}
+                  activeOpacity={0.85}
                 >
-                  {isSaving ? t('chat.saving') : t('chat.saveMeal')}
-                </Button>
+                  <LinearGradient
+                    colors={gradients.brand}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.saveButton, isSaving && { opacity: 0.6 }]}
+                  >
+                    {isSaving
+                      ? <ActivityIndicator size="small" color="#FFFFFF" />
+                      : <Icon source="check-circle-outline" size={18} color="#FFFFFF" />}
+                    <RNText style={styles.saveButtonLabel}>
+                      {isSaving ? t('chat.saving') : t('chat.saveMeal')}
+                    </RNText>
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -1280,27 +1208,32 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
         {/* Done Button - shows after meal is saved */}
         {mealSaved && (
-          <View style={styles.doneContainer}>
-            <Button
-              mode="contained"
-              onPress={() => {
-                if (navigation.canGoBack()) {
-                  navigation.goBack();
-                } else {
-                  navigation.navigate('Dashboard', { screen: 'DashboardMain' });
-                }
-              }}
+          <TouchableOpacity
+            style={styles.doneContainer}
+            activeOpacity={0.85}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('Dashboard', { screen: 'DashboardMain' });
+              }
+            }}
+          >
+            <LinearGradient
+              colors={gradients.brand}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
               style={styles.doneButton}
-              icon="check"
             >
-              {t('chat.done')}
-            </Button>
-          </View>
+              <Icon source="check" size={20} color="#FFFFFF" />
+              <RNText style={styles.doneButtonLabel}>{t('chat.done')}</RNText>
+            </LinearGradient>
+          </TouchableOpacity>
         )}
       </ScrollView>
 
       {/* Input Bar */}
-      <Surface style={styles.inputContainer} elevation={4}>
+      <View style={styles.inputContainer}>
         {/* Plus Menu */}
         {showPlusMenu && (
           <View style={styles.plusMenuContainer}>
@@ -1311,8 +1244,10 @@ export default function ChatLogMealScreen({ navigation, route }) {
                 showImageOptions();
               }}
             >
-              <IconButton icon="camera" size={24} iconColor="#6366F1" />
-              <Text style={styles.plusMenuText}>{t('chat.camera')}</Text>
+              <View style={styles.plusMenuIconWrap}>
+                <Icon source="camera-outline" size={20} color={colors.primary} />
+              </View>
+              <RNText style={styles.plusMenuText}>{t('chat.camera')}</RNText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.plusMenuItem}
@@ -1321,15 +1256,17 @@ export default function ChatLogMealScreen({ navigation, route }) {
                 openBarcodeScanner();
               }}
             >
-              <IconButton icon="barcode-scan" size={24} iconColor="#6366F1" />
-              <Text style={styles.plusMenuText}>{t('chat.scanBarcode')}</Text>
+              <View style={styles.plusMenuIconWrap}>
+                <Icon source="barcode-scan" size={20} color={colors.primary} />
+              </View>
+              <RNText style={styles.plusMenuText}>{t('chat.scanBarcode')}</RNText>
             </TouchableOpacity>
           </View>
         )}
 
         {showAdjustmentHints && parsedData && !mealSaved && (
-          <Surface style={styles.feedbackSuggestionsCard} elevation={0}>
-            <Text style={styles.feedbackTitle}>{t('chat.adjustHintTitle')}</Text>
+          <View style={styles.feedbackSuggestionsCard}>
+            <RNText style={styles.feedbackTitle}>{t('chat.adjustHintTitle')}</RNText>
             <View style={styles.feedbackExamplesCompact}>
               {adjustmentExamples.map((example, index) => (
                 <TouchableOpacity
@@ -1340,21 +1277,22 @@ export default function ChatLogMealScreen({ navigation, route }) {
                     textInputRef.current?.focus();
                   }}
                 >
-                  <Text style={styles.feedbackChipTitleCompact}>{example}</Text>
+                  <RNText style={styles.feedbackChipTitleCompact}>{example}</RNText>
                 </TouchableOpacity>
               ))}
             </View>
-          </Surface>
+          </View>
         )}
 
         <View style={styles.inputRow}>
-          <IconButton
-            icon={showPlusMenu ? "close" : "plus-circle"}
-            size={26}
-            iconColor="#6366F1"
+          <TouchableOpacity
+            style={styles.attachButton}
             onPress={() => setShowPlusMenu(!showPlusMenu)}
             disabled={isProcessing}
-          />
+            activeOpacity={0.7}
+          >
+            <Icon source={showPlusMenu ? 'close' : 'plus'} size={22} color={colors.primary} />
+          </TouchableOpacity>
 
           <TextInput
             ref={textInputRef}
@@ -1363,28 +1301,47 @@ export default function ChatLogMealScreen({ navigation, route }) {
             value={inputText}
             onChangeText={setInputText}
             style={styles.textInput}
+            outlineStyle={styles.textInputOutline}
             multiline
             maxLength={500}
             disabled={isProcessing}
             onSubmitEditing={handleSendMessage}
           />
 
-          <IconButton
-            icon={inputText.trim() ? 'send' : (isListening ? 'microphone' : 'microphone-outline')}
-            size={24}
-            iconColor={isListening ? '#EF4444' : '#6366F1'}
+          <TouchableOpacity
+            style={styles.sendButtonWrap}
             onPress={inputText.trim() ? handleSendMessage : toggleVoiceInput}
             disabled={isProcessing}
-          />
+            activeOpacity={0.85}
+          >
+            {isListening ? (
+              <View style={[styles.sendButton, { backgroundColor: colors.danger }]}>
+                <Icon source="stop" size={20} color="#FFFFFF" />
+              </View>
+            ) : (
+              <LinearGradient
+                colors={gradients.brand}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.sendButton}
+              >
+                <Icon
+                  source={inputText.trim() ? 'send' : 'microphone'}
+                  size={20}
+                  color="#FFFFFF"
+                />
+              </LinearGradient>
+            )}
+          </TouchableOpacity>
         </View>
 
         {isListening && (
           <View style={styles.listeningIndicator}>
             <View style={styles.listeningDot} />
-            <Text style={styles.listeningText}>{t('chat.listening')}</Text>
+            <RNText style={styles.listeningText}>{t('chat.listening')}</RNText>
           </View>
         )}
-      </Surface>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -1392,20 +1349,27 @@ export default function ChatLogMealScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9'
+    backgroundColor: colors.background
+  },
+  dateIndicatorRow: {
+    alignItems: 'center',
+    paddingTop: 10
   },
   dateIndicator: {
-    backgroundColor: '#EEF2FF',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#C7D2FE',
-    alignItems: 'center'
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.tint,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.tintBorder
   },
   dateIndicatorText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#4338CA'
+    color: colors.primaryDark
   },
   messagesContainer: {
     flex: 1
@@ -1416,7 +1380,7 @@ const styles = StyleSheet.create({
   },
   messageContainer: {
     marginBottom: 12,
-    maxWidth: '80%'
+    maxWidth: '85%'
   },
   userMessageContainer: {
     alignSelf: 'flex-end',
@@ -1427,144 +1391,244 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start'
   },
   messageBubble: {
-    borderRadius: 20,
+    borderRadius: 18,
     padding: 12,
-    paddingHorizontal: 16,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
-      },
-    }),
+    paddingHorizontal: 16
+  },
+  imageBubble: {
+    padding: 4
   },
   userBubble: {
-    backgroundColor: '#6366F1',
-    borderBottomRightRadius: 4
+    backgroundColor: colors.primary,
+    borderBottomRightRadius: 6
   },
   aiBubble: {
-    backgroundColor: '#FFFFFF',
-    borderBottomLeftRadius: 4
+    backgroundColor: colors.surface,
+    borderBottomLeftRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.card
   },
   messageText: {
     fontSize: 15,
-    lineHeight: 20
+    lineHeight: 21
   },
   userMessageText: {
     color: '#FFFFFF'
   },
   aiMessageText: {
-    color: '#1E293B'
+    color: colors.ink
   },
   boldText: {
     fontWeight: '800',
-    fontSize: 17,
-    color: '#6366F1'
+    color: colors.primaryDark
   },
   messageImage: {
     width: 200,
     height: 150,
-    borderRadius: 12
+    borderRadius: 14
   },
+  nutritionStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    alignSelf: 'stretch'
+  },
+  nutritionStat: {
+    flex: 1,
+    alignItems: 'center'
+  },
+  nutritionStatDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: colors.border
+  },
+  nutritionStatValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: -0.3
+  },
+  nutritionStatLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: colors.faint,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 1
+  },
+  // Meal type selector
   mealTypeContainer: {
     marginTop: 12,
     padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
-      },
-    }),
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    ...shadows.card
   },
   mealTypeTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 10
-  },
-  chipContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    color: colors.ink,
     marginBottom: 12
   },
-  chip: {
-    marginRight: 8,
-    marginBottom: 8
+  mealTypeGrid: {
+    flexDirection: 'row',
+    gap: 8
   },
-  chipSelected: {
-    backgroundColor: '#6366F1'
+  mealTypeOption: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderRadius: radius.md,
+    backgroundColor: colors.subtle,
+    borderWidth: 1.5,
+    borderColor: 'transparent'
+  },
+  mealTypeOptionSelected: {
+    backgroundColor: colors.tint,
+    borderColor: colors.primary
+  },
+  mealTypeLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.muted
+  },
+  mealTypeLabelSelected: {
+    color: colors.primaryDark,
+    fontWeight: '700'
   },
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 12
+    marginTop: 16
   },
   startOverButton: {
     flex: 1,
-    borderColor: '#CBD5E1'
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.border
+  },
+  startOverLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.muted
+  },
+  saveButtonWrap: {
+    flex: 1.4
   },
   saveButton: {
-    flex: 1
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: radius.pill,
+    ...shadows.glow
+  },
+  saveButtonLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700'
   },
   doneContainer: {
     padding: 20,
     alignItems: 'center'
   },
   doneButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 32
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: radius.pill,
+    ...shadows.glow
   },
+  doneButtonLabel: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700'
+  },
+  // Input bar
   inputContainer: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: colors.border,
     position: 'relative'
   },
   plusMenuContainer: {
     position: 'absolute',
     bottom: '100%',
-    left: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 8,
+    left: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingVertical: 6,
     marginBottom: 8,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
-      },
-      default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-        elevation: 5
-      }
-    })
+    minWidth: 200,
+    ...shadows.raised
   },
   plusMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    minWidth: 180
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14
+  },
+  plusMenuIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.tint,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   plusMenuText: {
-    fontSize: 16,
-    color: '#1E293B',
-    marginLeft: 8
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.ink
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4
+    gap: 8
+  },
+  attachButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.tint,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   textInput: {
     flex: 1,
     maxHeight: 100,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.subtle,
     fontSize: 15
+  },
+  textInputOutline: {
+    borderRadius: 22,
+    borderColor: colors.border
+  },
+  sendButtonWrap: {},
+  sendButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.glow
   },
   listeningIndicator: {
     flexDirection: 'row',
@@ -1576,21 +1640,22 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#EF4444',
+    backgroundColor: colors.danger,
     marginRight: 8
   },
   listeningText: {
-    color: '#EF4444',
+    color: colors.danger,
     fontSize: 13,
     fontWeight: '600'
   },
+  // Countdown overlay
   countdownOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(99, 102, 241, 0.98)',
+    backgroundColor: 'rgba(5, 150, 105, 0.97)',
     zIndex: 1000,
     justifyContent: 'center',
     alignItems: 'center'
@@ -1624,57 +1689,123 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic'
   },
+  // Recent meals
   recentMealsContainer: {
     marginVertical: 12
   },
-  recentMealBubble: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 2,
-    borderColor: '#6366F1',
-    borderBottomLeftRadius: 4
+  recentMealsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.tintBorder,
+    borderRadius: radius.pill,
+    paddingVertical: 10,
+    paddingHorizontal: 18
+  },
+  recentMealsButtonLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary
+  },
+  recentMealCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    marginBottom: 8,
+    ...shadows.card
+  },
+  recentMealInfo: {
+    flex: 1,
+    marginRight: 8
   },
   recentMealTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 4
+    color: colors.ink,
+    marginBottom: 3
   },
   recentMealMeta: {
-    fontSize: 13,
-    color: '#64748B'
+    fontSize: 12,
+    color: colors.muted
   },
   cancelRecentButton: {
     alignSelf: 'center',
-    marginTop: 12
-  },
-  recentMealsButtonInChat: {
-    borderColor: '#6366F1',
-    marginTop: 4
-  },
-  recentMealsButtonContent: {
-    paddingVertical: 4
+    marginTop: 8
   },
   gradeCardContainer: {
     width: '100%',
-    paddingHorizontal: 0,
     marginBottom: 12
   },
-  // Feedback Suggestions Styles
-  feedbackSuggestionsContainer: {
+  // Confirmation card
+  confirmationCard: {
     width: '100%',
-    marginBottom: 16
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: 16,
+    marginBottom: 16,
+    ...shadows.card
   },
+  confirmationText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.ink,
+    marginBottom: 12,
+    textAlign: 'center'
+  },
+  confirmationButtons: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  editButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.border
+  },
+  editButtonLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.muted
+  },
+  confirmButtonWrap: {
+    flex: 1.3
+  },
+  confirmButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: radius.pill,
+    ...shadows.glow
+  },
+  confirmButtonLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700'
+  },
+  // Adjustment hints
   feedbackSuggestionsCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
+    backgroundColor: colors.subtle,
+    borderRadius: radius.md,
     padding: 12,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border
   },
   feedbackTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
+    color: colors.muted,
     marginBottom: 8,
     lineHeight: 18
   },
@@ -1684,53 +1815,19 @@ const styles = StyleSheet.create({
     gap: 6
   },
   feedbackChipCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0'
-  },
-  feedbackChipIconCompact: {
-    margin: 0,
-    marginRight: 2
+    borderColor: colors.border
   },
   feedbackChipTitleCompact: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#1E293B'
+    color: colors.ink
   },
-  // Confirmation Card Styles
-  confirmationCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  confirmationText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 12,
-    textAlign: 'center'
-  },
-  confirmationButtons: {
-    flexDirection: 'row',
-    gap: 12
-  },
-  editButton: {
-    flex: 1,
-    borderColor: '#CBD5E1'
-  },
-  confirmButton: {
-    flex: 1
-  },
-  buttonContent: {
-    paddingVertical: 4
-  },
+  // Barcode scanner
   barcodeContainer: {
     flex: 1,
     backgroundColor: '#000000'
@@ -1766,7 +1863,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 40,
     height: 40,
-    borderColor: '#6366F1',
+    borderColor: '#10B981',
     borderWidth: 4
   },
   scanCornerTopLeft: {

@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Dimensions, Platform, useColorScheme, TouchableOpacity } from 'react-native';
-import { Text, Card, Surface, useTheme, IconButton, Divider } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Text as RNText } from 'react-native';
+import { Text, Icon, IconButton } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { useAuth } from '../../context/AuthContext';
 import { generateInsightsBackend } from '../../services/geminiService';
 import { mealService } from '../../services/firebase';
 import { useLocalization } from '../../localization/i18n';
+import { colors, radius, shadows, type } from '../../theme';
+import { getEffectiveStreak } from '../../utils/streak';
 
 const { width: screenWidth } = Dimensions.get('window');
+const CHART_WIDTH = Math.min(screenWidth, 520) - 72;
+
+const TARGET_LINE = 'rgba(148, 163, 184,';
 
 export default function InsightsScreen({ navigation }) {
   const { user, userProfile } = useAuth();
-  const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { t } = useLocalization();
-  const colorScheme = useColorScheme();
   const [weeklyChartData, setWeeklyChartData] = useState(null);
   const [macroChartData, setMacroChartData] = useState([]);
   const [insights, setInsights] = useState([]);
@@ -57,26 +62,15 @@ export default function InsightsScreen({ navigation }) {
     try {
       setLoading(true);
 
-      // Call backend to generate insights
       const result = await generateInsightsBackend(user.uid, userProfile);
-
-      console.log('[Insights] Backend result:', result);
-      console.log('[Insights] calorieAdherenceData:', result.calorieAdherenceData);
-      console.log('[Insights] dailyProteinData:', result.dailyProteinData);
-      console.log('[Insights] dailyCarbsData:', result.dailyCarbsData);
-      console.log('[Insights] dailyFatData:', result.dailyFatData);
 
       setHasEnoughData(result.hasEnoughData);
       setDaysWithData(result.daysWithData);
 
-      // Always set the new chart data (not gated by 5 days)
       setCalorieAdherenceData(result.calorieAdherenceData || null);
       setDailyProteinData(result.dailyProteinData || null);
       setDailyCarbsData(result.dailyCarbsData || null);
       setDailyFatData(result.dailyFatData || null);
-
-      console.log('[Insights] State set - checking data...');
-      console.log('[Insights] calorieAdherenceData state:', result.calorieAdherenceData);
 
       if (result.hasEnoughData) {
         setInsights(result.insights || []);
@@ -87,7 +81,6 @@ export default function InsightsScreen({ navigation }) {
         setWeeklyChartData(null);
         setMacroChartData([]);
       }
-
     } catch (error) {
       console.error('Error loading analytics:', error);
       setHasEnoughData(false);
@@ -106,7 +99,6 @@ export default function InsightsScreen({ navigation }) {
   const getWeeklyChartDataForDisplay = () => {
     if (!weeklyChartData || !weeklyChartData.labels || !weeklyChartData.data) return null;
 
-    // Ensure we have at least some valid data
     const hasData = weeklyChartData.data.some(val => val > 0);
     if (!hasData) return null;
 
@@ -114,598 +106,369 @@ export default function InsightsScreen({ navigation }) {
       labels: weeklyChartData.labels,
       datasets: [{
         data: weeklyChartData.data,
-        color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
+        color: (opacity = 1) => `rgba(5, 150, 105, ${opacity})`,
         strokeWidth: 3
       }]
     };
   };
 
   const chartConfig = {
-    backgroundGradientFrom: theme.colors.surface,
-    backgroundGradientTo: theme.colors.surface,
+    backgroundGradientFrom: colors.surface,
+    backgroundGradientTo: colors.surface,
     backgroundGradientFromOpacity: 0,
     backgroundGradientToOpacity: 0,
     decimalPlaces: 0,
-    color: (opacity = 1) => colorScheme === 'dark'
-      ? `rgba(241, 245, 249, ${opacity})`
-      : `rgba(99, 102, 241, ${opacity})`,
-    labelColor: (opacity = 1) => colorScheme === 'dark'
-      ? `rgba(241, 245, 249, ${opacity})`
-      : `rgba(30, 41, 59, ${opacity})`,
-    style: {
-      borderRadius: 16
-    },
+    color: (opacity = 1) => `rgba(5, 150, 105, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(100, 116, 139, ${opacity})`,
+    style: { borderRadius: 16 },
     propsForDots: {
-      r: '5',
+      r: '4',
       strokeWidth: '2',
-      stroke: '#6366F1'
+      stroke: colors.primary
     },
     propsForBackgroundLines: {
       strokeDasharray: '',
-      stroke: colorScheme === 'dark' ? '#334155' : '#E2E8F0',
+      stroke: colors.border,
       strokeWidth: 1
     },
     useShadowColorFromDataset: false
   };
 
   const weeklyChartDataDisplay = getWeeklyChartDataForDisplay();
+  const streak = getEffectiveStreak(userProfile);
+
+  // Shared renderer for the "actual vs target" line charts
+  const renderTargetChart = (title, data, lineRgb, options = {}) => {
+    if (!data || !data.labels) return null;
+    const values = options.actualKey ? data[options.actualKey] : data.data;
+    if (!values) return null;
+
+    return (
+      <View style={styles.chartCard}>
+        <Text style={styles.chartTitle}>{title}</Text>
+        <Text style={styles.chartSubtitle}>
+          {options.subtitle || t('insights.actualVsTargetShort')}
+        </Text>
+        <LineChart
+          data={{
+            labels: data.labels,
+            datasets: [
+              {
+                data: values,
+                color: (opacity = 1) => `rgba(${lineRgb}, ${opacity})`,
+                strokeWidth: 3
+              },
+              {
+                data: Array(data.labels.length).fill(data.target),
+                color: (opacity = 1) => `${TARGET_LINE} ${opacity})`,
+                strokeWidth: 2,
+                strokeDasharray: [8, 6],
+                withDots: false
+              }
+            ],
+            legend: [t('insights.actual'), t('insights.target')]
+          }}
+          width={CHART_WIDTH}
+          height={200}
+          chartConfig={{ ...chartConfig, color: (opacity = 1) => `rgba(${lineRgb}, ${opacity})` }}
+          bezier
+          style={styles.chart}
+          withInnerLines={true}
+          withOuterLines={false}
+          withVerticalLines={false}
+          withHorizontalLines={true}
+          withDots={true}
+          withShadow={false}
+          fromZero={true}
+          yAxisSuffix={options.suffix || ''}
+        />
+      </View>
+    );
+  };
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.loadingContainer}>
-            <Text variant="bodyLarge" style={[styles.loadingText, { color: theme.colors.onSurfaceVariant }]}>
-            {t('insights.analyzing')}
-            </Text>
+          <Text style={styles.loadingText}>{t('insights.analyzing')}</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingTop: insets.top + 12 }}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.header}>
-        <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.onBackground }]}>
-          {t('insights.title')}
-        </Text>
-        <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
-          {t('insights.subtitle')}
-        </Text>
+        <Text style={styles.title}>{t('insights.title')}</Text>
+        <Text style={styles.subtitle}>{t('insights.subtitle')}</Text>
       </View>
 
-      {/* Compact Personalized Plan Card */}
+      {/* Daily plan */}
       {userProfile?.dailyCalorieTarget && (
         <TouchableOpacity
           onPress={() => navigation.navigate('BodyMetrics')}
           activeOpacity={0.7}
         >
-          <Card style={[styles.compactPlanCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-            <Card.Content>
-              <View style={styles.compactPlanHeader}>
-                <View>
-                  <Text variant="labelSmall" style={[styles.compactPlanLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    {t('insights.dailyTarget')}
-                  </Text>
-                  <Text variant="headlineLarge" style={[styles.compactPlanCalories, { color: '#6366F1' }]}>
-                    {userProfile.dailyCalorieTarget}
-                  </Text>
-                  <Text variant="bodySmall" style={[styles.compactPlanUnit, { color: theme.colors.onSurfaceVariant }]}>
-                    {t('insights.caloriesPerDay')}
-                  </Text>
-                </View>
-                <IconButton
-                  icon="pencil"
-                  size={24}
-                  iconColor="#6366F1"
-                  style={styles.editButton}
-                  onPress={() => navigation.navigate('BodyMetrics')}
-                />
-              </View>
-
-              <Divider style={styles.compactDivider} />
-
-              <View style={styles.compactMacrosRow}>
-                <View style={styles.compactMacro}>
-                  <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    {t('insights.protein')}
-                  </Text>
-                  <Text variant="headlineSmall" style={[styles.compactMacroValue, { color: '#EF4444' }]}>
-                    {userProfile.proteinTarget}g
-                  </Text>
-                </View>
-                <View style={styles.compactMacroDivider} />
-                <View style={styles.compactMacro}>
-                  <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    {t('insights.carbs')}
-                  </Text>
-                  <Text variant="headlineSmall" style={[styles.compactMacroValue, { color: '#10B981' }]}>
-                    {userProfile.carbsTarget}g
-                  </Text>
-                </View>
-                <View style={styles.compactMacroDivider} />
-                <View style={styles.compactMacro}>
-                  <Text variant="labelSmall" style={[styles.compactMacroLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    {t('insights.fat')}
-                  </Text>
-                  <Text variant="headlineSmall" style={[styles.compactMacroValue, { color: '#F59E0B' }]}>
-                    {userProfile.fatTarget}g
-                  </Text>
+          <View style={styles.planCard}>
+            <View style={styles.planHeader}>
+              <View>
+                <Text style={styles.planLabel}>{t('insights.dailyTarget')}</Text>
+                <View style={styles.planValueRow}>
+                  <RNText style={styles.planCalories}>{userProfile.dailyCalorieTarget}</RNText>
+                  <RNText style={styles.planUnit}>{t('insights.caloriesPerDay')}</RNText>
                 </View>
               </View>
-            </Card.Content>
-          </Card>
+              <View style={styles.planEditBadge}>
+                <Icon source="pencil-outline" size={18} color={colors.primary} />
+              </View>
+            </View>
+
+            <View style={styles.planMacros}>
+              <View style={styles.planMacro}>
+                <View style={[styles.planMacroDot, { backgroundColor: colors.protein }]} />
+                <Text style={styles.planMacroLabel}>{t('insights.protein')}</Text>
+                <Text style={styles.planMacroValue}>{userProfile.proteinTarget}g</Text>
+              </View>
+              <View style={styles.planMacro}>
+                <View style={[styles.planMacroDot, { backgroundColor: colors.carbs }]} />
+                <Text style={styles.planMacroLabel}>{t('insights.carbs')}</Text>
+                <Text style={styles.planMacroValue}>{userProfile.carbsTarget}g</Text>
+              </View>
+              <View style={styles.planMacro}>
+                <View style={[styles.planMacroDot, { backgroundColor: colors.fat }]} />
+                <Text style={styles.planMacroLabel}>{t('insights.fat')}</Text>
+                <Text style={styles.planMacroValue}>{userProfile.fatTarget}g</Text>
+              </View>
+            </View>
+          </View>
         </TouchableOpacity>
       )}
 
-      {/* Calorie Adherence Chart - Always visible */}
-      {calorieAdherenceData && calorieAdherenceData.labels && calorieAdherenceData.actual && (
-        <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-          <Card.Content>
-            <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              {t('insights.calorieAdherence')}
+      {/* Streak */}
+      {streak > 0 && (
+        <View style={styles.streakCard}>
+          <View style={styles.streakLeft}>
+            <RNText style={styles.streakEmoji}>🔥</RNText>
+            <View>
+              <Text style={styles.streakNumber}>
+                {t('insights.streakDays', { count: streak })}
+              </Text>
+              <Text style={styles.streakLabel}>{t('insights.currentStreak')}</Text>
+            </View>
+          </View>
+          <View style={styles.streakRight}>
+            <Text style={styles.weeklyLabel}>
+              {t('insights.thisWeek', { count: weeklyMealsData.filter(Boolean).length })}
             </Text>
-            <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              {t('insights.actualVsTarget')}
-            </Text>
-            <LineChart
-              data={{
-                labels: calorieAdherenceData.labels,
-                datasets: [
-                  {
-                    data: calorieAdherenceData.actual,
-                    color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
-                    strokeWidth: 3
-                  },
-                  {
-                    data: Array(calorieAdherenceData.labels.length).fill(calorieAdherenceData.target),
-                    color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-                    strokeWidth: 3,
-                    strokeDasharray: [10, 5],
-                    withDots: false
-                  }
-                ],
-                legend: [t('insights.actual'), t('insights.target')]
-              }}
-              width={screenWidth - 80}
-              height={220}
-              chartConfig={chartConfig}
-              bezier
-              style={styles.chart}
-              withInnerLines={true}
-              withOuterLines={true}
-              withVerticalLines={false}
-              withHorizontalLines={true}
-              withDots={true}
-              withShadow={false}
-              fromZero={true}
-            />
-          </Card.Content>
-        </Card>
+            <View style={styles.weeklyDots}>
+              {(weeklyMealsData.length === 7 ? weeklyMealsData : [...Array(7)].map(() => false)).map((hasLog, i) => (
+                <View key={i} style={[styles.weeklyDot, hasLog && styles.weeklyDotActive]} />
+              ))}
+            </View>
+          </View>
+        </View>
       )}
 
-      {/* Daily Protein Chart - Always visible */}
-      {dailyProteinData && dailyProteinData.labels && dailyProteinData.data && (
-        <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-          <Card.Content>
-            <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              {t('insights.dailyProtein')}
-            </Text>
-            <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              {t('insights.actualVsTargetShort')}
-            </Text>
-            <LineChart
-              data={{
-                labels: dailyProteinData.labels,
-                datasets: [
-                  {
-                    data: dailyProteinData.data,
-                    color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-                    strokeWidth: 3
-                  },
-                  {
-                    data: Array(dailyProteinData.labels.length).fill(dailyProteinData.target),
-                    color: (opacity = 1) => `rgba(251, 146, 60, ${opacity})`,
-                    strokeWidth: 3,
-                    strokeDasharray: [10, 5],
-                    withDots: false
-                  }
-                ],
-                legend: [t('insights.actual'), t('insights.target')]
-              }}
-              width={screenWidth - 80}
-              height={200}
-              chartConfig={{...chartConfig, color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`}}
-              bezier
-              style={styles.chart}
-              withInnerLines={true}
-              withOuterLines={true}
-              withVerticalLines={false}
-              withHorizontalLines={true}
-              withDots={true}
-              withShadow={false}
-              fromZero={true}
-              yAxisSuffix="g"
-            />
-          </Card.Content>
-        </Card>
-      )}
-
-      {/* Daily Carbs Chart - Always visible */}
-      {dailyCarbsData && dailyCarbsData.labels && dailyCarbsData.data && (
-        <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-          <Card.Content>
-            <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              {t('insights.dailyCarbs')}
-            </Text>
-            <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              {t('insights.actualVsTargetShort')}
-            </Text>
-            <LineChart
-              data={{
-                labels: dailyCarbsData.labels,
-                datasets: [
-                  {
-                    data: dailyCarbsData.data,
-                    color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
-                    strokeWidth: 3
-                  },
-                  {
-                    data: Array(dailyCarbsData.labels.length).fill(dailyCarbsData.target),
-                    color: (opacity = 1) => `rgba(52, 211, 153, ${opacity})`,
-                    strokeWidth: 3,
-                    strokeDasharray: [10, 5],
-                    withDots: false
-                  }
-                ],
-                legend: [t('insights.actual'), t('insights.target')]
-              }}
-              width={screenWidth - 80}
-              height={200}
-              chartConfig={{...chartConfig, color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`}}
-              bezier
-              style={styles.chart}
-              withInnerLines={true}
-              withOuterLines={true}
-              withVerticalLines={false}
-              withHorizontalLines={true}
-              withDots={true}
-              withShadow={false}
-              fromZero={true}
-              yAxisSuffix="g"
-            />
-          </Card.Content>
-        </Card>
-      )}
-
-      {/* Daily Fat Chart - Always visible */}
-      {dailyFatData && dailyFatData.labels && dailyFatData.data && (
-        <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-          <Card.Content>
-            <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              {t('insights.dailyFat')}
-            </Text>
-            <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              {t('insights.actualVsTargetShort')}
-            </Text>
-            <LineChart
-              data={{
-                labels: dailyFatData.labels,
-                datasets: [
-                  {
-                    data: dailyFatData.data,
-                    color: (opacity = 1) => `rgba(245, 158, 11, ${opacity})`,
-                    strokeWidth: 3
-                  },
-                  {
-                    data: Array(dailyFatData.labels.length).fill(dailyFatData.target),
-                    color: (opacity = 1) => `rgba(251, 191, 36, ${opacity})`,
-                    strokeWidth: 3,
-                    strokeDasharray: [10, 5],
-                    withDots: false
-                  }
-                ],
-                legend: [t('insights.actual'), t('insights.target')]
-              }}
-              width={screenWidth - 80}
-              height={200}
-              chartConfig={{...chartConfig, color: (opacity = 1) => `rgba(245, 158, 11, ${opacity})`}}
-              bezier
-              style={styles.chart}
-              withInnerLines={true}
-              withOuterLines={true}
-              withVerticalLines={false}
-              withHorizontalLines={true}
-              withDots={true}
-              withShadow={false}
-              fromZero={true}
-              yAxisSuffix="g"
-            />
-          </Card.Content>
-        </Card>
-      )}
-
-      {/* Weight Tracking Button */}
+      {/* Weight tracking link */}
       <TouchableOpacity
         onPress={() => navigation.navigate('WeightTracking')}
         activeOpacity={0.7}
       >
-        <Card style={[styles.weightTrackingCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-          <Card.Content>
-            <View style={styles.weightTrackingRow}>
-              <View style={styles.weightTrackingLeft}>
-                <Text style={styles.weightTrackingEmoji}>⚖️</Text>
-                <View>
-                  <Text variant="titleMedium" style={[styles.weightTrackingTitle, { color: theme.colors.onSurface }]}>
-                    {t('insights.weightTracking')}
-                  </Text>
-                  <Text variant="bodySmall" style={[styles.weightTrackingSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-                    {t('insights.weightTrackingSubtitle')}
-                  </Text>
-                </View>
-              </View>
-              <IconButton
-                icon="chevron-right"
-                size={24}
-                iconColor={theme.colors.onSurfaceVariant}
-              />
+        <View style={styles.weightTrackingCard}>
+          <View style={styles.weightTrackingLeft}>
+            <View style={styles.weightIconWrap}>
+              <Icon source="scale-bathroom" size={22} color={colors.primary} />
             </View>
-          </Card.Content>
-        </Card>
+            <View>
+              <Text style={styles.weightTrackingTitle}>{t('insights.weightTracking')}</Text>
+              <Text style={styles.weightTrackingSubtitle}>{t('insights.weightTrackingSubtitle')}</Text>
+            </View>
+          </View>
+          <Icon source="chevron-right" size={22} color={colors.faint} />
+        </View>
       </TouchableOpacity>
 
-      {/* Pregnancy Tracking Card */}
+      {/* Pregnancy card */}
       {userProfile?.isPregnant && (
-        <Card style={[styles.pregnancyCard, { backgroundColor: '#FEF3C7' }]} elevation={2}>
-          <Card.Content>
-            <View style={styles.pregnancyHeader}>
-              <Text style={styles.pregnancyEmoji}>🤰</Text>
-              <View style={styles.pregnancyInfo}>
-                <Text variant="titleLarge" style={styles.pregnancyTitle}>
-                  {t('insights.pregnancyNutrition')}
-                </Text>
-                <Text variant="bodyMedium" style={styles.pregnancyTrimester}>
-                  {userProfile.trimester === 'FIRST' && t('insights.trimesterFirst')}
-                  {userProfile.trimester === 'SECOND' && t('insights.trimesterSecond')}
-                  {userProfile.trimester === 'THIRD' && t('insights.trimesterThird')}
-                </Text>
-              </View>
-            </View>
-
-            <Divider style={[styles.pregnancyDivider, { backgroundColor: '#F59E0B' }]} />
-
-            <Text variant="labelSmall" style={styles.pregnancyKeyNutrientsLabel}>
-              {t('insights.keyNutrients')}
-            </Text>
-
-            <View style={styles.pregnancyNutrients}>
-              {userProfile.trimester === 'FIRST' && (
-                <>
-                  <View style={styles.pregnancyNutrient}>
-                    <IconButton icon="leaf" size={20} iconColor="#10B981" style={styles.nutrientIcon} />
-                    <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.folate')}</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.folateReason')}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.pregnancyNutrient}>
-                    <IconButton icon="water" size={20} iconColor="#3B82F6" style={styles.nutrientIcon} />
-                    <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.vitaminB6')}</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.vitaminB6Reason')}</Text>
-                    </View>
-                  </View>
-                </>
-              )}
-              {userProfile.trimester === 'SECOND' && (
-                <>
-                  <View style={styles.pregnancyNutrient}>
-                    <IconButton icon="silverware-fork-knife" size={20} iconColor="#EF4444" style={styles.nutrientIcon} />
-                    <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.iron')}</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.ironReason')}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.pregnancyNutrient}>
-                    <IconButton icon="bone" size={20} iconColor="#6366F1" style={styles.nutrientIcon} />
-                    <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.calcium')}</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.calciumReason')}</Text>
-                    </View>
-                  </View>
-                </>
-              )}
-              {userProfile.trimester === 'THIRD' && (
-                <>
-                  <View style={styles.pregnancyNutrient}>
-                    <IconButton icon="fish" size={20} iconColor="#3B82F6" style={styles.nutrientIcon} />
-                    <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.dha')}</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.dhaReason')}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.pregnancyNutrient}>
-                    <IconButton icon="silverware-fork-knife" size={20} iconColor="#EF4444" style={styles.nutrientIcon} />
-                    <View>
-                      <Text variant="labelMedium" style={styles.nutrientName}>{t('insights.iron')}</Text>
-                      <Text variant="bodySmall" style={styles.nutrientReason}>{t('insights.extraBlood')}</Text>
-                    </View>
-                  </View>
-                </>
-              )}
-            </View>
-
-            <Surface style={styles.pregnancyTip} elevation={0}>
-              <IconButton icon="information" size={16} iconColor="#92400E" style={styles.tipIcon} />
-              <Text variant="bodySmall" style={styles.pregnancyTipText}>
-                {userProfile.trimester === 'FIRST' && t('insights.pregnancyTipFirst')}
-                {userProfile.trimester === 'SECOND' && t('insights.pregnancyTipSecond')}
-                {userProfile.trimester === 'THIRD' && t('insights.pregnancyTipThird')}
+        <View style={styles.pregnancyCard}>
+          <View style={styles.pregnancyHeader}>
+            <RNText style={styles.pregnancyEmoji}>🤰</RNText>
+            <View style={styles.pregnancyInfo}>
+              <Text style={styles.pregnancyTitle}>{t('insights.pregnancyNutrition')}</Text>
+              <Text style={styles.pregnancyTrimester}>
+                {userProfile.trimester === 'FIRST' && t('insights.trimesterFirst')}
+                {userProfile.trimester === 'SECOND' && t('insights.trimesterSecond')}
+                {userProfile.trimester === 'THIRD' && t('insights.trimesterThird')}
               </Text>
-            </Surface>
-          </Card.Content>
-        </Card>
+            </View>
+          </View>
+
+          <Text style={styles.pregnancyKeyNutrientsLabel}>{t('insights.keyNutrients')}</Text>
+
+          <View style={styles.pregnancyNutrients}>
+            {userProfile.trimester === 'FIRST' && (
+              <>
+                <View style={styles.pregnancyNutrient}>
+                  <IconButton icon="leaf" size={20} iconColor="#10B981" style={styles.nutrientIcon} />
+                  <View style={styles.nutrientTextWrap}>
+                    <Text style={styles.nutrientName}>{t('insights.folate')}</Text>
+                    <Text style={styles.nutrientReason}>{t('insights.folateReason')}</Text>
+                  </View>
+                </View>
+                <View style={styles.pregnancyNutrient}>
+                  <IconButton icon="water" size={20} iconColor="#3B82F6" style={styles.nutrientIcon} />
+                  <View style={styles.nutrientTextWrap}>
+                    <Text style={styles.nutrientName}>{t('insights.vitaminB6')}</Text>
+                    <Text style={styles.nutrientReason}>{t('insights.vitaminB6Reason')}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+            {userProfile.trimester === 'SECOND' && (
+              <>
+                <View style={styles.pregnancyNutrient}>
+                  <IconButton icon="silverware-fork-knife" size={20} iconColor="#EF4444" style={styles.nutrientIcon} />
+                  <View style={styles.nutrientTextWrap}>
+                    <Text style={styles.nutrientName}>{t('insights.iron')}</Text>
+                    <Text style={styles.nutrientReason}>{t('insights.ironReason')}</Text>
+                  </View>
+                </View>
+                <View style={styles.pregnancyNutrient}>
+                  <IconButton icon="bone" size={20} iconColor={colors.primary} style={styles.nutrientIcon} />
+                  <View style={styles.nutrientTextWrap}>
+                    <Text style={styles.nutrientName}>{t('insights.calcium')}</Text>
+                    <Text style={styles.nutrientReason}>{t('insights.calciumReason')}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+            {userProfile.trimester === 'THIRD' && (
+              <>
+                <View style={styles.pregnancyNutrient}>
+                  <IconButton icon="fish" size={20} iconColor="#3B82F6" style={styles.nutrientIcon} />
+                  <View style={styles.nutrientTextWrap}>
+                    <Text style={styles.nutrientName}>{t('insights.dha')}</Text>
+                    <Text style={styles.nutrientReason}>{t('insights.dhaReason')}</Text>
+                  </View>
+                </View>
+                <View style={styles.pregnancyNutrient}>
+                  <IconButton icon="silverware-fork-knife" size={20} iconColor="#EF4444" style={styles.nutrientIcon} />
+                  <View style={styles.nutrientTextWrap}>
+                    <Text style={styles.nutrientName}>{t('insights.iron')}</Text>
+                    <Text style={styles.nutrientReason}>{t('insights.extraBlood')}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
+
+          <View style={styles.pregnancyTip}>
+            <IconButton icon="information" size={16} iconColor="#92400E" style={styles.tipIcon} />
+            <Text style={styles.pregnancyTipText}>
+              {userProfile.trimester === 'FIRST' && t('insights.pregnancyTipFirst')}
+              {userProfile.trimester === 'SECOND' && t('insights.pregnancyTipSecond')}
+              {userProfile.trimester === 'THIRD' && t('insights.pregnancyTipThird')}
+            </Text>
+          </View>
+        </View>
       )}
 
-      {/* Streak & Gamification Card */}
-      {userProfile?.streakCount > 0 && (
-        <Card style={[styles.streakCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-          <Card.Content>
-            <View style={styles.streakContainer}>
-              <View style={styles.streakLeft}>
-                <Text style={styles.streakEmoji}>🔥</Text>
-                <View>
-                  <Text variant="headlineMedium" style={styles.streakNumber}>
-                    {t('insights.streakDays', { count: userProfile.streakCount })}
-                  </Text>
-                  <Text variant="bodySmall" style={[styles.streakLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    {t('insights.currentStreak')}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.streakRight}>
-                <Text variant="bodySmall" style={[styles.weeklyLabel, { color: theme.colors.onSurfaceVariant }]}>
-                  {t('insights.thisWeek', { count: weeklyMealsData.filter(Boolean).length })}
-                </Text>
-                <View style={styles.weeklyDots}>
-                  {weeklyMealsData.length === 7 ? weeklyMealsData.map((hasLog, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.weeklyDot,
-                        hasLog && styles.weeklyDotActive
-                      ]}
-                    />
-                  )) : [...Array(7)].map((_, i) => (
-                    <View
-                      key={i}
-                      style={styles.weeklyDot}
-                    />
-                  ))}
-                </View>
-              </View>
-            </View>
-          </Card.Content>
-        </Card>
+      {/* Charts */}
+      {calorieAdherenceData && calorieAdherenceData.actual && renderTargetChart(
+        t('insights.calorieAdherence'),
+        calorieAdherenceData,
+        '5, 150, 105',
+        { actualKey: 'actual', subtitle: t('insights.actualVsTarget') }
       )}
+      {renderTargetChart(t('insights.dailyProtein'), dailyProteinData, '239, 68, 68', { suffix: 'g' })}
+      {renderTargetChart(t('insights.dailyCarbs'), dailyCarbsData, '59, 130, 246', { suffix: 'g' })}
+      {renderTargetChart(t('insights.dailyFat'), dailyFatData, '245, 158, 11', { suffix: 'g' })}
 
       {/* Weekly Calorie Chart */}
-      {weeklyChartDataDisplay && weeklyChartDataDisplay.datasets && weeklyChartDataDisplay.datasets[0].data.length > 0 && (
-        <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-          <Card.Content>
-            <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              {t('insights.weeklyCalories')}
-            </Text>
-            <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              {t('insights.last7Days')}
-            </Text>
-            <LineChart
-              data={weeklyChartDataDisplay}
-              width={screenWidth - 80}
-              height={220}
-              chartConfig={chartConfig}
-              bezier
-              style={styles.chart}
-              withInnerLines={true}
-              withOuterLines={true}
-              withVerticalLines={false}
-              withHorizontalLines={true}
-              withDots={true}
-              withShadow={false}
-              fromZero={true}
-              yAxisSuffix=""
-              yAxisInterval={1}
-            />
-          </Card.Content>
-        </Card>
+      {weeklyChartDataDisplay && weeklyChartDataDisplay.datasets[0].data.length > 0 && (
+        <View style={styles.chartCard}>
+          <Text style={styles.chartTitle}>{t('insights.weeklyCalories')}</Text>
+          <Text style={styles.chartSubtitle}>{t('insights.last7Days')}</Text>
+          <LineChart
+            data={weeklyChartDataDisplay}
+            width={CHART_WIDTH}
+            height={220}
+            chartConfig={chartConfig}
+            bezier
+            style={styles.chart}
+            withInnerLines={true}
+            withOuterLines={false}
+            withVerticalLines={false}
+            withHorizontalLines={true}
+            withDots={true}
+            withShadow={false}
+            fromZero={true}
+            yAxisSuffix=""
+            yAxisInterval={1}
+          />
+        </View>
       )}
 
       {/* Macro Distribution */}
       {macroChartData.length > 0 && (
-        <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-          <Card.Content>
-            <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.onSurface }]}>
-              {t('insights.macroDistribution')}
-            </Text>
-            <Text variant="bodySmall" style={[styles.chartSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-              {t('insights.weeklyBreakdown')}
-            </Text>
-            <View style={styles.pieChartContainer}>
-              <PieChart
-                data={macroChartData}
-                width={screenWidth - 80}
-                height={200}
-                chartConfig={chartConfig}
-                accessor="population"
-                backgroundColor="transparent"
-                paddingLeft="0"
-                center={[10, 0]}
-                hasLegend={true}
-                absolute
-                avoidFalseZero
-              />
-            </View>
-          </Card.Content>
-        </Card>
+        <View style={styles.chartCard}>
+          <Text style={styles.chartTitle}>{t('insights.macroDistribution')}</Text>
+          <Text style={styles.chartSubtitle}>{t('insights.weeklyBreakdown')}</Text>
+          <View style={styles.pieChartContainer}>
+            <PieChart
+              data={macroChartData}
+              width={CHART_WIDTH}
+              height={200}
+              chartConfig={chartConfig}
+              accessor="population"
+              backgroundColor="transparent"
+              paddingLeft="0"
+              center={[10, 0]}
+              hasLegend={true}
+              absolute
+              avoidFalseZero
+            />
+          </View>
+        </View>
       )}
 
-      {/* Insights Cards */}
+      {/* Insights */}
       {insights.length > 0 && (
         <View style={styles.insightsSection}>
-          <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onBackground }]}>
-            {t('insights.keyInsights')}
-          </Text>
+          <Text style={styles.sectionTitle}>{t('insights.keyInsights')}</Text>
           {insights.map((insight, index) => (
-            <Card
+            <View
               key={index}
-              style={[
-                styles.insightCard,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderLeftWidth: 4,
-                  borderLeftColor: insight.color
-                }
-              ]}
-              elevation={1}
+              style={[styles.insightCard, { borderLeftColor: insight.color || colors.primary }]}
             >
-              <Card.Content style={styles.insightContent}>
-                <View style={styles.insightLeft}>
-                  <Text style={styles.insightIcon}>{insight.icon}</Text>
-                  <View style={styles.insightText}>
-                    <Text variant="titleMedium" style={[styles.insightTitle, { color: theme.colors.onSurface }]}>
-                      {insight.title}
-                    </Text>
-                    <Text variant="bodyMedium" style={[styles.insightDescription, { color: theme.colors.onSurfaceVariant }]}>
-                      {insight.description}
-                    </Text>
-                  </View>
-                </View>
-              </Card.Content>
-            </Card>
+              <RNText style={styles.insightIcon}>{insight.icon}</RNText>
+              <View style={styles.insightText}>
+                <Text style={styles.insightTitle}>{insight.title}</Text>
+                <Text style={styles.insightDescription}>{insight.description}</Text>
+              </View>
+            </View>
           ))}
         </View>
       )}
 
       {/* Empty State */}
       {!hasEnoughData ? (
-        <Card style={[styles.emptyCard, { backgroundColor: theme.colors.surface }]}>
-          <Card.Content style={styles.emptyContent}>
-            <Text style={styles.emptyIcon}>📊</Text>
-            <Text variant="titleLarge" style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
-              {t('insights.noDataYet')}
+        <View style={styles.emptyCard}>
+          <RNText style={styles.emptyIcon}>📊</RNText>
+          <Text style={styles.emptyTitle}>{t('insights.noDataYet')}</Text>
+          <Text style={styles.emptyText}>{t('insights.noDataBody')}</Text>
+          {daysWithData > 0 && (
+            <Text style={[styles.emptyText, { marginTop: 8 }]}>
+              {t('insights.daysLogged', { count: daysWithData, plural: daysWithData !== 1 ? 's' : '' })}
             </Text>
-            <Text variant="bodyMedium" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-              {t('insights.noDataBody')}
-            </Text>
-            {daysWithData > 0 && (
-              <Text variant="bodySmall" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant, marginTop: 8 }]}>
-                {t('insights.daysLogged', { count: daysWithData, plural: daysWithData !== 1 ? 's' : '' })}
-              </Text>
-            )}
-          </Card.Content>
-        </Card>
+          )}
+        </View>
       ) : null}
 
-      {/* Bottom padding */}
       <View style={{ height: 40 }} />
     </ScrollView>
   );
@@ -713,7 +476,8 @@ export default function InsightsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1
+    flex: 1,
+    backgroundColor: colors.background
   },
   loadingContainer: {
     flex: 1,
@@ -722,45 +486,107 @@ const styles = StyleSheet.create({
     padding: 40
   },
   loadingText: {
-    textAlign: 'center',
-    lineHeight: 24
+    ...type.body,
+    color: colors.muted,
+    textAlign: 'center'
   },
   header: {
-    padding: 20,
-    paddingTop: 32
+    paddingHorizontal: 20,
+    marginBottom: 16
   },
   title: {
-    fontWeight: '800',
-    letterSpacing: -1,
-    marginBottom: 8
+    ...type.display,
+    fontSize: 28,
+    marginBottom: 4
   },
   subtitle: {
-    letterSpacing: 0.2
+    ...type.caption,
+    fontSize: 14
   },
-  chartCard: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 20,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.08)',
-      },
-    }),
+  planCard: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: colors.tintBorder,
+    ...shadows.card
   },
-  streakCard: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 20,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.08)',
-      },
-    }),
-  },
-  streakContainer: {
+  planHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14
+  },
+  planLabel: {
+    ...type.overline,
+    marginBottom: 6
+  },
+  planValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6
+  },
+  planCalories: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: colors.primary,
+    letterSpacing: -1.5
+  },
+  planUnit: {
+    fontSize: 13,
+    color: colors.muted
+  },
+  planEditBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.tint,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  planMacros: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.subtle
+  },
+  planMacro: {
+    flex: 1,
     alignItems: 'center'
+  },
+  planMacroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginBottom: 6
+  },
+  planMacroLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.faint,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 3
+  },
+  planMacroValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.ink,
+    letterSpacing: -0.3
+  },
+  streakCard: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    padding: 18,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    ...shadows.card
   },
   streakLeft: {
     flexDirection: 'row',
@@ -768,20 +594,24 @@ const styles = StyleSheet.create({
     gap: 12
   },
   streakEmoji: {
-    fontSize: 48
+    fontSize: 36
   },
   streakNumber: {
+    fontSize: 20,
     fontWeight: '800',
-    color: '#EF4444',
-    letterSpacing: -1
+    color: colors.flame,
+    letterSpacing: -0.5
   },
   streakLabel: {
-    marginTop: 4
+    ...type.caption,
+    marginTop: 2
   },
   streakRight: {
     alignItems: 'flex-end'
   },
   weeklyLabel: {
+    ...type.caption,
+    fontSize: 12,
     marginBottom: 8
   },
   weeklyDots: {
@@ -792,153 +622,138 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#E2E8F0'
+    backgroundColor: colors.border
   },
   weeklyDotActive: {
-    backgroundColor: '#10B981'
+    backgroundColor: colors.success
+  },
+  weightTrackingCard: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    ...shadows.card
+  },
+  weightTrackingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1
+  },
+  weightIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.tint,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  weightTrackingTitle: {
+    ...type.heading,
+    fontSize: 15,
+    marginBottom: 2
+  },
+  weightTrackingSubtitle: {
+    ...type.caption,
+    fontSize: 12
+  },
+  chartCard: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    padding: 18,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    ...shadows.card
   },
   chartTitle: {
-    fontWeight: '700',
-    marginBottom: 4
+    ...type.heading,
+    marginBottom: 2
   },
   chartSubtitle: {
-    marginBottom: 16,
-    opacity: 0.7
+    ...type.caption,
+    fontSize: 12,
+    marginBottom: 12
   },
   chart: {
-    marginVertical: 8,
+    marginVertical: 4,
     borderRadius: 16
   },
   pieChartContainer: {
     alignItems: 'center',
-    marginVertical: 8
+    marginVertical: 4
   },
   insightsSection: {
-    paddingHorizontal: 20,
-    marginBottom: 20
+    paddingHorizontal: 16,
+    marginBottom: 14
   },
   sectionTitle: {
-    fontWeight: '700',
-    marginBottom: 16,
-    letterSpacing: -0.5
+    ...type.title,
+    fontSize: 20,
+    marginBottom: 12
   },
   insightCard: {
-    marginBottom: 12,
-    borderRadius: 16,
-    overflow: 'hidden'
-  },
-  insightContent: {
-    paddingVertical: 8
-  },
-  insightLeft: {
     flexDirection: 'row',
-    alignItems: 'flex-start'
+    alignItems: 'flex-start',
+    marginBottom: 10,
+    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderLeftWidth: 4,
+    ...shadows.card
   },
   insightIcon: {
-    fontSize: 32,
-    marginRight: 16
+    fontSize: 28,
+    marginRight: 14
   },
   insightText: {
     flex: 1
   },
   insightTitle: {
-    fontWeight: '700',
-    marginBottom: 4,
-    letterSpacing: -0.3
+    ...type.heading,
+    fontSize: 15,
+    marginBottom: 3
   },
   insightDescription: {
-    lineHeight: 20
+    ...type.body,
+    fontSize: 13,
+    lineHeight: 19
   },
   emptyCard: {
-    marginHorizontal: 20,
-    marginTop: 40,
-    borderRadius: 20
-  },
-  emptyContent: {
+    marginHorizontal: 16,
+    marginTop: 24,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
     alignItems: 'center',
-    paddingVertical: 40
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    ...shadows.card
   },
   emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16
+    fontSize: 56,
+    marginBottom: 14
   },
   emptyTitle: {
-    fontWeight: '700',
-    marginBottom: 8
+    ...type.heading,
+    fontSize: 19,
+    marginBottom: 6
   },
   emptyText: {
-    textAlign: 'center',
-    lineHeight: 22
+    ...type.body,
+    color: colors.muted,
+    textAlign: 'center'
   },
-  compactPlanCard: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#6366F1',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 20px rgba(99, 102, 241, 0.15)',
-      },
-    }),
-  },
-  compactPlanHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16
-  },
-  compactPlanLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: 8
-  },
-  compactPlanCalories: {
-    fontWeight: '900',
-    letterSpacing: -2,
-    marginBottom: 4
-  },
-  compactPlanUnit: {
-    fontSize: 13
-  },
-  editButton: {
-    margin: 0,
-    marginTop: -8
-  },
-  compactDivider: {
-    marginBottom: 16
-  },
-  compactMacrosRow: {
-    flexDirection: 'row',
-    gap: 12
-  },
-  compactMacro: {
-    flex: 1,
-    alignItems: 'center'
-  },
-  compactMacroDivider: {
-    width: 1,
-    height: '100%',
-    backgroundColor: '#E2E8F0'
-  },
-  compactMacroLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4
-  },
-  compactMacroValue: {
-    fontWeight: '700'
-  },
-  // Pregnancy Card Styles
   pregnancyCard: {
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#F59E0B'
+    marginHorizontal: 16,
+    marginBottom: 14,
+    padding: 18,
+    backgroundColor: '#FFFBEB',
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A'
   },
   pregnancyHeader: {
     flexDirection: 'row',
@@ -946,64 +761,67 @@ const styles = StyleSheet.create({
     marginBottom: 12
   },
   pregnancyEmoji: {
-    fontSize: 48,
-    marginRight: 16
+    fontSize: 40,
+    marginRight: 14
   },
   pregnancyInfo: {
     flex: 1
   },
   pregnancyTitle: {
+    fontSize: 18,
     fontWeight: '700',
     color: '#92400E',
-    marginBottom: 4
+    marginBottom: 2
   },
   pregnancyTrimester: {
     color: '#B45309',
-    fontWeight: '600'
-  },
-  pregnancyDivider: {
-    marginVertical: 16,
-    height: 2
+    fontWeight: '600',
+    fontSize: 13
   },
   pregnancyKeyNutrientsLabel: {
     fontSize: 10,
     fontWeight: '700',
     color: '#92400E',
     letterSpacing: 1,
-    marginBottom: 12
+    textTransform: 'uppercase',
+    marginBottom: 10
   },
   pregnancyNutrients: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 16
+    gap: 10,
+    marginBottom: 12
   },
   pregnancyNutrient: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    padding: 12,
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: '#FDE68A'
   },
   nutrientIcon: {
     margin: 0,
-    marginRight: 8
+    marginRight: 4
+  },
+  nutrientTextWrap: {
+    flex: 1
   },
   nutrientName: {
     fontWeight: '700',
     color: '#92400E',
-    marginBottom: 2
+    fontSize: 13,
+    marginBottom: 1
   },
   nutrientReason: {
     color: '#B45309',
     fontSize: 11
   },
   pregnancyTip: {
-    backgroundColor: '#FFFBEB',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.md,
+    padding: 10,
     flexDirection: 'row',
     alignItems: 'flex-start',
     borderWidth: 1,
@@ -1011,43 +829,13 @@ const styles = StyleSheet.create({
   },
   tipIcon: {
     margin: 0,
-    marginRight: 8,
+    marginRight: 6,
     marginTop: -2
   },
   pregnancyTipText: {
     flex: 1,
     color: '#92400E',
-    lineHeight: 18
-  },
-  // Weight Tracking Card Styles
-  weightTrackingCard: {
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 20,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.08)',
-      },
-    }),
-  },
-  weightTrackingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  },
-  weightTrackingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16
-  },
-  weightTrackingEmoji: {
-    fontSize: 32
-  },
-  weightTrackingTitle: {
-    fontWeight: '700',
-    marginBottom: 4
-  },
-  weightTrackingSubtitle: {
-    fontSize: 13
+    fontSize: 12,
+    lineHeight: 17
   }
 });

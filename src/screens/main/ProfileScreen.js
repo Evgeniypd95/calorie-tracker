@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform, Share, TouchableOpacity } from 'react-native';
-import { Text, Card, Button, TextInput, Divider, List, IconButton, Switch, useTheme } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert, Platform, Share, TouchableOpacity, Modal } from 'react-native';
+import { Text, Button, TextInput, IconButton, Icon, Switch } from 'react-native-paper';
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '../../context/AuthContext';
-import { userService, socialService } from '../../services/firebase';
+import { userService, socialService, authService } from '../../services/firebase';
 import { useLocalization } from '../../localization/i18n';
+import { colors, radius, shadows, type } from '../../theme';
+import { GradientAvatar, Stat } from '../../components/ui';
+import { getEffectiveStreak } from '../../utils/streak';
 
 export default function ProfileScreen({ navigation }) {
   const { user, userProfile: authProfile } = useAuth();
-  const theme = useTheme();
   const { t } = useLocalization();
 
-  // Social features
   const [shareCode, setShareCode] = useState('');
   const [newConnectionCode, setNewConnectionCode] = useState('');
   const [connections, setConnections] = useState([]);
+  const [followers, setFollowers] = useState([]);
   const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [peopleModalVisible, setPeopleModalVisible] = useState(false);
 
   useEffect(() => {
     if (authProfile) {
@@ -31,9 +34,13 @@ export default function ProfileScreen({ navigation }) {
 
       const following = await socialService.getFollowingUsers(user.uid);
       setConnections(following || []);
+
+      const followerProfiles = await socialService.getUserProfilesByIds(authProfile.followers || []);
+      setFollowers(followerProfiles);
     } catch (error) {
       console.error('Error loading social data:', error);
       setConnections([]);
+      setFollowers([]);
     }
   };
 
@@ -115,6 +122,14 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
   const showAlert = (title, message) => {
     if (Platform.OS === 'web') {
       window.alert(`${title}: ${message}`);
@@ -123,207 +138,249 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  return (
-    <ScrollView style={styles.container}>
-      <Text variant="headlineMedium" style={styles.pageTitle}>
-        {t('profile.title')}
-      </Text>
-      <Text variant="bodyMedium" style={styles.subtitle}>
-        {t('profile.subtitle')}
-      </Text>
+  const displayName = authProfile?.name || user?.email?.split('@')[0] || t('profile.user');
+  const streak = getEffectiveStreak(authProfile);
+  const followingCount = authProfile?.following?.length || 0;
+  const followersCount = authProfile?.followers?.length || 0;
 
-      {/* Compact Personalized Plan Card */}
+  const renderPersonRow = (person, key) => {
+    const personName = person.name || person.email?.split('@')[0] || t('profile.user');
+    return (
+      <View key={key} style={styles.connectionRow}>
+        <GradientAvatar name={personName} size={36} />
+        <View style={styles.connectionInfo}>
+          <Text style={styles.connectionName}>{personName}</Text>
+          {person.personalCode && (
+            <Text style={styles.connectionCode}>
+              {t('profile.codeLabel', { code: person.personalCode })}
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Identity header */}
+      <View style={styles.identityCard}>
+        <GradientAvatar name={displayName} size={72} />
+        <Text style={styles.displayName}>{displayName}</Text>
+        <Text style={styles.email}>{user?.email}</Text>
+
+        <View style={styles.statsRow}>
+          <Stat value={`🔥 ${streak}`} label={t('profile.streak')} color={colors.flame} />
+          <View style={styles.statDivider} />
+          <TouchableOpacity style={styles.statTouchable} onPress={() => setPeopleModalVisible(true)}>
+            <Stat value={followingCount} label={t('profile.following')} />
+          </TouchableOpacity>
+          <View style={styles.statDivider} />
+          <TouchableOpacity style={styles.statTouchable} onPress={() => setPeopleModalVisible(true)}>
+            <Stat value={followersCount} label={t('profile.followers')} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Following / Followers modal */}
+      <Modal
+        visible={peopleModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPeopleModalVisible(false)}
+      >
+        <View style={styles.peopleOverlay}>
+          <View style={styles.peopleSheet}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.peopleSectionTitle}>
+                {t('profile.following')} ({connections.length})
+              </Text>
+              {connections.length === 0 ? (
+                <Text style={styles.emptyText}>{t('profile.noConnections')}</Text>
+              ) : (
+                connections.map((person, i) => renderPersonRow(person, `f-${person.id || i}`))
+              )}
+
+              <Text style={[styles.peopleSectionTitle, { marginTop: 16 }]}>
+                {t('profile.followers')} ({followers.length})
+              </Text>
+              {followers.length === 0 ? (
+                <Text style={styles.emptyText}>{t('profile.noConnections')}</Text>
+              ) : (
+                followers.map((person, i) => renderPersonRow(person, `r-${person.id || i}`))
+              )}
+            </ScrollView>
+            <Button
+              mode="contained"
+              buttonColor={colors.primary}
+              style={{ borderRadius: radius.pill, marginTop: 12 }}
+              onPress={() => setPeopleModalVisible(false)}
+            >
+              {t('common.close')}
+            </Button>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Daily plan */}
       {authProfile?.dailyCalorieTarget && (
         <TouchableOpacity
           onPress={() => navigation.navigate('BodyMetrics')}
           activeOpacity={0.7}
         >
-          <Card style={styles.compactPlanCard} elevation={2}>
-            <Card.Content>
-              <View style={styles.compactPlanHeader}>
-                <View>
-                  <Text variant="labelSmall" style={styles.compactPlanLabel}>
-                    {t('profile.dailyTarget')}
-                  </Text>
-                  <Text variant="headlineLarge" style={styles.compactPlanCalories}>
-                    {authProfile.dailyCalorieTarget}
-                  </Text>
-                  <Text variant="bodySmall" style={styles.compactPlanUnit}>
-                    {t('profile.caloriesPerDay')}
-                  </Text>
-                </View>
-                <IconButton
-                  icon="pencil"
-                  size={24}
-                  iconColor="#6366F1"
-                  style={styles.editButton}
-                  onPress={() => navigation.navigate('BodyMetrics')}
-                />
-              </View>
-
-              <Divider style={styles.compactDivider} />
-
-              <View style={styles.compactMacrosRow}>
-                <View style={styles.compactMacro}>
-                  <View style={[styles.compactMacroBar, { backgroundColor: '#EF4444' }]} />
-                  <Text variant="labelSmall" style={styles.compactMacroLabel}>
-                    {t('profile.protein')}
-                  </Text>
-                  <Text variant="titleMedium" style={styles.compactMacroValue}>
-                    {authProfile.proteinTarget}g
-                  </Text>
-                </View>
-                <View style={styles.compactMacro}>
-                  <View style={[styles.compactMacroBar, { backgroundColor: '#10B981' }]} />
-                  <Text variant="labelSmall" style={styles.compactMacroLabel}>
-                    {t('profile.carbs')}
-                  </Text>
-                  <Text variant="titleMedium" style={styles.compactMacroValue}>
-                    {authProfile.carbsTarget}g
-                  </Text>
-                </View>
-                <View style={styles.compactMacro}>
-                  <View style={[styles.compactMacroBar, { backgroundColor: '#F59E0B' }]} />
-                  <Text variant="labelSmall" style={styles.compactMacroLabel}>
-                    {t('profile.fat')}
-                  </Text>
-                  <Text variant="titleMedium" style={styles.compactMacroValue}>
-                    {authProfile.fatTarget}g
-                  </Text>
+          <View style={styles.planCard}>
+            <View style={styles.planHeader}>
+              <View>
+                <Text style={styles.planLabel}>{t('profile.dailyTarget')}</Text>
+                <View style={styles.planValueRow}>
+                  <Text style={styles.planCalories}>{authProfile.dailyCalorieTarget}</Text>
+                  <Text style={styles.planUnit}>{t('profile.caloriesPerDay')}</Text>
                 </View>
               </View>
-            </Card.Content>
-          </Card>
+              <View style={styles.planEditBadge}>
+                <Icon source="pencil-outline" size={18} color={colors.primary} />
+              </View>
+            </View>
+
+            <View style={styles.planMacros}>
+              <View style={styles.planMacro}>
+                <View style={[styles.planMacroDot, { backgroundColor: colors.protein }]} />
+                <Text style={styles.planMacroLabel}>{t('profile.protein')}</Text>
+                <Text style={styles.planMacroValue}>{authProfile.proteinTarget}g</Text>
+              </View>
+              <View style={styles.planMacro}>
+                <View style={[styles.planMacroDot, { backgroundColor: colors.carbs }]} />
+                <Text style={styles.planMacroLabel}>{t('profile.carbs')}</Text>
+                <Text style={styles.planMacroValue}>{authProfile.carbsTarget}g</Text>
+              </View>
+              <View style={styles.planMacro}>
+                <View style={[styles.planMacroDot, { backgroundColor: colors.fat }]} />
+                <Text style={styles.planMacroLabel}>{t('profile.fat')}</Text>
+                <Text style={styles.planMacroValue}>{authProfile.fatTarget}g</Text>
+              </View>
+            </View>
+          </View>
         </TouchableOpacity>
       )}
 
-      {/* Share Code Section */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text variant="titleLarge" style={styles.sectionTitle}>
-            {t('profile.shareCodeTitle')}
+      {/* Share code */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>{t('profile.shareCodeTitle')}</Text>
+        <Text style={styles.helpText}>{t('profile.shareCodeSubtitle')}</Text>
+
+        <View style={styles.shareCodeContainer}>
+          <Text style={styles.shareCodeText}>
+            {shareCode || t('profile.shareCodeLoading')}
           </Text>
-          <Text variant="bodySmall" style={styles.helpText}>
-            {t('profile.shareCodeSubtitle')}
-          </Text>
+        </View>
 
-          <View style={styles.shareCodeContainer}>
-            <Text variant="headlineMedium" style={styles.shareCodeText}>
-              {shareCode || t('profile.shareCodeLoading')}
-            </Text>
-          </View>
+        {!shareCode && (
+          <Text style={styles.warningText}>{t('profile.shareCodeWarning')}</Text>
+        )}
 
-          {!shareCode && (
-            <Text variant="bodySmall" style={styles.warningText}>
-              {t('profile.shareCodeWarning')}
-            </Text>
-          )}
-
-          <View style={styles.buttonRow}>
-            <Button
-              mode="outlined"
-              onPress={copyToClipboard}
-              style={styles.halfButton}
-              icon="content-copy"
-            >
-              {t('profile.copy')}
-            </Button>
-            <Button
-              mode="contained"
-              onPress={handleShare}
-              style={styles.halfButton}
-              icon="share"
-            >
-              {t('profile.share')}
-            </Button>
-          </View>
-        </Card.Content>
-      </Card>
-
-      {/* Profile Visibility Section */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleTextContainer}>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                {t('profile.publicProfile')}
-              </Text>
-              <Text variant="bodySmall" style={styles.helpText}>
-                {isPublic
-                  ? t('profile.publicOn')
-                  : t('profile.publicOff')}
-              </Text>
-            </View>
-            <Switch value={isPublic} onValueChange={handleTogglePublic} />
-          </View>
-        </Card.Content>
-      </Card>
-
-      {/* Add Connection Section */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text variant="titleLarge" style={styles.sectionTitle}>
-            {t('profile.addConnection')}
-          </Text>
-          <Text variant="bodySmall" style={styles.helpText}>
-            {t('profile.addConnectionSubtitle')}
-          </Text>
-
-          <TextInput
-            label={t('profile.shareCodeLabel')}
-            value={newConnectionCode}
-            onChangeText={setNewConnectionCode}
+        <View style={styles.buttonRow}>
+          <Button
             mode="outlined"
-            placeholder={t('profile.shareCodePlaceholder')}
-            autoCapitalize="characters"
-            style={styles.input}
-          />
-
+            onPress={copyToClipboard}
+            style={styles.halfButton}
+            textColor={colors.primary}
+            icon="content-copy"
+          >
+            {t('profile.copy')}
+          </Button>
           <Button
             mode="contained"
-            onPress={handleAddConnection}
-            loading={loading}
-            disabled={loading}
-            style={styles.addButton}
+            buttonColor={colors.primary}
+            onPress={handleShare}
+            style={styles.halfButton}
+            icon="share-variant-outline"
           >
-            {t('profile.addConnectionButton')}
+            {t('profile.share')}
           </Button>
-        </Card.Content>
-      </Card>
+        </View>
+      </View>
 
-      {/* Connections List */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text variant="titleLarge" style={styles.sectionTitle}>
-            {t('profile.connectionsTitle', { count: connections.length })}
-          </Text>
-
-          {connections.length === 0 ? (
-            <Text variant="bodyMedium" style={styles.emptyText}>
-              {t('profile.noConnections')}
+      {/* Privacy */}
+      <View style={styles.card}>
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleTextContainer}>
+            <Text style={styles.sectionTitle}>{t('profile.publicProfile')}</Text>
+            <Text style={styles.helpTextTight}>
+              {isPublic ? t('profile.publicOn') : t('profile.publicOff')}
             </Text>
-          ) : (
-            connections.map((connection) => (
+          </View>
+          <Switch value={isPublic} onValueChange={handleTogglePublic} color={colors.primary} />
+        </View>
+      </View>
+
+      {/* Add connection */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>{t('profile.addConnection')}</Text>
+        <Text style={styles.helpText}>{t('profile.addConnectionSubtitle')}</Text>
+
+        <TextInput
+          label={t('profile.shareCodeLabel')}
+          value={newConnectionCode}
+          onChangeText={setNewConnectionCode}
+          mode="outlined"
+          placeholder={t('profile.shareCodePlaceholder')}
+          autoCapitalize="characters"
+          outlineColor={colors.border}
+          activeOutlineColor={colors.primary}
+          style={styles.input}
+        />
+
+        <Button
+          mode="contained"
+          buttonColor={colors.primary}
+          onPress={handleAddConnection}
+          loading={loading}
+          disabled={loading}
+          style={styles.addButton}
+        >
+          {t('profile.addConnectionButton')}
+        </Button>
+      </View>
+
+      {/* Connections */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>
+          {t('profile.connectionsTitle', { count: connections.length })}
+        </Text>
+
+        {connections.length === 0 ? (
+          <Text style={styles.emptyText}>{t('profile.noConnections')}</Text>
+        ) : (
+          connections.map((connection, index) => {
+            const connectionName = connection.name || connection.email?.split('@')[0] || t('profile.user');
+            return (
               <View key={connection.id}>
-                <List.Item
-                  title={connection.email || t('profile.user')}
-                  description={t('profile.codeLabel', { code: connection.personalCode })}
-                  left={(props) => <List.Icon {...props} icon="account" />}
-                  right={(props) => (
-                    <IconButton
-                      {...props}
-                      icon="delete"
-                      iconColor="#EF4444"
-                      onPress={() => handleRemoveConnection(connection)}
-                    />
-                  )}
-                />
-                <Divider />
+                <View style={styles.connectionRow}>
+                  <GradientAvatar name={connectionName} size={40} />
+                  <View style={styles.connectionInfo}>
+                    <Text style={styles.connectionName}>{connectionName}</Text>
+                    <Text style={styles.connectionCode}>
+                      {t('profile.codeLabel', { code: connection.personalCode })}
+                    </Text>
+                  </View>
+                  <IconButton
+                    icon="account-remove-outline"
+                    size={20}
+                    iconColor={colors.faint}
+                    onPress={() => handleRemoveConnection(connection)}
+                  />
+                </View>
+                {index < connections.length - 1 && <View style={styles.connectionDivider} />}
               </View>
-            ))
-          )}
-        </Card.Content>
-      </Card>
+            );
+          })
+        )}
+      </View>
+
+      {/* Log out */}
+      <TouchableOpacity style={styles.logoutRow} onPress={handleLogout} activeOpacity={0.7}>
+        <Icon source="logout" size={20} color={colors.danger} />
+        <Text style={styles.logoutText}>{t('profile.logOut')}</Text>
+      </TouchableOpacity>
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -333,124 +390,175 @@ export default function ProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
-    padding: 20
+    backgroundColor: colors.background,
+    padding: 16
   },
-  pageTitle: {
-    marginBottom: 8,
-    fontWeight: '800',
-    color: '#1E293B',
-    letterSpacing: -1
+  identityCard: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    marginBottom: 16,
+    ...shadows.card
   },
-  subtitle: {
-    marginBottom: 24,
-    color: '#64748B'
+  displayName: {
+    ...type.title,
+    marginTop: 12
   },
-  card: {
-    marginBottom: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.08)',
-      },
-    }),
+  email: {
+    ...type.caption,
+    marginTop: 2
   },
-  compactPlanCard: {
-    marginBottom: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#6366F1',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 20px rgba(99, 102, 241, 0.15)',
-      },
-    }),
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    paddingTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: colors.subtle,
+    alignSelf: 'stretch'
   },
-  compactPlanHeader: {
+  statDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.border
+  },
+  statTouchable: {
+    flex: 1
+  },
+  peopleOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'flex-end'
+  },
+  peopleSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: 24,
+    paddingBottom: 32,
+    maxHeight: '75%'
+  },
+  peopleSectionTitle: {
+    ...type.overline,
+    marginBottom: 8
+  },
+  planCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: colors.tintBorder,
+    ...shadows.card
+  },
+  planHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16
+    marginBottom: 14
   },
-  compactPlanLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-    color: '#64748B'
+  planLabel: {
+    ...type.overline,
+    marginBottom: 6
   },
-  compactPlanCalories: {
-    fontWeight: '900',
-    letterSpacing: -2,
-    marginBottom: 4,
-    color: '#6366F1'
-  },
-  compactPlanUnit: {
-    fontSize: 13,
-    color: '#64748B'
-  },
-  editButton: {
-    margin: 0,
-    marginTop: -8
-  },
-  compactDivider: {
-    marginBottom: 16
-  },
-  compactMacrosRow: {
+  planValueRow: {
     flexDirection: 'row',
-    gap: 12
+    alignItems: 'baseline',
+    gap: 6
   },
-  compactMacro: {
+  planCalories: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: colors.primary,
+    letterSpacing: -1.5
+  },
+  planUnit: {
+    fontSize: 13,
+    color: colors.muted
+  },
+  planEditBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.tint,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  planMacros: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.subtle
+  },
+  planMacro: {
     flex: 1,
     alignItems: 'center'
   },
-  compactMacroBar: {
-    width: 3,
-    height: 32,
-    borderRadius: 2,
-    marginBottom: 8
+  planMacroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginBottom: 6
   },
-  compactMacroLabel: {
-    fontSize: 10,
+  planMacroLabel: {
+    fontSize: 11,
     fontWeight: '600',
+    color: colors.faint,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 4,
-    color: '#64748B'
+    marginBottom: 3
   },
-  compactMacroValue: {
-    fontWeight: '700',
-    color: '#1E293B'
+  planMacroValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.ink,
+    letterSpacing: -0.3
+  },
+  card: {
+    marginBottom: 16,
+    padding: 18,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    ...shadows.card
   },
   sectionTitle: {
-    marginBottom: 12,
-    fontWeight: '700',
-    color: '#1E293B',
-    letterSpacing: -0.5
+    ...type.heading,
+    marginBottom: 6
   },
   shareCodeContainer: {
-    backgroundColor: '#F8FAFC',
-    padding: 24,
-    borderRadius: 16,
+    backgroundColor: colors.tint,
+    padding: 20,
+    borderRadius: radius.md,
     alignItems: 'center',
-    marginBottom: 16
+    marginTop: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.tintBorder,
+    borderStyle: 'dashed'
   },
   shareCodeText: {
+    fontSize: 26,
     fontWeight: '800',
-    color: '#6366F1',
-    letterSpacing: 2
+    color: colors.primary,
+    letterSpacing: 3
   },
   helpText: {
-    color: '#64748B',
-    marginBottom: 12,
-    lineHeight: 20
+    ...type.caption,
+    lineHeight: 19,
+    marginBottom: 8
+  },
+  helpTextTight: {
+    ...type.caption,
+    lineHeight: 19
   },
   warningText: {
-    color: '#F59E0B',
+    color: colors.warning,
     fontStyle: 'italic',
     textAlign: 'center',
+    fontSize: 13,
     marginBottom: 12
   },
   buttonRow: {
@@ -458,7 +566,8 @@ const styles = StyleSheet.create({
     gap: 12
   },
   halfButton: {
-    flex: 1
+    flex: 1,
+    borderRadius: radius.pill
   },
   toggleRow: {
     flexDirection: 'row',
@@ -470,15 +579,57 @@ const styles = StyleSheet.create({
     marginRight: 16
   },
   input: {
-    marginBottom: 16
+    marginTop: 8,
+    marginBottom: 14,
+    backgroundColor: colors.surface
   },
   addButton: {
-    marginTop: 8
+    borderRadius: radius.pill
   },
   emptyText: {
-    color: '#94A3B8',
+    ...type.caption,
+    color: colors.faint,
     fontStyle: 'italic',
     textAlign: 'center',
     paddingVertical: 16
+  },
+  connectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10
+  },
+  connectionInfo: {
+    flex: 1,
+    marginLeft: 12
+  },
+  connectionName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.ink
+  },
+  connectionCode: {
+    fontSize: 12,
+    color: colors.faint,
+    marginTop: 1
+  },
+  connectionDivider: {
+    height: 1,
+    backgroundColor: colors.subtle,
+    marginLeft: 52
+  },
+  logoutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    ...shadows.card
+  },
+  logoutText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.danger
   }
 });

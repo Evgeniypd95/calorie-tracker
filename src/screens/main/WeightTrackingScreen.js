@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { weightService } from '../../services/firebase';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useLocalization } from '../../localization/i18n';
+import { colors, radius, shadows } from '../../theme';
 
 export default function WeightTrackingScreen({ navigation }) {
   const { user, userProfile } = useAuth();
@@ -125,7 +126,7 @@ export default function WeightTrackingScreen({ navigation }) {
       }),
       datasets: [{
         data: sampledWeights.map(w => w.weight),
-        color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
+        color: (opacity = 1) => `rgba(5, 150, 105, ${opacity})`,
         strokeWidth: 3
       }]
     };
@@ -224,7 +225,7 @@ export default function WeightTrackingScreen({ navigation }) {
                     backgroundGradientFrom: '#FFFFFF',
                     backgroundGradientTo: '#FFFFFF',
                     decimalPlaces: 1,
-                    color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
+                    color: (opacity = 1) => `rgba(5, 150, 105, ${opacity})`,
                     labelColor: (opacity = 1) => `rgba(100, 116, 139, ${opacity})`,
                     style: {
                       borderRadius: 16
@@ -232,7 +233,7 @@ export default function WeightTrackingScreen({ navigation }) {
                     propsForDots: {
                       r: '6',
                       strokeWidth: '2',
-                      stroke: '#6366F1'
+                      stroke: '#059669'
                     }
                   }}
                   bezier
@@ -369,7 +370,7 @@ export default function WeightTrackingScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9'
+    backgroundColor: '#F4F4F8'
   },
   filterContainer: {
     flexDirection: 'row',
@@ -434,7 +435,7 @@ const styles = StyleSheet.create({
     color: '#94A3B8'
   },
   rangeBox: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: '#ECFDF5',
     padding: 12,
     borderRadius: 12,
     alignItems: 'center',
@@ -443,12 +444,12 @@ const styles = StyleSheet.create({
   rangeText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#065F46',
     marginBottom: 4
   },
   rangeSubtext: {
     fontSize: 12,
-    color: '#075985'
+    color: '#047857'
   },
   chart: {
     marginVertical: 8,
@@ -465,7 +466,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0'
+    borderColor: '#E8E9F1'
   },
   weightItemLeft: {
     flex: 1
@@ -520,7 +521,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 16,
     right: 16,
-    backgroundColor: '#6366F1'
+    backgroundColor: '#059669'
   },
   modal: {
     backgroundColor: '#FFFFFF',

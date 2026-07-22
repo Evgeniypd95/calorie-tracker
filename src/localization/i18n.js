@@ -254,7 +254,11 @@ const translations = {
       noMealsBody: 'Add connections in your profile to see their meals here!',
       addToMyDay: 'Add to My Day',
       whichMealType: 'Which meal type?',
-      addToMyDayTitle: 'Add to My Day'
+      addToMyDayTitle: 'Add to My Day',
+      unfollowedName: 'Unfollowed {name}',
+      unfollowFailed: 'Failed to unfollow',
+      commentCount: '{count} comments',
+      commentCountSingle: '1 comment'
     },
     profile: {
       title: 'My Profile',
@@ -293,7 +297,11 @@ const translations = {
       removeConfirm: 'Remove {name}?',
       remove: 'Remove',
       updateVisibilityFailed: 'Failed to update profile visibility',
-      enterShareCode: 'Please enter a share code'
+      enterShareCode: 'Please enter a share code',
+      streak: 'Day streak',
+      following: 'Following',
+      followers: 'Followers',
+      logOut: 'Log Out'
     },
     bodyMetrics: {
       title: 'Body Metrics',
@@ -325,6 +333,7 @@ const translations = {
       activityLevel: '🏃 Activity Level',
       workoutsPerWeek: 'Workouts per Week',
       targetDate: 'Target Date',
+      targetDateHint: 'An earlier date means a bigger daily deficit/surplus to hit your target weight in time (kept within a safe range). Set a target weight above to enable this.',
       goalDateQuestion: 'When do you want to reach your goal?',
       oneMonth: '1 Month',
       twoMonths: '2 Months',
@@ -333,6 +342,7 @@ const translations = {
       oneYear: '1 Year',
       close: 'Close',
       weeksToGoal: '~{weeks} weeks • {rate}kg/week',
+      noWeeksToGoal: 'Set a different target weight above to see a pacing estimate.',
       planTitle: '✨ Your Personalized Plan',
       planPregnant: '🌟 This plan is optimized for a healthy pregnancy in your {trimester} trimester',
       bmr: 'BMR',
@@ -808,7 +818,11 @@ const translations = {
       noMealsBody: 'Добавьте связи в профиле, чтобы видеть их приемы пищи здесь!',
       addToMyDay: 'Добавить в мой день',
       whichMealType: 'Какой тип приема пищи?',
-      addToMyDayTitle: 'Добавить в мой день'
+      addToMyDayTitle: 'Добавить в мой день',
+      unfollowedName: 'Вы отписались от {name}',
+      unfollowFailed: 'Не удалось отписаться',
+      commentCount: 'Комментарии: {count}',
+      commentCountSingle: '1 комментарий'
     },
     profile: {
       title: 'Мой профиль',
@@ -847,7 +861,11 @@ const translations = {
       removeConfirm: 'Удалить {name}?',
       remove: 'Удалить',
       updateVisibilityFailed: 'Не удалось обновить видимость профиля',
-      enterShareCode: 'Введите код для связи'
+      enterShareCode: 'Введите код для связи',
+      streak: 'Дней подряд',
+      following: 'Подписки',
+      followers: 'Подписчики',
+      logOut: 'Выйти'
     },
     bodyMetrics: {
       title: 'Параметры тела',
@@ -879,6 +897,7 @@ const translations = {
       activityLevel: '🏃 Уровень активности',
       workoutsPerWeek: 'Тренировок в неделю',
       targetDate: 'Дата цели',
+      targetDateHint: 'Более ранняя дата означает больший дефицит/профицит калорий, чтобы уложиться в срок (в безопасных пределах). Укажите целевой вес выше, чтобы это заработало.',
       goalDateQuestion: 'Когда хотите достичь цели?',
       oneMonth: '1 месяц',
       twoMonths: '2 месяца',
@@ -887,6 +906,7 @@ const translations = {
       oneYear: '1 год',
       close: 'Закрыть',
       weeksToGoal: '~{weeks} нед • {rate}кг/нед',
+      noWeeksToGoal: 'Укажите другой целевой вес выше, чтобы увидеть оценку темпа.',
       planTitle: '✨ Ваш персональный план',
       planPregnant: '🌟 План оптимизирован для {trimester} триместра беременности',
       bmr: 'Базовый обмен',

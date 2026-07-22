@@ -1,6 +1,5 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import WelcomeScreen from '../screens/onboarding/WelcomeScreen';
 import GoalsOnboardingScreen from '../screens/onboarding/GoalsOnboardingScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignupScreen from '../screens/auth/SignupScreen';
@@ -12,14 +11,13 @@ export default function AuthNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        cardStyle: { backgroundColor: '#F1F5F9' },
+        cardStyle: { backgroundColor: '#F4F4F8' },
         animationEnabled: true,
       }}
-      initialRouteName="Welcome"
+      initialRouteName="Login"
     >
-      <Stack.Screen name="Welcome" component={WelcomeScreen} />
-      <Stack.Screen name="OnboardingGoals" component={GoalsOnboardingScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="OnboardingGoals" component={GoalsOnboardingScreen} />
       <Stack.Screen name="Signup" component={SignupScreen} />
     </Stack.Navigator>
   );

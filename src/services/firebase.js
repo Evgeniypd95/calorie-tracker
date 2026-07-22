@@ -3,7 +3,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
-  signInWithCredential
+  signInWithCredential,
+  signInWithPopup
 } from 'firebase/auth';
 import {
   doc,
@@ -63,7 +64,8 @@ export const authService = {
 
   googleSignIn: async () => {
     if (Platform.OS === 'web') {
-      throw new Error('Google Sign-In is not available on web');
+      const provider = new GoogleAuthProvider();
+      return await signInWithPopup(auth, provider);
     }
 
     try {
@@ -478,6 +480,17 @@ export const socialService = {
     }, { merge: true });
   },
 
+  getUserProfilesByIds: async (ids) => {
+    if (!ids || ids.length === 0) return [];
+    const users = await Promise.all(
+      ids.map(async (id) => {
+        const userDoc = await getDoc(doc(db, 'users', id));
+        return userDoc.exists() ? { id, ...userDoc.data() } : null;
+      })
+    );
+    return users.filter(Boolean);
+  },
+
   getFollowingUsers: async (userId) => {
     const userDoc = await getDoc(doc(db, 'users', userId));
     if (!userDoc.exists()) {
@@ -516,6 +529,8 @@ export const socialService = {
     const targetUserData = targetUserDoc.exists() ? targetUserDoc.data() : {};
 
     const currentFollowing = currentUserData.following || [];
+    const currentFollowers = currentUserData.followers || [];
+    const targetFollowing = targetUserData.following || [];
     const targetFollowers = targetUserData.followers || [];
 
     // Remove connection in BOTH directions
@@ -565,7 +580,7 @@ export const socialService = {
 
       return meals.map(meal => ({
         ...meal,
-        userName: userData.email?.split('@')[0] || 'User',
+        userName: userData.name || userData.email?.split('@')[0] || 'User',
         userEmail: userData.email
       }));
     });
@@ -620,7 +635,7 @@ export const socialService = {
       return meals.map(meal => ({
         ...meal,
         userId: followedUserId,
-        userName: userData.email?.split('@')[0] || 'User',
+        userName: userData.name || userData.email?.split('@')[0] || 'User',
         userEmail: userData.email,
         likes: meal.likes || [],
         comments: meal.comments || []

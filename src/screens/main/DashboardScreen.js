@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert, Platform, Animated, useColorScheme } from 'react-native';
-import { Text, FAB, Card, Surface, IconButton, Portal, Modal, TextInput as PaperTextInput, Button, Menu, useTheme } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert, Platform, Image } from 'react-native';
+import { Text, IconButton, Icon, Portal, Modal, TextInput as PaperTextInput, Button } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { mealService, userService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -12,8 +12,10 @@ import MealGradeCard from '../../components/MealGradeCard';
 import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import ConfettiCannon from 'react-native-confetti-cannon';
-import Svg, { Circle } from 'react-native-svg';
 import { useLocalization, getDayNameShort, getMealTypeLabel } from '../../localization/i18n';
+import { colors, radius, shadows, type } from '../../theme';
+import { ProgressRing } from '../../components/ui';
+import { getEffectiveStreak } from '../../utils/streak';
 
 // Helper function to get a date range (7 days past, today, 7 days future)
 const getDateRange = () => {
@@ -26,95 +28,46 @@ const getDateRange = () => {
   return days;
 };
 
-// Helper function to format date
-const formatDate = (date, t) => {
-  return {
-    day: getDayNameShort(date.getDay(), t),
-    date: date.getDate()
-  };
+const formatDate = (date, t) => ({
+  day: getDayNameShort(date.getDay(), t),
+  date: date.getDate()
+});
+
+const isSameDay = (date1, date2) =>
+  date1.getDate() === date2.getDate() &&
+  date1.getMonth() === date2.getMonth() &&
+  date1.getFullYear() === date2.getFullYear();
+
+const MEAL_TYPE_ICONS = {
+  Breakfast: 'weather-sunset-up',
+  Lunch: 'white-balance-sunny',
+  Dinner: 'weather-night',
+  Snack: 'food-apple-outline'
 };
 
-// Helper function to check if two dates are the same day
-const isSameDay = (date1, date2) => {
-  return date1.getDate() === date2.getDate() &&
-         date1.getMonth() === date2.getMonth() &&
-         date1.getFullYear() === date2.getFullYear();
-};
-
-// Circular progress component
-const CircularProgress = ({ current, target, color, size = 80, strokeWidth = 4 }) => {
-  const percentage = Math.min((current / target) * 100, 100);
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const progress = (percentage / 100) * circumference;
-
+// Thin labelled macro bar used in the hero card
+function MacroBar({ label, current, target, color }) {
+  const pct = Math.min((current / target) * 100, 100);
   return (
-    <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
-      {/* Background circle */}
-      <Circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        stroke="#E2E8F0"
-        strokeWidth={strokeWidth}
-        fill="transparent"
-      />
-      {/* Progress circle */}
-      <Circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        stroke={color}
-        strokeWidth={strokeWidth}
-        fill="transparent"
-        strokeDasharray={circumference}
-        strokeDashoffset={circumference - progress}
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
-};
-
-// Progress bar component
-const ProgressBar = ({ current, target, color, label }) => {
-  const percentage = Math.min((current / target) * 100, 100);
-  const isOver = current > target;
-  const isNear = percentage >= 90 && !isOver;
-
-  let barColor = color;
-  if (isOver) barColor = '#EF4444'; // Red
-  else if (isNear) barColor = '#F59E0B'; // Yellow
-  else barColor = '#10B981'; // Green
-
-  return (
-    <View style={styles.progressBarContainer}>
-      <View style={styles.progressBarHeader}>
-        <Text variant="labelSmall" style={styles.progressLabel}>{label}</Text>
-        <Text variant="labelSmall" style={[styles.progressValue, { color: barColor }]}>
-          {Math.round(current)} / {Math.round(target)}{label === 'Calories' ? '' : 'g'}
+    <View style={styles.macroBarWrap}>
+      <View style={styles.macroBarHeader}>
+        <Text style={styles.macroBarLabel}>{label}</Text>
+        <Text style={styles.macroBarValue}>
+          <Text style={{ color, fontWeight: '800' }}>{Math.round(current)}</Text>
+          <Text style={styles.macroBarTarget}> / {target}g</Text>
         </Text>
       </View>
-      <View style={styles.progressBarTrack}>
-        <Animated.View
-          style={[
-            styles.progressBarFill,
-            { width: `${percentage}%`, backgroundColor: barColor }
-          ]}
-        />
+      <View style={styles.macroBarTrack}>
+        <View style={[styles.macroBarFill, { width: `${pct}%`, backgroundColor: color }]} />
       </View>
-      <Text variant="bodySmall" style={styles.progressPercentage}>
-        {Math.round(percentage)}%
-      </Text>
     </View>
   );
-};
+}
 
 export default function DashboardScreen({ navigation }) {
   const { user, userProfile, refreshUserProfile } = useAuth();
   const { selectedDate, setSelectedDate } = useSelectedDate();
-  const theme = useTheme();
   const { t, localeCode } = useLocalization();
-  const colorScheme = useColorScheme();
   const [meals, setMeals] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const calendarRef = useRef(null);
@@ -126,7 +79,6 @@ export default function DashboardScreen({ navigation }) {
   const [editDescription, setEditDescription] = useState('');
   const [editDate, setEditDate] = useState(new Date());
   const [editMode, setEditMode] = useState('description'); // 'description' or 'date'
-  const [fabMenuOpen, setFabMenuOpen] = useState(false);
   const [smartSuggestions, setSmartSuggestions] = useState([]);
   const [showGoalConfetti, setShowGoalConfetti] = useState(false);
 
@@ -137,23 +89,17 @@ export default function DashboardScreen({ navigation }) {
       // Sort meals: first by meal type order, then by date (most recent first within each type)
       const mealTypeOrder = { 'Dinner': 1, 'Lunch': 2, 'Breakfast': 3, 'Snack': 4 };
       const sortedMeals = dayMeals.sort((a, b) => {
-        // First sort by meal type
         const typeOrderA = mealTypeOrder[a.mealType] || 999;
         const typeOrderB = mealTypeOrder[b.mealType] || 999;
+        if (typeOrderA !== typeOrderB) return typeOrderA - typeOrderB;
 
-        if (typeOrderA !== typeOrderB) {
-          return typeOrderA - typeOrderB;
-        }
-
-        // Within same type, sort by date (most recent first)
         const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
         const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
-        return dateB - dateA; // Most recent first
+        return dateB - dateA;
       });
 
       setMeals(sortedMeals);
 
-      // Generate smart suggestions
       if (dayMeals.length > 0) {
         generateSmartSuggestions(dayMeals);
       }
@@ -164,7 +110,6 @@ export default function DashboardScreen({ navigation }) {
           calories: acc.calories + (meal.totals?.calories || 0)
         }), { calories: 0 });
 
-        // Hit goal within 50 calories
         if (Math.abs(totals.calories - userProfile.dailyCalorieTarget) <= 50 && !showGoalConfetti) {
           setShowGoalConfetti(true);
           if (confettiRef.current) {
@@ -180,36 +125,23 @@ export default function DashboardScreen({ navigation }) {
     }
   };
 
-  // Generate smart meal suggestions based on patterns
   const generateSmartSuggestions = async (currentMeals) => {
     try {
-      // Only generate suggestions if user has completed onboarding
       if (!userProfile || !userProfile.onboardingCompleted) {
-        console.log('[SmartSuggestions] User has not completed onboarding');
         setSmartSuggestions([]);
         return;
       }
 
-      console.log('[SmartSuggestions] Calling backend to generate suggestions');
       const result = await generateSuggestionsBackend(user.uid, userProfile);
 
-      if (result.reason === 'insufficient_data') {
-        console.log(`[SmartSuggestions] Not enough data: ${result.daysWithData} days (need 10+)`);
+      if (result.reason === 'insufficient_data' || result.reason === 'index_needed') {
         setSmartSuggestions([]);
         return;
       }
 
-      if (result.reason === 'index_needed') {
-        console.log('[SmartSuggestions] Firestore index needed - skipping suggestions');
-        setSmartSuggestions([]);
-        return;
-      }
-
-      console.log('[SmartSuggestions] Received suggestions from backend:', result.suggestions);
       setSmartSuggestions(result.suggestions || []);
     } catch (error) {
       console.error('[SmartSuggestions] Error generating suggestions:', error);
-      // Silently fail - suggestions are optional
       setSmartSuggestions([]);
     }
   };
@@ -218,7 +150,6 @@ export default function DashboardScreen({ navigation }) {
     useCallback(() => {
       loadMeals();
 
-      // Check if user needs check-in
       if (userProfile) {
         const checkIn = shouldShowCheckIn(userProfile);
         if (checkIn) {
@@ -242,7 +173,7 @@ export default function DashboardScreen({ navigation }) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     setSelectedDate(date);
-    setShowGoalConfetti(false); // Reset confetti for new date
+    setShowGoalConfetti(false);
   };
 
   const handleCheckInComplete = async (feedback) => {
@@ -275,7 +206,6 @@ export default function DashboardScreen({ navigation }) {
       await refreshUserProfile();
       setShowCheckInModal(false);
 
-      // Show success message with adjustment
       if (adjustment !== 0) {
         if (Platform.OS === 'web') {
           window.alert(t('dashboard.targetUpdatedTitle') + '\n\n' + t('dashboard.targetUpdatedBody', { reason, target: newTarget }));
@@ -301,7 +231,6 @@ export default function DashboardScreen({ navigation }) {
 
   const handleCheckInSkip = async () => {
     try {
-      // Postpone by 1 day
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
 
@@ -348,15 +277,8 @@ export default function DashboardScreen({ navigation }) {
         t('dashboard.deleteMealTitle'),
         confirmMessage,
         [
-          {
-            text: t('common.cancel'),
-            style: 'cancel'
-          },
-          {
-            text: t('common.delete'),
-            style: 'destructive',
-            onPress: confirmDelete
-          }
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('common.delete'), style: 'destructive', onPress: confirmDelete }
         ]
       );
     }
@@ -374,14 +296,12 @@ export default function DashboardScreen({ navigation }) {
   const handleSaveEdit = async () => {
     try {
       if (editMode === 'description') {
-        // Re-parse the edited description
         navigation.navigate('LogMeal', {
           editingMeal: { ...editingMeal, description: editDescription },
           reparse: true
         });
         setEditModalVisible(false);
       } else if (editMode === 'date') {
-        // Update only the date
         await mealService.updateMeal(editingMeal.id, { date: editDate });
         setEditModalVisible(false);
         await loadMeals();
@@ -417,120 +337,79 @@ export default function DashboardScreen({ navigation }) {
     }
   };
 
-  // Calculate totals for the day
   const calculateTotals = () => {
-    return meals.reduce((acc, meal) => {
-      return {
-        calories: acc.calories + (meal.totals?.calories || 0),
-        protein: acc.protein + (meal.totals?.protein || 0),
-        carbs: acc.carbs + (meal.totals?.carbs || 0),
-        fat: acc.fat + (meal.totals?.fat || 0)
-      };
-    }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    return meals.reduce((acc, meal) => ({
+      calories: acc.calories + (meal.totals?.calories || 0),
+      protein: acc.protein + (meal.totals?.protein || 0),
+      carbs: acc.carbs + (meal.totals?.carbs || 0),
+      fat: acc.fat + (meal.totals?.fat || 0)
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   };
 
   const totals = calculateTotals();
   const days = getDateRange();
 
-  // Get targets from user profile
   const calorieTarget = userProfile?.dailyCalorieTarget || 2000;
   const proteinTarget = userProfile?.proteinTarget || 150;
   const carbsTarget = userProfile?.carbsTarget || 200;
   const fatTarget = userProfile?.fatTarget || 65;
 
-  // Calculate weekly logs from actual data
-  const [weeklyMealsData, setWeeklyMealsData] = useState([]);
+  const remaining = calorieTarget - totals.calories;
+  const calorieProgress = totals.calories / calorieTarget;
+  const streak = getEffectiveStreak(userProfile);
 
-  useEffect(() => {
-    const loadWeeklyData = async () => {
-      if (!user) return;
+  const quickActions = [
+    { icon: 'keyboard-outline', label: t('dashboard.type'), action: 'type' },
+    { icon: 'barcode-scan', label: t('dashboard.scan'), action: 'scan' },
+    { icon: 'camera-outline', label: t('dashboard.photo'), action: 'photo' },
+    { icon: 'microphone-outline', label: t('dashboard.sayIt'), action: 'voice' }
+  ];
 
-      // Get last 7 days
-      const last7Days = [];
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        last7Days.push(date);
-      }
+  const renderRightActions = (meal) => (
+    <TouchableOpacity
+      style={styles.swipeActionDuplicate}
+      onPress={() => handleDuplicateMeal(meal)}
+    >
+      <Icon source="content-copy" size={22} color="#FFFFFF" />
+      <Text style={styles.swipeActionText}>{t('dashboard.duplicate')}</Text>
+    </TouchableOpacity>
+  );
 
-      // Get meals for each day
-      const allMeals = await mealService.getUserMeals(user.uid, 7);
-
-      const daysWithMeals = last7Days.map(date => {
-        const dayMeals = allMeals.filter(meal => {
-          const mealDate = meal.date?.toDate?.() || new Date(meal.date);
-          return (
-            mealDate.getDate() === date.getDate() &&
-            mealDate.getMonth() === date.getMonth() &&
-            mealDate.getFullYear() === date.getFullYear()
-          );
-        });
-        return dayMeals.length > 0;
-      });
-
-      setWeeklyMealsData(daysWithMeals);
-    };
-
-    loadWeeklyData();
-  }, [user, meals]); // Recalculate when meals change
-
-  const weeklyLogs = weeklyMealsData.filter(Boolean).length;
-  const currentStreak = userProfile?.streakCount || 0;
-
-  // Right swipe actions (duplicate)
-  const renderRightActions = (meal) => {
-    return (
-      <TouchableOpacity
-        style={styles.swipeActionDuplicate}
-        onPress={() => handleDuplicateMeal(meal)}
-      >
-        <IconButton icon="content-copy" iconColor="#FFFFFF" size={24} />
-        <Text style={styles.swipeActionText}>{t('dashboard.duplicate')}</Text>
-      </TouchableOpacity>
-    );
-  };
-
-  // Left swipe actions (delete)
-  const renderLeftActions = (meal) => {
-    return (
-      <TouchableOpacity
-        style={styles.swipeActionDelete}
-        onPress={() => handleDeleteMeal(meal.id, meal.description)}
-      >
-        <IconButton icon="delete" iconColor="#FFFFFF" size={24} />
-        <Text style={styles.swipeActionText}>{t('dashboard.delete')}</Text>
-      </TouchableOpacity>
-    );
-  };
+  const renderLeftActions = (meal) => (
+    <TouchableOpacity
+      style={styles.swipeActionDelete}
+      onPress={() => handleDeleteMeal(meal.id, meal.description)}
+    >
+      <Icon source="delete-outline" size={22} color="#FFFFFF" />
+      <Text style={styles.swipeActionText}>{t('dashboard.delete')}</Text>
+    </TouchableOpacity>
+  );
 
   // Auto-scroll calendar ribbon to today on first render
   useEffect(() => {
     const indexOfToday = days.findIndex((d) => isSameDay(d, new Date()));
-    // Approximate width of an item including margins
-    const ITEM_WIDTH = 72; // minWidth(60) + padding/margins
+    const ITEM_WIDTH = 56;
     if (calendarRef.current && indexOfToday >= 0) {
-      // Delay slightly to ensure layout is measured
       setTimeout(() => {
-        calendarRef.current.scrollTo({ x: Math.max(0, (indexOfToday - 2) * ITEM_WIDTH), animated: true });
+        calendarRef.current.scrollTo({ x: Math.max(0, (indexOfToday - 3) * ITEM_WIDTH), animated: true });
       }, 0);
     }
   }, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Confetti for hitting goals */}
+    <View style={styles.container}>
       {showGoalConfetti && (
         <ConfettiCannon
           count={200}
-          origin={{x: -10, y: 0}}
+          origin={{ x: -10, y: 0 }}
           autoStart={false}
           ref={confettiRef}
           fadeOut={true}
         />
       )}
 
-      {/* Calendar Ribbon */}
-      <Surface style={[styles.calendarRibbon, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.outline }]} elevation={2}>
+      {/* Calendar Strip */}
+      <View style={styles.calendarRibbon}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -545,206 +424,134 @@ export default function DashboardScreen({ navigation }) {
             return (
               <TouchableOpacity
                 key={index}
-                style={[
-                  styles.dateItem,
-                  isSelected && styles.dateItemSelected
-                ]}
+                style={[styles.dateItem, isSelected && styles.dateItemSelected]}
                 onPress={() => handleDateSelect(day)}
+                activeOpacity={0.7}
               >
-                <Text
-                  variant="labelSmall"
-                  style={[
-                    styles.dayName,
-                    isSelected && styles.dayNameSelected
-                  ]}
-                >
+                <Text style={[styles.dayName, isSelected && styles.dayNameSelected]}>
                   {dayName}
                 </Text>
-                <Text
-                  variant="titleMedium"
-                  style={[
-                    styles.dateNumber,
-                    isSelected && styles.dateNumberSelected,
-                    isToday && !isSelected && styles.todayDate
-                  ]}
-                >
+                <Text style={[
+                  styles.dateNumber,
+                  isSelected && styles.dateNumberSelected,
+                  isToday && !isSelected && styles.todayDate
+                ]}>
                   {date}
                 </Text>
+                <View style={[styles.todayDot, isToday && !isSelected && styles.todayDotVisible]} />
               </TouchableOpacity>
             );
           })}
         </ScrollView>
-      </Surface>
+      </View>
 
       <ScrollView
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Quick Action Shortcuts */}
+        {/* Hero Progress Card */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroRow}>
+            <ProgressRing
+              size={148}
+              strokeWidth={12}
+              progress={calorieProgress}
+              color={remaining >= 0 ? colors.primary : colors.danger}
+              trackColor={colors.tint}
+            >
+              <View style={styles.ringCenter}>
+                <Text style={[styles.ringValue, remaining < 0 && { color: colors.danger }]}>
+                  {Math.round(Math.abs(remaining))}
+                </Text>
+                <Text style={styles.ringLabel}>
+                  {remaining >= 0
+                    ? t('dashboard.left', { count: '' }).replace(/\s+/g, ' ').trim()
+                    : t('dashboard.over', { count: '' }).replace(/\s+/g, ' ').trim()}
+                </Text>
+              </View>
+            </ProgressRing>
+
+            <View style={styles.macroColumn}>
+              <MacroBar label={t('dashboard.protein')} current={totals.protein} target={proteinTarget} color={colors.protein} />
+              <MacroBar label={t('dashboard.carbs')} current={totals.carbs} target={carbsTarget} color={colors.carbs} />
+              <MacroBar label={t('dashboard.fat')} current={totals.fat} target={fatTarget} color={colors.fat} />
+            </View>
+          </View>
+
+          <View style={styles.heroFooter}>
+            <Text style={styles.heroFooterText}>
+              <Text style={styles.heroFooterValue}>{totals.calories}</Text>
+              <Text style={styles.heroFooterTarget}> / {calorieTarget} {t('dashboard.calShort')}</Text>
+            </Text>
+            {streak > 0 && (
+              <View style={styles.streakChip}>
+                <Text style={styles.streakChipText}>🔥 {streak}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Quick Actions */}
         <View style={styles.quickActionsContainer}>
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => navigation.navigate('LogMeal', { action: 'type', selectedDate: selectedDate.toISOString() })}
-          >
-            <IconButton icon="keyboard" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
-            <Text style={styles.quickActionText}>{t('dashboard.type')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => navigation.navigate('LogMeal', { action: 'scan', selectedDate: selectedDate.toISOString() })}
-          >
-            <IconButton icon="barcode-scan" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
-            <Text style={styles.quickActionText}>{t('dashboard.scan')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => navigation.navigate('LogMeal', { action: 'photo', selectedDate: selectedDate.toISOString() })}
-          >
-            <IconButton icon="camera" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
-            <Text style={styles.quickActionText}>{t('dashboard.photo')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => navigation.navigate('LogMeal', { action: 'voice', selectedDate: selectedDate.toISOString() })}
-          >
-            <IconButton icon="microphone" size={24} iconColor="#6366F1" style={styles.quickActionIcon} />
-            <Text style={styles.quickActionText}>{t('dashboard.sayIt')}</Text>
-          </TouchableOpacity>
+          {quickActions.map(({ icon, label, action }) => (
+            <TouchableOpacity
+              key={action}
+              style={styles.quickActionButton}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('LogMeal', { action, selectedDate: selectedDate.toISOString() })}
+            >
+              <View style={styles.quickActionIconWrap}>
+                <Icon source={icon} size={22} color={colors.primary} />
+              </View>
+              <Text style={styles.quickActionText}>{label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Smart Suggestions */}
         {smartSuggestions.length > 0 && smartSuggestions.map((suggestion, index) => (
-          <Card key={index} style={styles.suggestionCard} elevation={1}>
-            <Card.Content>
-              <View style={styles.suggestionHeader}>
-                <Text variant="titleSmall" style={styles.suggestionTitle}>
-                  {suggestion.icon} {suggestion.title}
-                </Text>
-              </View>
-              <Text variant="bodyMedium" style={styles.suggestionText}>
-                {suggestion.description}
-              </Text>
-              {suggestion.actionable && (
-                <Text variant="bodySmall" style={styles.suggestionActionable}>
-                  💡 {suggestion.actionable}
-                </Text>
-              )}
-            </Card.Content>
-          </Card>
+          <View key={index} style={styles.suggestionCard}>
+            <Text style={styles.suggestionTitle}>
+              {suggestion.icon} {suggestion.title}
+            </Text>
+            <Text style={styles.suggestionText}>{suggestion.description}</Text>
+            {suggestion.actionable && (
+              <Text style={styles.suggestionActionable}>💡 {suggestion.actionable}</Text>
+            )}
+          </View>
         ))}
-
-        {/* Hero Progress Card */}
-        <Card style={styles.heroCard} elevation={3}>
-          <Card.Content>
-            {/* Compact Calorie Display */}
-            <View style={styles.compactCalorieRow}>
-              <Text style={styles.compactCalorieText}>
-                <Text style={styles.compactCalorieValue}>{totals.calories}</Text>
-                <Text style={styles.compactCalorieTarget}> / {calorieTarget} {t('dashboard.calShort')}</Text>
-              </Text>
-              <Text style={styles.compactCalorieRemaining}>
-                {calorieTarget - totals.calories > 0
-                  ? t('dashboard.left', { count: calorieTarget - totals.calories })
-                  : t('dashboard.over', { count: totals.calories - calorieTarget })
-                }
-              </Text>
-            </View>
-
-            {/* Macro Progress Circles */}
-            <View style={styles.macroProgressSection}>
-              <View style={styles.macroCircle}>
-                <View style={styles.macroCircleOuter}>
-                  <CircularProgress
-                    current={totals.protein}
-                    target={proteinTarget}
-                    color="#EF4444"
-                    size={80}
-                    strokeWidth={6}
-                  />
-                  <View style={styles.macroCircleInner}>
-                    <Text style={[styles.macroCircleValue, { color: '#EF4444' }]}>{Math.round(totals.protein)}</Text>
-                    <Text style={styles.macroCircleTarget}>/{proteinTarget}g</Text>
-                  </View>
-                </View>
-                <Text style={styles.macroCircleLabel}>{t('dashboard.protein')}</Text>
-              </View>
-
-              <View style={styles.macroCircle}>
-                <View style={styles.macroCircleOuter}>
-                  <CircularProgress
-                    current={totals.carbs}
-                    target={carbsTarget}
-                    color="#10B981"
-                    size={80}
-                    strokeWidth={6}
-                  />
-                  <View style={styles.macroCircleInner}>
-                    <Text style={[styles.macroCircleValue, { color: '#10B981' }]}>{Math.round(totals.carbs)}</Text>
-                    <Text style={styles.macroCircleTarget}>/{carbsTarget}g</Text>
-                  </View>
-                </View>
-                <Text style={styles.macroCircleLabel}>{t('dashboard.carbs')}</Text>
-              </View>
-
-              <View style={styles.macroCircle}>
-                <View style={styles.macroCircleOuter}>
-                  <CircularProgress
-                    current={totals.fat}
-                    target={fatTarget}
-                    color="#F59E0B"
-                    size={80}
-                    strokeWidth={6}
-                  />
-                  <View style={styles.macroCircleInner}>
-                    <Text style={[styles.macroCircleValue, { color: '#F59E0B' }]}>{Math.round(totals.fat)}</Text>
-                    <Text style={styles.macroCircleTarget}>/{fatTarget}g</Text>
-                  </View>
-                </View>
-                <Text style={styles.macroCircleLabel}>{t('dashboard.fat')}</Text>
-              </View>
-            </View>
-          </Card.Content>
-        </Card>
 
         {/* Meals Section */}
         <View style={styles.mealsSection}>
-          <Text variant="titleLarge" style={styles.sectionTitle}>
-            {t('dashboard.meals')}
-          </Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.meals')}</Text>
 
           {meals.length === 0 ? (
-            <Card style={[styles.emptyCard, { backgroundColor: theme.colors.surface }]}>
-              <Card.Content style={styles.emptyContent}>
-                <Text style={styles.emptyIcon}>🍽️</Text>
-                <Text variant="titleLarge" style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
-                  {t('dashboard.noMealsToday')}
-                </Text>
-                <Text variant="bodyMedium" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-                  {t('dashboard.emptyPrompt')}
-                </Text>
-                <Button
-                  mode="contained"
-                  onPress={() => {
-                    if (Platform.OS !== 'web') {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    }
-                    navigation.navigate('LogMeal', { selectedDate: selectedDate.toISOString() });
-                  }}
-                  style={styles.emptyButton}
-                  icon="plus"
-                >
-                  {t('dashboard.logFirstMeal')}
-                </Button>
-              </Card.Content>
-            </Card>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyIcon}>🍽️</Text>
+              <Text style={styles.emptyTitle}>{t('dashboard.noMealsToday')}</Text>
+              <Text style={styles.emptyText}>{t('dashboard.emptyPrompt')}</Text>
+              <Button
+                mode="contained"
+                buttonColor={colors.primary}
+                onPress={() => {
+                  if (Platform.OS !== 'web') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  }
+                  navigation.navigate('LogMeal', { selectedDate: selectedDate.toISOString() });
+                }}
+                style={styles.emptyButton}
+                icon="plus"
+              >
+                {t('dashboard.logFirstMeal')}
+              </Button>
+            </View>
           ) : (
             meals.map((meal) => {
-              // Use gradeData stored in the meal document from backend
               const gradeData = meal.gradeData || null;
+              const mealTime = meal.date?.toDate?.()?.toLocaleTimeString?.(localeCode, {
+                hour: 'numeric',
+                minute: '2-digit'
+              });
 
               return (
                 <Swipeable
@@ -754,78 +561,74 @@ export default function DashboardScreen({ navigation }) {
                 >
                   <TouchableOpacity
                     onLongPress={() => handleEditMeal(meal)}
-                    activeOpacity={0.7}
+                    activeOpacity={0.8}
                   >
-                    <Card style={styles.mealCard} elevation={1}>
-                      <Card.Content>
-                        <View style={styles.mealHeader}>
-                          <View style={styles.mealHeaderLeft}>
-                            <Text variant="titleMedium" style={styles.mealType}>
-                              {getMealTypeLabel(meal.mealType, t)}
-                            </Text>
-                            <Text variant="bodySmall" style={styles.timeText}>
-                              {meal.date?.toDate?.()?.toLocaleTimeString?.(localeCode, {
-                                hour: 'numeric',
-                                minute: '2-digit'
-                              })}
-                            </Text>
-                          </View>
-                          <View style={styles.mealHeaderRight}>
-                            {gradeData && (
-                              <View style={[styles.gradeChip, { backgroundColor: gradeData.color }]}>
-                                <Text style={styles.gradeText}>{gradeData.grade}</Text>
-                              </View>
-                            )}
-                            <IconButton
-                              icon="pencil"
-                              size={20}
-                              iconColor="#6366F1"
-                              onPress={() => handleEditMeal(meal)}
-                            />
-                          </View>
+                    <View style={styles.mealCard}>
+                      <View style={styles.mealHeader}>
+                        <View style={styles.mealTypeIconWrap}>
+                          <Icon
+                            source={MEAL_TYPE_ICONS[meal.mealType] || 'silverware-fork-knife'}
+                            size={18}
+                            color={colors.primary}
+                          />
                         </View>
-                        <Text variant="bodyMedium" style={styles.descriptionText}>
-                          {meal.description}
-                        </Text>
-
-                        {/* Calories and Macros - Show first */}
-                        <View style={styles.nutrientsContainer}>
-                          <View style={styles.nutrientItem}>
-                            <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              {t('dashboard.caloriesLabel')}
-                            </Text>
-                            <Text variant="titleLarge" style={styles.caloriesValue}>
-                              {meal.totals.calories}
-                            </Text>
-                          </View>
-                          <View style={styles.nutrientItem}>
-                            <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              {t('dashboard.proteinLabel')}
-                            </Text>
-                            <Text variant="titleMedium" style={styles.macroValue}>{Math.round(meal.totals.protein)}g</Text>
-                          </View>
-                          <View style={styles.nutrientItem}>
-                            <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              {t('dashboard.carbsLabel')}
-                            </Text>
-                            <Text variant="titleMedium" style={styles.macroValue}>{Math.round(meal.totals.carbs)}g</Text>
-                          </View>
-                          <View style={styles.nutrientItem}>
-                            <Text variant="labelSmall" style={styles.nutrientLabel}>
-                              {t('dashboard.fatLabel')}
-                            </Text>
-                            <Text variant="titleMedium" style={styles.macroValue}>{Math.round(meal.totals.fat)}g</Text>
-                          </View>
+                        <View style={styles.mealHeaderText}>
+                          <Text style={styles.mealType}>{getMealTypeLabel(meal.mealType, t)}</Text>
+                          {mealTime ? <Text style={styles.timeText}>{mealTime}</Text> : null}
                         </View>
-
-                        {/* Show grade card AFTER calories/macros */}
                         {gradeData && (
-                          <View style={styles.gradeCardContainer}>
-                            <MealGradeCard gradeData={gradeData} compact />
+                          <View style={[styles.gradeChip, { backgroundColor: gradeData.color }]}>
+                            <Text style={styles.gradeText}>{gradeData.grade}</Text>
                           </View>
                         )}
-                      </Card.Content>
-                    </Card>
+                        <IconButton
+                          icon="pencil-outline"
+                          size={18}
+                          iconColor={colors.faint}
+                          style={styles.editIcon}
+                          onPress={() => handleEditMeal(meal)}
+                        />
+                      </View>
+
+                      <View style={styles.mealBody}>
+                        <Text style={styles.descriptionText} numberOfLines={3}>
+                          {meal.description}
+                        </Text>
+                        {meal.imageUrl && (
+                          <Image source={{ uri: meal.imageUrl }} style={styles.mealThumb} />
+                        )}
+                      </View>
+
+                      <View style={styles.nutrientsContainer}>
+                        <View style={styles.calorieBadge}>
+                          <Text style={styles.caloriesValue}>{meal.totals.calories}</Text>
+                          <Text style={styles.caloriesUnit}>{t('dashboard.calShort')}</Text>
+                        </View>
+                        <View style={styles.macroPills}>
+                          <View style={[styles.macroPill, { backgroundColor: '#FEF2F2' }]}>
+                            <Text style={[styles.macroPillText, { color: colors.protein }]}>
+                              {t('dashboard.proteinLabel').charAt(0)} {Math.round(meal.totals.protein)}g
+                            </Text>
+                          </View>
+                          <View style={[styles.macroPill, { backgroundColor: '#ECFDF5' }]}>
+                            <Text style={[styles.macroPillText, { color: '#059669' }]}>
+                              {t('dashboard.carbsLabel').charAt(0)} {Math.round(meal.totals.carbs)}g
+                            </Text>
+                          </View>
+                          <View style={[styles.macroPill, { backgroundColor: '#FFFBEB' }]}>
+                            <Text style={[styles.macroPillText, { color: '#D97706' }]}>
+                              {t('dashboard.fatLabel').charAt(0)} {Math.round(meal.totals.fat)}g
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {gradeData && (
+                        <View style={styles.gradeCardContainer}>
+                          <MealGradeCard gradeData={gradeData} compact />
+                        </View>
+                      )}
+                    </View>
                   </TouchableOpacity>
                 </Swipeable>
               );
@@ -833,8 +636,7 @@ export default function DashboardScreen({ navigation }) {
           )}
         </View>
 
-        {/* Bottom padding */}
-        <View style={{ height: 20 }} />
+        <View style={{ height: 24 }} />
       </ScrollView>
 
       {/* Edit Meal Modal */}
@@ -844,14 +646,12 @@ export default function DashboardScreen({ navigation }) {
           onDismiss={() => setEditModalVisible(false)}
           contentContainerStyle={styles.editModal}
         >
-          <Text variant="titleLarge" style={styles.editModalTitle}>
-            {t('dashboard.editMeal')}
-          </Text>
+          <Text style={styles.editModalTitle}>{t('dashboard.editMeal')}</Text>
 
-          {/* Mode Toggle */}
           <View style={styles.editModeToggle}>
             <Button
               mode={editMode === 'description' ? 'contained' : 'outlined'}
+              buttonColor={editMode === 'description' ? colors.primary : undefined}
               onPress={() => setEditMode('description')}
               style={styles.editModeButton}
               compact
@@ -860,6 +660,7 @@ export default function DashboardScreen({ navigation }) {
             </Button>
             <Button
               mode={editMode === 'date' ? 'contained' : 'outlined'}
+              buttonColor={editMode === 'date' ? colors.primary : undefined}
               onPress={() => setEditMode('date')}
               style={styles.editModeButton}
               compact
@@ -868,7 +669,6 @@ export default function DashboardScreen({ navigation }) {
             </Button>
           </View>
 
-          {/* Content based on mode */}
           {editMode === 'description' ? (
             <PaperTextInput
               label={t('dashboard.description')}
@@ -881,9 +681,7 @@ export default function DashboardScreen({ navigation }) {
             />
           ) : (
             <View style={styles.datePickerContainer}>
-              <Text variant="bodyMedium" style={styles.datePickerLabel}>
-                {t('dashboard.selectNewDate')}
-              </Text>
+              <Text style={styles.datePickerLabel}>{t('dashboard.selectNewDate')}</Text>
               <View style={styles.datePickerButtons}>
                 {[-2, -1, 0, 1, 2].map((offset) => {
                   const date = new Date(editDate);
@@ -895,16 +693,10 @@ export default function DashboardScreen({ navigation }) {
                   return (
                     <TouchableOpacity
                       key={offset}
-                      style={[
-                        styles.datePickerButton,
-                        isSelected && styles.datePickerButtonSelected
-                      ]}
+                      style={[styles.datePickerButton, isSelected && styles.datePickerButtonSelected]}
                       onPress={() => setEditDate(date)}
                     >
-                      <Text style={[
-                        styles.datePickerDayName,
-                        isSelected && styles.datePickerDayNameSelected
-                      ]}>
+                      <Text style={[styles.datePickerDayName, isSelected && styles.datePickerDayNameSelected]}>
                         {dayName}
                       </Text>
                       <Text style={[
@@ -925,14 +717,13 @@ export default function DashboardScreen({ navigation }) {
             <Button mode="outlined" onPress={() => setEditModalVisible(false)}>
               {t('common.cancel')}
             </Button>
-            <Button mode="contained" onPress={handleSaveEdit}>
+            <Button mode="contained" buttonColor={colors.primary} onPress={handleSaveEdit}>
               {editMode === 'description' ? t('dashboard.reparseSave') : t('dashboard.updateDate')}
             </Button>
           </View>
         </Modal>
       </Portal>
 
-      {/* Check-in Modal */}
       <CheckInModal
         visible={showCheckInModal}
         checkInData={checkInInfo}
@@ -946,19 +737,14 @@ export default function DashboardScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9'
+    backgroundColor: colors.background
   },
-  // Calendar Ribbon Styles
+  // Calendar strip
   calendarRibbon: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
+    backgroundColor: colors.surface,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.05)',
-      },
-    }),
+    borderBottomColor: colors.border
   },
   calendarContent: {
     paddingHorizontal: 12
@@ -966,493 +752,383 @@ const styles = StyleSheet.create({
   dateItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    marginHorizontal: 4,
-    borderRadius: 16,
-    minWidth: 64,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 2,
-    borderColor: 'transparent'
+    paddingVertical: 8,
+    marginHorizontal: 2,
+    borderRadius: radius.md,
+    width: 52,
+    backgroundColor: 'transparent'
   },
   dateItemSelected: {
-    backgroundColor: '#6366F1',
-    borderColor: '#6366F1',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 12px rgba(99, 102, 241, 0.3)',
-      },
-    }),
+    backgroundColor: colors.primary,
+    ...shadows.glow
   },
   dayName: {
-    color: '#64748B',
-    marginBottom: 6,
+    color: colors.faint,
+    marginBottom: 4,
     fontWeight: '600',
     fontSize: 11,
-    letterSpacing: 0.5
+    letterSpacing: 0.5,
+    textTransform: 'uppercase'
   },
   dayNameSelected: {
-    color: '#FFFFFF'
+    color: 'rgba(255,255,255,0.85)'
   },
   dateNumber: {
-    color: '#1E293B',
+    color: colors.ink,
     fontWeight: '700',
-    fontSize: 18
+    fontSize: 17
   },
   dateNumberSelected: {
     color: '#FFFFFF'
   },
   todayDate: {
-    color: '#6366F1',
-    fontWeight: '700'
+    color: colors.primary
   },
-  // Quick Actions Styles
+  todayDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 3,
+    backgroundColor: 'transparent'
+  },
+  todayDotVisible: {
+    backgroundColor: colors.primary
+  },
+  // Hero card
+  heroCard: {
+    margin: 16,
+    marginBottom: 8,
+    padding: 20,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    ...shadows.card
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20
+  },
+  ringCenter: {
+    alignItems: 'center'
+  },
+  ringValue: {
+    fontSize: 34,
+    fontWeight: '800',
+    letterSpacing: -1.5,
+    color: colors.ink
+  },
+  ringLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.faint,
+    marginTop: -2
+  },
+  macroColumn: {
+    flex: 1,
+    gap: 14
+  },
+  macroBarWrap: {},
+  macroBarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 5
+  },
+  macroBarLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.muted
+  },
+  macroBarValue: {
+    fontSize: 13
+  },
+  macroBarTarget: {
+    color: colors.faint,
+    fontWeight: '600',
+    fontSize: 12
+  },
+  macroBarTrack: {
+    height: 6,
+    backgroundColor: colors.subtle,
+    borderRadius: 3,
+    overflow: 'hidden'
+  },
+  macroBarFill: {
+    height: '100%',
+    borderRadius: 3
+  },
+  heroFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.subtle
+  },
+  heroFooterText: {},
+  heroFooterValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: -0.5
+  },
+  heroFooterTarget: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.faint
+  },
+  streakChip: {
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radius.pill
+  },
+  streakChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.flame
+  },
+  // Quick actions
   quickActionsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginTop: 8,
-    gap: 12
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 10
   },
   quickActionButton: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
     paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.04)',
-      },
-    }),
+    ...shadows.card
   },
-  quickActionIcon: {
-    margin: 0,
-    padding: 0
+  quickActionIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6
   },
   quickActionText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#64748B',
-    marginTop: 4
+    color: colors.muted
   },
-  // Streak Card Styles
-  streakCard: {
-    margin: 20,
-    marginBottom: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.08)',
-      },
-    }),
-  },
-  streakContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  streakLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12
-  },
-  streakEmoji: {
-    fontSize: 48
-  },
-  streakNumber: {
-    fontWeight: '800',
-    color: '#EF4444',
-    letterSpacing: -1
-  },
-  streakLabel: {
-    color: '#64748B',
-    marginTop: 4
-  },
-  streakRight: {
-    alignItems: 'flex-end'
-  },
-  weeklyLabel: {
-    color: '#64748B',
-    marginBottom: 8
-  },
-  weeklyDots: {
-    flexDirection: 'row',
-    gap: 6
-  },
-  weeklyDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#E2E8F0'
-  },
-  weeklyDotActive: {
-    backgroundColor: '#10B981'
-  },
-  // Suggestion Card
+  // Suggestions
   suggestionCard: {
-    marginHorizontal: 20,
-    marginBottom: 12,
-    backgroundColor: '#F0F9FF',
-    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 16,
+    backgroundColor: colors.tint,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#BAE6FD'
-  },
-  suggestionHeader: {
-    marginBottom: 8
+    borderColor: colors.tintBorder
   },
   suggestionTitle: {
-    color: '#0369A1',
-    fontWeight: '700'
+    color: colors.primaryDeep,
+    fontWeight: '700',
+    fontSize: 14,
+    marginBottom: 6
   },
   suggestionText: {
-    color: '#075985',
+    color: colors.primaryDark,
+    fontSize: 14,
     lineHeight: 20
   },
   suggestionActionable: {
-    color: '#0369A1',
+    color: colors.primaryDeep,
     marginTop: 8,
+    fontSize: 13,
     lineHeight: 18,
     fontStyle: 'italic'
   },
-  // Hero Card Styles
-  heroCard: {
-    margin: 20,
-    marginBottom: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.08)',
-      },
-    }),
-  },
-  heroTitle: {
-    marginBottom: 20,
-    fontWeight: '700',
-    color: '#1E293B',
-    fontSize: 20,
-    letterSpacing: -0.5
-  },
-  heroCaloriesSection: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    marginBottom: 24
-  },
-  calorieRing: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8
-  },
-  calorieRingNumber: {
-    fontSize: 56,
-    fontWeight: '800',
-    color: '#6366F1',
-    letterSpacing: -2
-  },
-  calorieRingLabel: {
-    fontSize: 18,
-    color: '#94A3B8',
-    fontWeight: '600'
-  },
-  calorieRingSubtext: {
-    color: '#64748B',
-    fontSize: 13
-  },
-  // Compact Calorie Display Styles
-  compactCalorieRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0'
-  },
-  compactCalorieText: {
-    flexDirection: 'row',
-    alignItems: 'baseline'
-  },
-  compactCalorieValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#6366F1',
-    letterSpacing: -1
-  },
-  compactCalorieTarget: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#94A3B8'
-  },
-  compactCalorieRemaining: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0'
-  },
-  macroProgressSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    gap: 16,
-    paddingVertical: 8
-  },
-  macroCircle: {
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  macroCircleOuter: {
-    width: 80,
-    height: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-    position: 'relative'
-  },
-  macroCircleInner: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  macroCircleValue: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: -0.5
-  },
-  macroCircleTarget: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '600',
-    marginTop: -2
-  },
-  macroCircleLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5
-  },
-  // Progress Bar Styles
-  progressBarContainer: {
-    marginBottom: 8
-  },
-  progressBarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6
-  },
-  progressLabel: {
-    color: '#64748B',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    fontSize: 11
-  },
-  progressValue: {
-    fontWeight: '700',
-    fontSize: 12
-  },
-  progressBarTrack: {
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 4
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 4
-  },
-  progressPercentage: {
-    textAlign: 'right',
-    color: '#94A3B8',
-    fontSize: 11
-  },
-  // Meals Section Styles
+  // Meals
   mealsSection: {
-    paddingHorizontal: 20
+    paddingHorizontal: 16,
+    marginTop: 12
   },
   sectionTitle: {
-    marginBottom: 16,
-    fontWeight: '700',
-    color: '#1E293B',
-    fontSize: 22,
-    letterSpacing: -0.5
+    ...type.title,
+    marginBottom: 12
   },
   emptyCard: {
-    marginBottom: 16,
-    borderRadius: 20,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
-      },
-    }),
-  },
-  emptyContent: {
     alignItems: 'center',
     paddingVertical: 40,
-    paddingHorizontal: 20
+    paddingHorizontal: 24,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    ...shadows.card
   },
   emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16
+    fontSize: 56,
+    marginBottom: 14
   },
   emptyTitle: {
-    fontWeight: '700',
-    marginBottom: 8,
+    ...type.heading,
+    fontSize: 19,
+    marginBottom: 6,
     textAlign: 'center'
   },
   emptyText: {
+    ...type.body,
+    color: colors.muted,
     textAlign: 'center',
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 24
+    marginBottom: 20
   },
   emptyButton: {
-    paddingHorizontal: 24
+    paddingHorizontal: 16,
+    borderRadius: radius.pill
   },
   mealCard: {
-    marginBottom: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    overflow: 'hidden',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 2px 12px rgba(0, 0, 0, 0.08)',
-      },
-    }),
+    marginBottom: 12,
+    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    ...shadows.card
   },
   mealHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12
+    alignItems: 'center',
+    marginBottom: 10
   },
-  mealHeaderLeft: {
+  mealTypeIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10
+  },
+  mealHeaderText: {
     flex: 1
   },
-  mealHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4
+  mealType: {
+    fontWeight: '700',
+    color: colors.ink,
+    fontSize: 15,
+    letterSpacing: -0.2
+  },
+  timeText: {
+    color: colors.faint,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 1
   },
   gradeChip: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
-    minWidth: 36,
-    alignItems: 'center',
-    justifyContent: 'center'
+    borderRadius: radius.pill,
+    minWidth: 34,
+    alignItems: 'center'
   },
   gradeText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 0.5
-  },
-  gradeCardContainer: {
-    marginVertical: 12
-  },
-  mealType: {
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 4,
-    fontSize: 18,
-    letterSpacing: -0.3
-  },
-  timeText: {
-    color: '#94A3B8',
     fontSize: 13,
-    fontWeight: '500'
+    fontWeight: '800'
+  },
+  editIcon: {
+    margin: 0,
+    marginLeft: 2
+  },
+  mealBody: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12
   },
   descriptionText: {
-    color: '#475569',
-    marginBottom: 16,
-    lineHeight: 22,
-    fontSize: 15
+    flex: 1,
+    color: colors.body,
+    lineHeight: 21,
+    fontSize: 14
+  },
+  mealThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    backgroundColor: colors.subtle
   },
   nutrientsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9'
-  },
-  nutrientItem: {
     alignItems: 'center',
-    flex: 1
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.subtle
   },
-  nutrientLabel: {
-    color: '#64748B',
-    marginBottom: 4,
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8
+  calorieBadge: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4
   },
   caloriesValue: {
-    color: '#6366F1',
+    color: colors.primary,
     fontWeight: '800',
-    fontSize: 28
+    fontSize: 22,
+    letterSpacing: -0.5
   },
-  macroValue: {
-    color: '#1E293B',
-    fontWeight: '700',
-    fontSize: 20
+  caloriesUnit: {
+    color: colors.faint,
+    fontWeight: '600',
+    fontSize: 12
   },
-  // Swipe Actions
+  macroPills: {
+    flexDirection: 'row',
+    gap: 6
+  },
+  macroPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: radius.pill
+  },
+  macroPillText: {
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  gradeCardContainer: {
+    marginTop: 12
+  },
+  // Swipe actions
   swipeActionDuplicate: {
-    backgroundColor: '#10B981',
+    backgroundColor: colors.success,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 100,
-    marginBottom: 16,
-    borderTopRightRadius: 20,
-    borderBottomRightRadius: 20
+    width: 90,
+    marginBottom: 12,
+    borderRadius: radius.lg,
+    marginLeft: 8,
+    gap: 4
   },
   swipeActionDelete: {
-    backgroundColor: '#EF4444',
+    backgroundColor: colors.danger,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 100,
-    marginBottom: 16,
-    borderTopLeftRadius: 20,
-    borderBottomLeftRadius: 20
+    width: 90,
+    marginBottom: 12,
+    borderRadius: radius.lg,
+    marginRight: 8,
+    gap: 4
   },
   swipeActionText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600'
   },
-  // Edit Modal
+  // Edit modal
   editModal: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     padding: 24,
     margin: 20,
-    borderRadius: 24
+    borderRadius: radius.xl
   },
   editModalTitle: {
-    fontWeight: '700',
-    marginBottom: 20,
-    color: '#1E293B'
+    ...type.title,
+    fontSize: 20,
+    marginBottom: 20
   },
   editInput: {
     marginBottom: 20
@@ -1474,7 +1150,7 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   datePickerLabel: {
-    color: '#64748B',
+    color: colors.muted,
     marginBottom: 12,
     fontSize: 14
   },
@@ -1489,19 +1165,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 8,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
+    backgroundColor: colors.subtle,
+    borderRadius: radius.md,
     borderWidth: 2,
     borderColor: 'transparent'
   },
   datePickerButtonSelected: {
-    backgroundColor: '#6366F1',
-    borderColor: '#6366F1'
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
   },
   datePickerDayName: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#64748B',
+    color: colors.muted,
     marginBottom: 4,
     textTransform: 'uppercase'
   },
@@ -1511,12 +1187,12 @@ const styles = StyleSheet.create({
   datePickerDayNum: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1E293B'
+    color: colors.ink
   },
   datePickerDayNumSelected: {
     color: '#FFFFFF'
   },
   datePickerToday: {
-    color: '#6366F1'
+    color: colors.primary
   }
 });
