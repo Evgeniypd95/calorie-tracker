@@ -16,6 +16,7 @@ import { useLocalization, getDayNameShort, getMealTypeLabel } from '../../locali
 import { colors, radius, shadows, type } from '../../theme';
 import { ProgressRing } from '../../components/ui';
 import { getEffectiveStreak } from '../../utils/streak';
+import { scheduleMealReminders, scheduleStreakRiskReminder } from '../../services/notificationService';
 
 // Helper function to get a date range (7 days past, today, 7 days future)
 const getDateRange = () => {
@@ -160,6 +161,18 @@ export default function DashboardScreen({ navigation }) {
       }
     }, [selectedDate, userProfile])
   );
+
+  // Idempotent: re-scheduling with the same times just replaces the
+  // previously scheduled notifications, so this is safe to run on every mount.
+  useEffect(() => {
+    if (!userProfile) return;
+    if (userProfile.notificationsEnabled) {
+      scheduleMealReminders(userProfile.notificationTimes);
+    }
+    if (userProfile.streakRiskReminderEnabled) {
+      scheduleStreakRiskReminder(userProfile.lastLogDate);
+    }
+  }, [userProfile?.notificationsEnabled, userProfile?.streakRiskReminderEnabled, userProfile?.lastLogDate]);
 
   const onRefresh = async () => {
     setRefreshing(true);

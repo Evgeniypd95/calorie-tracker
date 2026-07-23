@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, Image, TouchableOpacity, TextInput as RNTextInput, Platform, Share, Alert, Modal } from 'react-native';
-import { Text, IconButton, Icon, Button, Snackbar, Portal, Chip } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, RefreshControl, Image, TouchableOpacity, TextInput as RNTextInput, Platform, Share, Alert } from 'react-native';
+import { Text, IconButton, Icon, Button, Snackbar, Portal, Chip, Modal } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { socialService, mealService } from '../../services/firebase';

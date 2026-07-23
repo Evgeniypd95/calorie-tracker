@@ -655,6 +655,153 @@ export const socialService = {
   }
 };
 
+export const challengeService = {
+  createChallenge: async (userId, userName, { name, durationDays }) => {
+    const inviteCode = generateInviteCode();
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + durationDays);
+
+    const challengeData = {
+      name,
+      createdBy: userId,
+      createdAt: new Date(),
+      durationDays,
+      startDate,
+      endDate,
+      memberIds: [userId],
+      members: {
+        [userId]: { name: userName, joinedAt: new Date() }
+      },
+      inviteCode
+    };
+
+    const challengeRef = await addDoc(collection(db, 'challenges'), challengeData);
+    return challengeRef.id;
+  },
+
+  joinChallengeByCode: async (userId, userName, inviteCode) => {
+    const q = query(
+      collection(db, 'challenges'),
+      where('inviteCode', '==', inviteCode.toUpperCase())
+    );
+
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) throw new Error('Challenge not found');
+
+    const challengeDoc = querySnapshot.docs[0];
+    const challenge = challengeDoc.data();
+
+    const endDate = challenge.endDate?.toDate ? challenge.endDate.toDate() : new Date(challenge.endDate);
+    if (endDate < new Date()) {
+      throw new Error('This challenge has already ended');
+    }
+
+    if ((challenge.memberIds || []).includes(userId)) {
+      throw new Error('You have already joined this challenge');
+    }
+
+    const challengeRef = doc(db, 'challenges', challengeDoc.id);
+    await updateDoc(challengeRef, {
+      memberIds: [...(challenge.memberIds || []), userId],
+      [`members.${userId}`]: { name: userName, joinedAt: new Date() }
+    });
+
+    return challengeDoc.id;
+  },
+
+  getMyChallenges: async (userId) => {
+    const q = query(
+      collection(db, 'challenges'),
+      where('memberIds', 'array-contains', userId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const challenges = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    return challenges.sort((a, b) => {
+      const timeA = a.createdAt?.toMillis?.() || 0;
+      const timeB = b.createdAt?.toMillis?.() || 0;
+      return timeB - timeA;
+    });
+  },
+
+  getChallengeById: async (challengeId) => {
+    const challengeDoc = await getDoc(doc(db, 'challenges', challengeId));
+    return challengeDoc.exists() ? { id: challengeDoc.id, ...challengeDoc.data() } : null;
+  },
+
+  leaveChallenge: async (challengeId, userId) => {
+    const challengeRef = doc(db, 'challenges', challengeId);
+    const challengeDoc = await getDoc(challengeRef);
+    if (!challengeDoc.exists()) return;
+
+    const challenge = challengeDoc.data();
+    const remainingMembers = { ...(challenge.members || {}) };
+    delete remainingMembers[userId];
+
+    await updateDoc(challengeRef, {
+      memberIds: (challenge.memberIds || []).filter(id => id !== userId),
+      members: remainingMembers
+    });
+  },
+
+  getChallengeLeaderboard: async (challenge) => {
+    const startDate = challenge.startDate?.toDate ? challenge.startDate.toDate() : new Date(challenge.startDate);
+    const rawEndDate = challenge.endDate?.toDate ? challenge.endDate.toDate() : new Date(challenge.endDate);
+    const endDate = rawEndDate < new Date() ? rawEndDate : new Date();
+
+    const totalDays = Math.max(1, Math.ceil((rawEndDate - startDate) / (1000 * 60 * 60 * 24)));
+
+    const memberIds = challenge.memberIds || [];
+    const results = await Promise.all(
+      memberIds.map(async (memberId) => {
+        const meals = await mealService.getUserMeals(memberId, 60);
+        const relevantMeals = meals.filter((meal) => {
+          const mealDate = meal.date?.toDate?.() || new Date(meal.date);
+          return mealDate >= startDate && mealDate <= endDate;
+        });
+
+        const dayTotals = {};
+        relevantMeals.forEach((meal) => {
+          const mealDate = meal.date?.toDate?.() || new Date(meal.date);
+          const key = mealDate.toDateString();
+          dayTotals[key] = (dayTotals[key] || 0) + (meal.totals?.calories || 0);
+        });
+
+        let daysHit = 0;
+        if (challenge.targetType === 'daysOnTarget') {
+          const memberProfile = await userService.getUserProfile(memberId);
+          const target = memberProfile?.dailyCalorieTarget || 0;
+          daysHit = target > 0
+            ? Object.values(dayTotals).filter((cals) => Math.abs(cals - target) <= 50).length
+            : 0;
+        } else {
+          daysHit = Object.keys(dayTotals).length;
+        }
+
+        return {
+          userId: memberId,
+          name: challenge.members?.[memberId]?.name || 'User',
+          daysHit,
+          totalDays
+        };
+      })
+    );
+
+    return results.sort((a, b) => b.daysHit - a.daysHit);
+  }
+};
+
+function generateInviteCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 // Helper functions
 function generatePersonalCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

@@ -273,6 +273,25 @@ export default function InsightsScreen({ navigation }) {
         </View>
       )}
 
+      {/* Weekly recap, prominent on Mondays */}
+      {new Date().getDay() === 1 && (
+        <TouchableOpacity
+          onPress={() => navigation.navigate('WeeklyRecap')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.recapCard}>
+            <View style={styles.recapLeft}>
+              <RNText style={styles.recapEmoji}>📅</RNText>
+              <View>
+                <Text style={styles.recapTitle}>{t('recap.bannerTitle')}</Text>
+                <Text style={styles.recapSubtitle}>{t('recap.bannerSubtitle')}</Text>
+              </View>
+            </View>
+            <Icon source="chevron-right" size={22} color={colors.faint} />
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* Weight tracking link */}
       <TouchableOpacity
         onPress={() => navigation.navigate('WeightTracking')}
@@ -626,6 +645,36 @@ const styles = StyleSheet.create({
   },
   weeklyDotActive: {
     backgroundColor: colors.success
+  },
+  recapCard: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    padding: 16,
+    backgroundColor: colors.tint,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.tintBorder,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  recapLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1
+  },
+  recapEmoji: {
+    fontSize: 30
+  },
+  recapTitle: {
+    ...type.heading,
+    fontSize: 15,
+    marginBottom: 2
+  },
+  recapSubtitle: {
+    ...type.caption,
+    fontSize: 12
   },
   weightTrackingCard: {
     marginHorizontal: 16,

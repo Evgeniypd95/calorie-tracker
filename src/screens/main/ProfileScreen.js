@@ -376,6 +376,37 @@ export default function ProfileScreen({ navigation }) {
         )}
       </View>
 
+      {/* Settings links */}
+      <TouchableOpacity
+        style={styles.linkRow}
+        onPress={() => navigation.navigate('NotificationSettings')}
+        activeOpacity={0.7}
+      >
+        <Icon source="bell-outline" size={20} color={colors.muted} />
+        <Text style={styles.linkRowText}>{t('notifications.settingsTitle')}</Text>
+        <Icon source="chevron-right" size={20} color={colors.faint} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.linkRow}
+        onPress={() => navigation.navigate('Challenges')}
+        activeOpacity={0.7}
+      >
+        <Icon source="trophy-outline" size={20} color={colors.muted} />
+        <Text style={styles.linkRowText}>{t('challenges.navTitle')}</Text>
+        <Icon source="chevron-right" size={20} color={colors.faint} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.linkRow}
+        onPress={() => navigation.navigate('WeeklyRecap')}
+        activeOpacity={0.7}
+      >
+        <Icon source="calendar-week" size={20} color={colors.muted} />
+        <Text style={styles.linkRowText}>{t('recap.navTitle')}</Text>
+        <Icon source="chevron-right" size={20} color={colors.faint} />
+      </TouchableOpacity>
+
       {/* Log out */}
       <TouchableOpacity style={styles.logoutRow} onPress={handleLogout} activeOpacity={0.7}>
         <Icon source="logout" size={20} color={colors.danger} />
@@ -617,12 +648,30 @@ const styles = StyleSheet.create({
     backgroundColor: colors.subtle,
     marginLeft: 52
   },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    marginBottom: 10,
+    ...shadows.card
+  },
+  linkRowText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.ink
+  },
   logoutRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 16,
+    marginTop: 6,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     ...shadows.card

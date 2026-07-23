@@ -11,6 +11,11 @@ import ProfileScreen from '../screens/main/ProfileScreen';
 import InsightsScreen from '../screens/main/InsightsScreen';
 import BodyMetricsScreen from '../screens/main/BodyMetricsScreen';
 import WeightTrackingScreen from '../screens/main/WeightTrackingScreen';
+import NotificationSettingsScreen from '../screens/main/NotificationSettingsScreen';
+import WeeklyRecapScreen from '../screens/main/WeeklyRecapScreen';
+import ChallengesScreen from '../screens/main/ChallengesScreen';
+import CreateChallengeScreen from '../screens/main/CreateChallengeScreen';
+import ChallengeDetailScreen from '../screens/main/ChallengeDetailScreen';
 import { Icon } from 'react-native-paper';
 import { useSelectedDate } from '../context/DateContext';
 import { useLocalization } from '../localization/i18n';
@@ -101,6 +106,11 @@ function InsightsStack() {
         component={WeightTrackingScreen}
         options={{ title: t('nav.weightTracking'), headerBackTitle: t('nav.back') }}
       />
+      <Stack.Screen
+        name="WeeklyRecap"
+        component={WeeklyRecapScreen}
+        options={{ title: t('recap.navTitle'), headerBackTitle: t('nav.back') }}
+      />
     </Stack.Navigator>
   );
 }
@@ -118,6 +128,31 @@ function ProfileStack() {
         name="BodyMetrics"
         component={BodyMetricsScreen}
         options={{ title: t('nav.bodyMetrics'), headerBackTitle: t('nav.back') }}
+      />
+      <Stack.Screen
+        name="NotificationSettings"
+        component={NotificationSettingsScreen}
+        options={{ title: t('notifications.settingsTitle'), headerBackTitle: t('nav.back') }}
+      />
+      <Stack.Screen
+        name="WeeklyRecap"
+        component={WeeklyRecapScreen}
+        options={{ title: t('recap.navTitle'), headerBackTitle: t('nav.back') }}
+      />
+      <Stack.Screen
+        name="Challenges"
+        component={ChallengesScreen}
+        options={{ title: t('challenges.navTitle'), headerBackTitle: t('nav.back') }}
+      />
+      <Stack.Screen
+        name="CreateChallenge"
+        component={CreateChallengeScreen}
+        options={{ title: t('challenges.createTitle'), headerBackTitle: t('nav.back') }}
+      />
+      <Stack.Screen
+        name="ChallengeDetail"
+        component={ChallengeDetailScreen}
+        options={{ title: t('challenges.detailTitle'), headerBackTitle: t('nav.back') }}
       />
     </Stack.Navigator>
   );

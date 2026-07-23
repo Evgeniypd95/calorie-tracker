@@ -827,6 +827,8 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
       setMealSaved(true);
       setIsSaving(false);
+      setInputText('');
+      textBeforeVoiceRef.current = '';
     } catch (error) {
       console.error('Error saving meal:', error);
       showAlert(t('common.error'), t('chat.saveFailed'));
@@ -839,6 +841,8 @@ export default function ChatLogMealScreen({ navigation, route }) {
     setSelectedMealType(null);
     setMealConfirmed(false);
     setShowAdjustmentHints(false);
+    setInputText('');
+    textBeforeVoiceRef.current = '';
     setMessages([
       {
         id: Date.now(),
