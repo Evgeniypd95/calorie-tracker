@@ -428,6 +428,76 @@ export const mealService = {
   }
 };
 
+export const favouriteService = {
+  addFavourite: async (userId, meal) => {
+    const favouriteData = {
+      userId,
+      description: meal.description,
+      mealType: meal.mealType,
+      items: meal.items,
+      totals: meal.totals,
+      imageUrl: meal.imageUrl || null,
+      sourceMealId: meal.id || null,
+      createdAt: new Date(),
+      lastUsedAt: new Date(),
+      useCount: 0
+    };
+
+    const favouriteRef = await addDoc(collection(db, 'favourites'), favouriteData);
+    return favouriteRef.id;
+  },
+
+  removeFavourite: async (favouriteId) => {
+    await deleteDoc(doc(db, 'favourites', favouriteId));
+  },
+
+  getFavourites: async (userId) => {
+    const q = query(
+      collection(db, 'favourites'),
+      where('userId', '==', userId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const favourites = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Most-used first, then most recently added
+    return favourites.sort((a, b) => {
+      if ((b.useCount || 0) !== (a.useCount || 0)) {
+        return (b.useCount || 0) - (a.useCount || 0);
+      }
+      const timeA = a.createdAt?.toMillis?.() || 0;
+      const timeB = b.createdAt?.toMillis?.() || 0;
+      return timeB - timeA;
+    });
+  },
+
+  isFavourited: async (userId, description) => {
+    const q = query(
+      collection(db, 'favourites'),
+      where('userId', '==', userId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const favourites = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const lowerDescription = (description || '').toLowerCase().trim();
+
+    return favourites.find(fav => (fav.description || '').toLowerCase().trim() === lowerDescription) || null;
+  },
+
+  recordFavouriteUsed: async (favouriteId) => {
+    const favouriteRef = doc(db, 'favourites', favouriteId);
+    const favouriteDoc = await getDoc(favouriteRef);
+
+    if (!favouriteDoc.exists()) return;
+
+    const currentCount = favouriteDoc.data().useCount || 0;
+    await updateDoc(favouriteRef, {
+      useCount: currentCount + 1,
+      lastUsedAt: new Date()
+    });
+  }
+};
+
 export const socialService = {
   followUser: async (currentUserId, personalCode) => {
     // Find user by personal code

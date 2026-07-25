@@ -6,7 +6,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Voice from '@react-native-voice/voice';
 import { parseMealDescription, convertImageToDescription, gradeMealBackend } from '../../services/geminiService';
-import { mealService } from '../../services/firebase';
+import { mealService, favouriteService } from '../../services/firebase';
+import { rescheduleMealReminderAfterLogging } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
 import { lookupBarcode, formatBarcodeProductForParsing } from '../../services/barcodeService';
 import MealGradeCard from '../../components/MealGradeCard';
@@ -74,6 +75,9 @@ export default function ChatLogMealScreen({ navigation, route }) {
       timestamp: new Date()
     }
   ]);
+  const [favouriteMeals, setFavouriteMeals] = useState([]);
+  const [showFavouriteMeals, setShowFavouriteMeals] = useState(false);
+  const [savedFavouriteId, setSavedFavouriteId] = useState(null);
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -105,6 +109,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
   // Load recent meals on mount
   useEffect(() => {
     loadRecentMeals();
+    loadFavouriteMeals();
   }, []);
 
   // Handle reparse when editing a meal
@@ -153,6 +158,83 @@ export default function ChatLogMealScreen({ navigation, route }) {
       return;
     }
     setShowRecentMeals(true);
+  };
+
+  const loadFavouriteMeals = async () => {
+    try {
+      const favourites = await favouriteService.getFavourites(user.uid);
+      setFavouriteMeals(favourites);
+    } catch (error) {
+      console.error('Error loading favourite meals:', error);
+    }
+  };
+
+  const handleShowFavouriteMeals = () => {
+    if (favouriteMeals.length === 0) {
+      showAlert(t('favourites.empty'), t('favourites.emptyBody'));
+      return;
+    }
+    setShowFavouriteMeals(true);
+  };
+
+  const handleSelectFavouriteMeal = (favourite) => {
+    setShowFavouriteMeals(false);
+
+    addMessage('user', favourite.description);
+    addMessage('ai', t('chat.usingRecentMeal', { name: favourite.description }));
+
+    setParsedData({
+      items: favourite.items,
+      totals: favourite.totals
+    });
+
+    if (favourite.mealType) {
+      setSelectedMealType(favourite.mealType);
+    }
+
+    favouriteService.recordFavouriteUsed(favourite.id).catch((error) =>
+      console.error('Error recording favourite use:', error)
+    );
+
+    const totalCal = favourite.totals.calories;
+    const itemsList = favourite.items.map(item =>
+      `• ${item.quantity} ${item.food} (${item.calories} ${t('dashboard.calShort')})`
+    ).join('\n');
+
+    const response = t('chat.breakdownIntro', {
+      items: itemsList,
+      calories: totalCal,
+      protein: favourite.totals.protein,
+      carbs: favourite.totals.carbs,
+      fat: favourite.totals.fat
+    });
+
+    setTimeout(() => {
+      addMessage('ai', response, { parsedData: { items: favourite.items, totals: favourite.totals } });
+      setTimeout(() => {
+        addMessage('ai', '', { showFeedbackSuggestions: true });
+      }, 500);
+    }, 500);
+  };
+
+  const handleAddCurrentMealToFavourites = async () => {
+    if (!parsedData || !selectedMealType) return;
+    try {
+      const userMessages = messages.filter(m => m.role === 'user' && !m.data?.imageUri);
+      const description = userMessages.map(m => m.content).join(', ') || t('chat.photoMealDescription');
+
+      const favouriteId = await favouriteService.addFavourite(user.uid, {
+        description,
+        mealType: selectedMealType,
+        items: parsedData.items,
+        totals: parsedData.totals
+      });
+
+      setSavedFavouriteId(favouriteId);
+      loadFavouriteMeals();
+    } catch (error) {
+      console.error('Error adding favourite:', error);
+    }
   };
 
   const handleSelectRecentMeal = (meal) => {
@@ -809,6 +891,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
 
       const mealId = await mealService.logMeal(user.uid, mealData);
       refreshUserProfile();
+      rescheduleMealReminderAfterLogging(selectedMealType);
 
       addMessage('ai', t('chat.mealLogged', { mealType: getMealTypeLabelLower(selectedMealType, t) }));
 
@@ -841,6 +924,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
     setSelectedMealType(null);
     setMealConfirmed(false);
     setShowAdjustmentHints(false);
+    setSavedFavouriteId(null);
     setInputText('');
     textBeforeVoiceRef.current = '';
     setMessages([
@@ -908,10 +992,10 @@ export default function ChatLogMealScreen({ navigation, route }) {
       return null;
     }
 
-    // Recent meals button (hide if meal already parsed)
+    // Recent meals + favourites buttons (hide if meal already parsed)
     if (message.showRecentMealsButton && !parsedData) {
       return (
-        <View key={message.id} style={[styles.messageContainer, styles.aiMessageContainer]}>
+        <View key={message.id} style={[styles.messageContainer, styles.aiMessageContainer, styles.quickAccessRow]}>
           <TouchableOpacity
             style={styles.recentMealsButton}
             activeOpacity={0.7}
@@ -919,6 +1003,14 @@ export default function ChatLogMealScreen({ navigation, route }) {
           >
             <Icon source="history" size={18} color={colors.primary} />
             <RNText style={styles.recentMealsButtonLabel}>{t('chat.viewRecentMeals')}</RNText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.favouriteMealsButton}
+            activeOpacity={0.7}
+            onPress={handleShowFavouriteMeals}
+          >
+            <Icon source="star" size={18} color={colors.primary} />
+            <RNText style={styles.recentMealsButtonLabel}>{t('favourites.viewFavourites')}</RNText>
           </TouchableOpacity>
         </View>
       );
@@ -1149,6 +1241,64 @@ export default function ChatLogMealScreen({ navigation, route }) {
           </View>
         )}
 
+        {/* Favourite Meals list */}
+        {showFavouriteMeals && (
+          <View style={styles.recentMealsContainer}>
+            <View style={[styles.messageContainer, styles.aiMessageContainer]}>
+              <View style={[styles.messageBubble, styles.aiBubble]}>
+                <Text style={styles.aiMessageText}>{t('favourites.pickFavourite')}</Text>
+              </View>
+            </View>
+            {favouriteMeals.map((favourite) => (
+              <TouchableOpacity
+                key={favourite.id}
+                onPress={() => handleSelectFavouriteMeal(favourite)}
+                style={styles.favouriteMealCard}
+                activeOpacity={0.7}
+              >
+                <View style={styles.favouriteMealIconWrap}>
+                  <Icon
+                    source={MEAL_TYPE_ICONS[favourite.mealType] || 'silverware-fork-knife'}
+                    size={18}
+                    color={colors.primary}
+                  />
+                </View>
+                <View style={styles.recentMealInfo}>
+                  <RNText style={styles.recentMealTitle} numberOfLines={1}>
+                    {favourite.description}
+                  </RNText>
+                  <View style={styles.favouriteMacroPills}>
+                    <View style={[styles.favouriteMacroPill, { backgroundColor: colors.tint }]}>
+                      <RNText style={[styles.favouriteMacroPillText, { color: colors.primary }]}>
+                        {favourite.totals.calories} {t('dashboard.calShort')}
+                      </RNText>
+                    </View>
+                    <View style={[styles.favouriteMacroPill, { backgroundColor: '#FEF2F2' }]}>
+                      <RNText style={[styles.favouriteMacroPillText, { color: colors.protein }]}>
+                        {t('dashboard.proteinLabel').charAt(0)} {Math.round(favourite.totals.protein)}g
+                      </RNText>
+                    </View>
+                    <View style={[styles.favouriteMacroPill, { backgroundColor: '#FFFBEB' }]}>
+                      <RNText style={[styles.favouriteMacroPillText, { color: colors.fat }]}>
+                        {t('dashboard.fatLabel').charAt(0)} {Math.round(favourite.totals.fat)}g
+                      </RNText>
+                    </View>
+                  </View>
+                </View>
+                <Icon source="chevron-right" size={20} color={colors.faint} />
+              </TouchableOpacity>
+            ))}
+            <Button
+              mode="text"
+              textColor={colors.muted}
+              onPress={() => setShowFavouriteMeals(false)}
+              style={styles.cancelRecentButton}
+            >
+              {t('common.cancel')}
+            </Button>
+          </View>
+        )}
+
         {/* Meal Type Selector - shows when we have parsed data AND meal is confirmed */}
         {parsedData && !mealSaved && mealConfirmed && (
           <View style={styles.mealTypeContainer}>
@@ -1208,6 +1358,25 @@ export default function ChatLogMealScreen({ navigation, route }) {
               </View>
             )}
           </View>
+        )}
+
+        {/* Save to Favourites prompt - shows after meal is saved */}
+        {mealSaved && (
+          <TouchableOpacity
+            style={styles.favouritePromptCard}
+            activeOpacity={0.7}
+            onPress={savedFavouriteId ? undefined : handleAddCurrentMealToFavourites}
+            disabled={!!savedFavouriteId}
+          >
+            <Icon
+              source={savedFavouriteId ? 'star' : 'star-outline'}
+              size={20}
+              color={colors.primary}
+            />
+            <RNText style={styles.favouritePromptLabel}>
+              {savedFavouriteId ? t('favourites.saved') : t('favourites.saveToFavourites')}
+            </RNText>
+          </TouchableOpacity>
         )}
 
         {/* Done Button - shows after meal is saved */}
@@ -1741,6 +1910,74 @@ const styles = StyleSheet.create({
   cancelRecentButton: {
     alignSelf: 'center',
     marginTop: 8
+  },
+  quickAccessRow: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap'
+  },
+  favouriteMealsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.tint,
+    borderWidth: 1.5,
+    borderColor: colors.tintBorder,
+    borderRadius: radius.pill,
+    paddingVertical: 10,
+    paddingHorizontal: 18
+  },
+  favouriteMealCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    marginBottom: 8,
+    gap: 12,
+    ...shadows.card
+  },
+  favouriteMealIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.tint,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  favouriteMacroPills: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4
+  },
+  favouriteMacroPill: {
+    borderRadius: radius.pill,
+    paddingVertical: 3,
+    paddingHorizontal: 8
+  },
+  favouriteMacroPillText: {
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  favouritePromptCard: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.tint,
+    borderWidth: 1.5,
+    borderColor: colors.tintBorder,
+    borderRadius: radius.pill,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    marginTop: 8
+  },
+  favouritePromptLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary
   },
   gradeCardContainer: {
     width: '100%',

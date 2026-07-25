@@ -552,6 +552,15 @@ const translations = {
       photoPermissionWeb: 'Photo library access is required to upload meal photos. Please enable it in your browser settings.',
       cameraPermissionWeb: 'Camera access is required to take meal photos. Please enable it in your browser settings.'
     },
+    favourites: {
+      viewFavourites: 'Favourites',
+      pickFavourite: 'Pick a favourite:',
+      empty: 'No Favourites Yet',
+      emptyBody: 'Tap the star on any meal to save it here for quick re-logging.',
+      saveToFavourites: 'Save to Favourites',
+      saved: 'Saved to Favourites',
+      removed: 'Removed from Favourites'
+    },
     checkIn: {
       skipForNow: 'Skip for now',
       submit: 'Submit',
@@ -1187,6 +1196,15 @@ const translations = {
       barcodePermission: 'Для сканирования нужен доступ к камере.',
       photoPermissionWeb: 'Для загрузки фото нужен доступ к фотобиблиотеке в настройках браузера.',
       cameraPermissionWeb: 'Для съемки фото нужен доступ к камере в настройках браузера.'
+    },
+    favourites: {
+      viewFavourites: 'Избранное',
+      pickFavourite: 'Выберите избранное блюдо:',
+      empty: 'Пока нет избранного',
+      emptyBody: 'Нажмите на звёздочку у любого блюда, чтобы сохранить его здесь для быстрого повторного добавления.',
+      saveToFavourites: 'Сохранить в избранное',
+      saved: 'Сохранено в избранное',
+      removed: 'Удалено из избранного'
     },
     checkIn: {
       skipForNow: 'Пропустить',

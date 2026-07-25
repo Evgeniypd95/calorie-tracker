@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert, Platform, Image } from 'react-native';
 import { Text, IconButton, Icon, Portal, Modal, TextInput as PaperTextInput, Button } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { mealService, userService } from '../../services/firebase';
+import { mealService, userService, favouriteService } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useSelectedDate } from '../../context/DateContext';
 import { shouldShowCheckIn, getCheckInQuestions, calculateTargetAdjustment, getNextCheckInDate } from '../../services/checkInService';
@@ -82,6 +82,36 @@ export default function DashboardScreen({ navigation }) {
   const [editMode, setEditMode] = useState('description'); // 'description' or 'date'
   const [smartSuggestions, setSmartSuggestions] = useState([]);
   const [showGoalConfetti, setShowGoalConfetti] = useState(false);
+  const [favouriteDescriptions, setFavouriteDescriptions] = useState(new Set());
+
+  const loadFavourites = async () => {
+    try {
+      const favourites = await favouriteService.getFavourites(user.uid);
+      setFavouriteDescriptions(
+        new Set(favourites.map((fav) => (fav.description || '').toLowerCase().trim()))
+      );
+    } catch (error) {
+      console.error('Error loading favourites:', error);
+    }
+  };
+
+  const handleToggleFavourite = async (meal) => {
+    const key = (meal.description || '').toLowerCase().trim();
+    try {
+      if (favouriteDescriptions.has(key)) {
+        const existing = await favouriteService.isFavourited(user.uid, meal.description);
+        if (existing) await favouriteService.removeFavourite(existing.id);
+      } else {
+        await favouriteService.addFavourite(user.uid, meal);
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      }
+      await loadFavourites();
+    } catch (error) {
+      console.error('Error toggling favourite:', error);
+    }
+  };
 
   const loadMeals = async (date = selectedDate) => {
     try {
@@ -150,6 +180,7 @@ export default function DashboardScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadMeals();
+      loadFavourites();
 
       if (userProfile) {
         const checkIn = shouldShowCheckIn(userProfile);
@@ -165,9 +196,12 @@ export default function DashboardScreen({ navigation }) {
   // Idempotent: re-scheduling with the same times just replaces the
   // previously scheduled notifications, so this is safe to run on every mount.
   useEffect(() => {
-    if (!userProfile) return;
+    if (!userProfile || !user) return;
     if (userProfile.notificationsEnabled) {
-      scheduleMealReminders(userProfile.notificationTimes);
+      mealService.getTodaysMeals(user.uid).then((todaysMeals) => {
+        const loggedMealTypes = todaysMeals.map((meal) => meal.mealType);
+        scheduleMealReminders(userProfile.notificationTimes, loggedMealTypes);
+      });
     }
     if (userProfile.streakRiskReminderEnabled) {
       scheduleStreakRiskReminder(userProfile.lastLogDate);
@@ -594,6 +628,13 @@ export default function DashboardScreen({ navigation }) {
                             <Text style={styles.gradeText}>{gradeData.grade}</Text>
                           </View>
                         )}
+                        <IconButton
+                          icon={favouriteDescriptions.has((meal.description || '').toLowerCase().trim()) ? 'star' : 'star-outline'}
+                          size={18}
+                          iconColor={favouriteDescriptions.has((meal.description || '').toLowerCase().trim()) ? colors.primary : colors.faint}
+                          style={styles.editIcon}
+                          onPress={() => handleToggleFavourite(meal)}
+                        />
                         <IconButton
                           icon="pencil-outline"
                           size={18}

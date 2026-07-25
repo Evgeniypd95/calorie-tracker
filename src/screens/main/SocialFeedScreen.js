@@ -4,6 +4,7 @@ import { Text, IconButton, Icon, Button, Snackbar, Portal, Chip, Modal } from 'r
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { socialService, mealService } from '../../services/firebase';
+import { rescheduleMealReminderAfterLogging } from '../../services/notificationService';
 import { useLocalization, getDayNameShort, getMealTypeLabel, getMealTypeLabelLower } from '../../localization/i18n';
 import { colors, radius, shadows, type } from '../../theme';
 import { GradientAvatar } from '../../components/ui';
@@ -148,6 +149,7 @@ export default function SocialFeedScreen({ navigation }) {
 
       await mealService.logMeal(user.uid, mealData);
       refreshUserProfile();
+      rescheduleMealReminderAfterLogging(mealType);
       await mealService.incrementMealCopyCount(selectedMealForCopy.id, user.uid);
 
       setFeedMeals(prev =>

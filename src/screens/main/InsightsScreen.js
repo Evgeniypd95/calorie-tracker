@@ -13,7 +13,7 @@ import { getEffectiveStreak } from '../../utils/streak';
 const { width: screenWidth } = Dimensions.get('window');
 const CHART_WIDTH = Math.min(screenWidth, 520) - 72;
 
-const TARGET_LINE = 'rgba(148, 163, 184,';
+const TARGET_LINE = 'rgba(15, 23, 42,';
 
 export default function InsightsScreen({ navigation }) {
   const { user, userProfile } = useAuth();
@@ -160,8 +160,8 @@ export default function InsightsScreen({ navigation }) {
               },
               {
                 data: Array(data.labels.length).fill(data.target),
-                color: (opacity = 1) => `${TARGET_LINE} ${opacity})`,
-                strokeWidth: 2,
+                color: () => `${TARGET_LINE} 0.85)`,
+                strokeWidth: 3,
                 strokeDasharray: [8, 6],
                 withDots: false
               }

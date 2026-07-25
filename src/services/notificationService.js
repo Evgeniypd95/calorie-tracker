@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '../localization/i18n';
 
 const MEAL_REMINDER_IDS_KEY = 'notif_meal_reminder_ids';
+const MEAL_REMINDER_TIMES_KEY = 'notif_meal_reminder_times';
 const STREAK_REMINDER_ID_KEY = 'notif_streak_reminder_id';
 
 Notifications.setNotificationHandler({
@@ -46,33 +47,86 @@ export async function cancelMealReminders() {
   const stored = await AsyncStorage.getItem(MEAL_REMINDER_IDS_KEY);
   if (stored) {
     const ids = JSON.parse(stored);
-    await Promise.all(ids.map((id) => Notifications.cancelScheduledNotificationAsync(id)));
+    await Promise.all(Object.values(ids).map((id) => Notifications.cancelScheduledNotificationAsync(id)));
   }
   await AsyncStorage.removeItem(MEAL_REMINDER_IDS_KEY);
+  await AsyncStorage.removeItem(MEAL_REMINDER_TIMES_KEY);
 }
 
-export async function scheduleMealReminders(times) {
+const getStoredMealReminderIds = async () => {
+  const stored = await AsyncStorage.getItem(MEAL_REMINDER_IDS_KEY);
+  return stored ? JSON.parse(stored) : {};
+};
+
+// Meal reminders fire once for the next occurrence of each meal time, rather than
+// on a recurring daily trigger, so that a meal already logged today can be skipped
+// (pushing that reminder to tomorrow) instead of firing regardless of logging state.
+export async function scheduleMealReminders(times, loggedMealTypesToday = []) {
   if (Platform.OS === 'web') return;
 
   await cancelMealReminders();
 
-  const ids = await Promise.all(
+  const loggedToday = new Set(loggedMealTypesToday.map((m) => String(m).toLowerCase()));
+  const now = new Date();
+
+  const entries = await Promise.all(
     MEAL_KEYS.filter((key) => times?.[key]).map(async (key) => {
       const { hour, minute } = parseTime(times[key]);
-      return Notifications.scheduleNotificationAsync({
+      const fireAt = new Date(now);
+      fireAt.setHours(hour, minute, 0, 0);
+
+      if (fireAt <= now || loggedToday.has(key)) {
+        fireAt.setDate(fireAt.getDate() + 1);
+      }
+
+      const id = await Notifications.scheduleNotificationAsync({
         content: {
           title: t(`notifications.mealReminderTitle.${key}`),
           body: t(`notifications.mealReminderBody.${key}`)
         },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour,
-          minute
-        }
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt }
       });
+
+      return [key, id];
     })
   );
 
+  await AsyncStorage.setItem(MEAL_REMINDER_IDS_KEY, JSON.stringify(Object.fromEntries(entries)));
+  await AsyncStorage.setItem(MEAL_REMINDER_TIMES_KEY, JSON.stringify(times));
+}
+
+// Cancels today's pending reminder for a single meal type (e.g. right after it's
+// logged) and reschedules it for tomorrow, leaving the other meal reminders intact.
+export async function rescheduleMealReminderAfterLogging(mealType) {
+  if (Platform.OS === 'web') return;
+
+  const key = String(mealType || '').toLowerCase();
+  if (!MEAL_KEYS.includes(key)) return;
+
+  const storedTimes = await AsyncStorage.getItem(MEAL_REMINDER_TIMES_KEY);
+  if (!storedTimes) return;
+  const times = JSON.parse(storedTimes);
+  if (!times?.[key]) return;
+
+  const ids = await getStoredMealReminderIds();
+  if (ids[key]) {
+    await Notifications.cancelScheduledNotificationAsync(ids[key]);
+  }
+
+  const { hour, minute } = parseTime(times[key]);
+  const fireAt = new Date();
+  fireAt.setHours(hour, minute, 0, 0);
+  fireAt.setDate(fireAt.getDate() + 1);
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: t(`notifications.mealReminderTitle.${key}`),
+      body: t(`notifications.mealReminderBody.${key}`)
+    },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt }
+  });
+
+  ids[key] = id;
   await AsyncStorage.setItem(MEAL_REMINDER_IDS_KEY, JSON.stringify(ids));
 }
 

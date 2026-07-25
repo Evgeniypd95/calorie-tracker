@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Text as RNText, Platform } from 'react-native';
 import { Text, Switch } from 'react-native-paper';
 import { useAuth } from '../../context/AuthContext';
-import { userService } from '../../services/firebase';
+import { userService, mealService } from '../../services/firebase';
 import {
   requestPermissions,
   hasPermission,
@@ -94,7 +94,8 @@ export default function NotificationSettingsScreen() {
       });
 
       if (mealRemindersEnabled) {
-        await scheduleMealReminders(times);
+        const todaysMeals = await mealService.getTodaysMeals(user.uid);
+        await scheduleMealReminders(times, todaysMeals.map((meal) => meal.mealType));
       } else {
         await cancelMealReminders();
       }

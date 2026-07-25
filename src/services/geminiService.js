@@ -392,7 +392,8 @@ export const generateInsightsBackend = async (userId, userProfile) => {
     const generateInsightsFn = httpsCallable(functions, 'generateInsights');
     const result = await generateInsightsFn({
       userId,
-      userProfile
+      userProfile,
+      timezoneOffsetMinutes: new Date().getTimezoneOffset()
     });
 
     console.log('✅ generateInsights response:', result.data);
