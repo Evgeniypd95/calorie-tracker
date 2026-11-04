@@ -17,6 +17,7 @@ setGlobalOptions({maxInstances: 10});
 const genAI = new GoogleGenerativeAI(
   process.env.GEMINI_API_KEY || ""
 );
+const GEMINI_MODEL = "gemini-3.8-flash";
 
 /**
  * Convert meal image to text description using Gemini Vision
@@ -36,7 +37,7 @@ export const imageToDescription = onCall(async (request: any) => {
   }
 
   try {
-    const model = genAI.getGenerativeModel({model: "gemini-3.5-flash"});
+    const model = genAI.getGenerativeModel({model: GEMINI_MODEL});
     const localeNormalized = String(locale || "").toLowerCase();
     const shouldUseRussian = localeNormalized.startsWith("ru");
     const languageInstruction = shouldUseRussian ?
@@ -116,7 +117,7 @@ export const parseMeal = onCall(async (request: any) => {
   }
 
   try {
-    const model = genAI.getGenerativeModel({model: "gemini-3.5-flash"});
+    const model = genAI.getGenerativeModel({model: GEMINI_MODEL});
     const localeNormalized = String(locale || "").toLowerCase();
     const shouldUseRussian = localeNormalized.startsWith("ru");
     const languageInstruction = shouldUseRussian ?
@@ -308,7 +309,7 @@ export const chatOnboarding = onCall(async (request: any) => {
   }
 
   try {
-    const model = genAI.getGenerativeModel({model: "gemini-3.5-flash"});
+    const model = genAI.getGenerativeModel({model: GEMINI_MODEL});
 
     const prompt = `You are a friendly, supportive AI nutrition coach conducting an onboarding conversation.
 
