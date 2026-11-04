@@ -84,7 +84,7 @@ interface DailyTotal {
 export const generateInsights = onCall(async (request: any) => {
   console.log("💡 generateInsights called");
 
-  const {userId, userProfile} = request.data;
+  const {userId, userProfile, timezoneOffsetMinutes} = request.data;
 
   if (!userId || !userProfile) {
     throw new HttpsError(
@@ -93,12 +93,20 @@ export const generateInsights = onCall(async (request: any) => {
     );
   }
 
+  // Client's UTC offset in minutes (from Date.getTimezoneOffset()), used so
+  // "today" and day boundaries match the user's local calendar day instead
+  // of the Cloud Function server's UTC clock.
+  const tzOffsetMs = (Number(timezoneOffsetMinutes) || 0) * 60 * 1000;
+  const toLocal = (d: Date) => new Date(d.getTime() - tzOffsetMs);
+  const toUtc = (localDate: Date) => new Date(localDate.getTime() + tzOffsetMs);
+
   try {
     const {isPregnant, trimester} = userProfile;
 
-    // Get last 7 days of meals
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Get last 7 days of meals (based on the user's local "today")
+    const sevenDaysAgoLocal = toLocal(new Date());
+    sevenDaysAgoLocal.setDate(sevenDaysAgoLocal.getDate() - 7);
+    const sevenDaysAgo = toUtc(sevenDaysAgoLocal);
 
     const mealsSnapshot = await db
       .collection("meals")
@@ -113,10 +121,10 @@ export const generateInsights = onCall(async (request: any) => {
 
     console.log(`📊 Found ${meals.length} meals in last 7 days`);
 
-    // Group meals by day
+    // Group meals by day, using the user's local calendar day
     const last7Days: Date[] = [];
     for (let i = 6; i >= 0; i--) {
-      const date = new Date();
+      const date = toLocal(new Date());
       date.setDate(date.getDate() - i);
       date.setHours(0, 0, 0, 0);
       last7Days.push(date);
@@ -124,7 +132,8 @@ export const generateInsights = onCall(async (request: any) => {
 
     const dailyTotals: DailyTotal[] = last7Days.map((date) => {
       const dayMeals = meals.filter((meal) => {
-        const mealDate = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
+        const mealDateUtc = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
+        const mealDate = toLocal(mealDateUtc);
         return (
           mealDate.getDate() === date.getDate() &&
           mealDate.getMonth() === date.getMonth() &&

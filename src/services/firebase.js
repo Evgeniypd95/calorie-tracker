@@ -3,7 +3,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
-  signInWithCredential
+  signInWithCredential,
+  signInWithPopup
 } from 'firebase/auth';
 import {
   doc,
@@ -63,7 +64,8 @@ export const authService = {
 
   googleSignIn: async () => {
     if (Platform.OS === 'web') {
-      throw new Error('Google Sign-In is not available on web');
+      const provider = new GoogleAuthProvider();
+      return await signInWithPopup(auth, provider);
     }
 
     try {
@@ -426,6 +428,76 @@ export const mealService = {
   }
 };
 
+export const favouriteService = {
+  addFavourite: async (userId, meal) => {
+    const favouriteData = {
+      userId,
+      description: meal.description,
+      mealType: meal.mealType,
+      items: meal.items,
+      totals: meal.totals,
+      imageUrl: meal.imageUrl || null,
+      sourceMealId: meal.id || null,
+      createdAt: new Date(),
+      lastUsedAt: new Date(),
+      useCount: 0
+    };
+
+    const favouriteRef = await addDoc(collection(db, 'favourites'), favouriteData);
+    return favouriteRef.id;
+  },
+
+  removeFavourite: async (favouriteId) => {
+    await deleteDoc(doc(db, 'favourites', favouriteId));
+  },
+
+  getFavourites: async (userId) => {
+    const q = query(
+      collection(db, 'favourites'),
+      where('userId', '==', userId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const favourites = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Most-used first, then most recently added
+    return favourites.sort((a, b) => {
+      if ((b.useCount || 0) !== (a.useCount || 0)) {
+        return (b.useCount || 0) - (a.useCount || 0);
+      }
+      const timeA = a.createdAt?.toMillis?.() || 0;
+      const timeB = b.createdAt?.toMillis?.() || 0;
+      return timeB - timeA;
+    });
+  },
+
+  isFavourited: async (userId, description) => {
+    const q = query(
+      collection(db, 'favourites'),
+      where('userId', '==', userId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const favourites = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const lowerDescription = (description || '').toLowerCase().trim();
+
+    return favourites.find(fav => (fav.description || '').toLowerCase().trim() === lowerDescription) || null;
+  },
+
+  recordFavouriteUsed: async (favouriteId) => {
+    const favouriteRef = doc(db, 'favourites', favouriteId);
+    const favouriteDoc = await getDoc(favouriteRef);
+
+    if (!favouriteDoc.exists()) return;
+
+    const currentCount = favouriteDoc.data().useCount || 0;
+    await updateDoc(favouriteRef, {
+      useCount: currentCount + 1,
+      lastUsedAt: new Date()
+    });
+  }
+};
+
 export const socialService = {
   followUser: async (currentUserId, personalCode) => {
     // Find user by personal code
@@ -478,6 +550,17 @@ export const socialService = {
     }, { merge: true });
   },
 
+  getUserProfilesByIds: async (ids) => {
+    if (!ids || ids.length === 0) return [];
+    const users = await Promise.all(
+      ids.map(async (id) => {
+        const userDoc = await getDoc(doc(db, 'users', id));
+        return userDoc.exists() ? { id, ...userDoc.data() } : null;
+      })
+    );
+    return users.filter(Boolean);
+  },
+
   getFollowingUsers: async (userId) => {
     const userDoc = await getDoc(doc(db, 'users', userId));
     if (!userDoc.exists()) {
@@ -516,6 +599,8 @@ export const socialService = {
     const targetUserData = targetUserDoc.exists() ? targetUserDoc.data() : {};
 
     const currentFollowing = currentUserData.following || [];
+    const currentFollowers = currentUserData.followers || [];
+    const targetFollowing = targetUserData.following || [];
     const targetFollowers = targetUserData.followers || [];
 
     // Remove connection in BOTH directions
@@ -565,7 +650,7 @@ export const socialService = {
 
       return meals.map(meal => ({
         ...meal,
-        userName: userData.email?.split('@')[0] || 'User',
+        userName: userData.name || userData.email?.split('@')[0] || 'User',
         userEmail: userData.email
       }));
     });
@@ -620,7 +705,7 @@ export const socialService = {
       return meals.map(meal => ({
         ...meal,
         userId: followedUserId,
-        userName: userData.email?.split('@')[0] || 'User',
+        userName: userData.name || userData.email?.split('@')[0] || 'User',
         userEmail: userData.email,
         likes: meal.likes || [],
         comments: meal.comments || []
@@ -639,6 +724,153 @@ export const socialService = {
       .slice(0, limit);
   }
 };
+
+export const challengeService = {
+  createChallenge: async (userId, userName, { name, durationDays }) => {
+    const inviteCode = generateInviteCode();
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + durationDays);
+
+    const challengeData = {
+      name,
+      createdBy: userId,
+      createdAt: new Date(),
+      durationDays,
+      startDate,
+      endDate,
+      memberIds: [userId],
+      members: {
+        [userId]: { name: userName, joinedAt: new Date() }
+      },
+      inviteCode
+    };
+
+    const challengeRef = await addDoc(collection(db, 'challenges'), challengeData);
+    return challengeRef.id;
+  },
+
+  joinChallengeByCode: async (userId, userName, inviteCode) => {
+    const q = query(
+      collection(db, 'challenges'),
+      where('inviteCode', '==', inviteCode.toUpperCase())
+    );
+
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) throw new Error('Challenge not found');
+
+    const challengeDoc = querySnapshot.docs[0];
+    const challenge = challengeDoc.data();
+
+    const endDate = challenge.endDate?.toDate ? challenge.endDate.toDate() : new Date(challenge.endDate);
+    if (endDate < new Date()) {
+      throw new Error('This challenge has already ended');
+    }
+
+    if ((challenge.memberIds || []).includes(userId)) {
+      throw new Error('You have already joined this challenge');
+    }
+
+    const challengeRef = doc(db, 'challenges', challengeDoc.id);
+    await updateDoc(challengeRef, {
+      memberIds: [...(challenge.memberIds || []), userId],
+      [`members.${userId}`]: { name: userName, joinedAt: new Date() }
+    });
+
+    return challengeDoc.id;
+  },
+
+  getMyChallenges: async (userId) => {
+    const q = query(
+      collection(db, 'challenges'),
+      where('memberIds', 'array-contains', userId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const challenges = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    return challenges.sort((a, b) => {
+      const timeA = a.createdAt?.toMillis?.() || 0;
+      const timeB = b.createdAt?.toMillis?.() || 0;
+      return timeB - timeA;
+    });
+  },
+
+  getChallengeById: async (challengeId) => {
+    const challengeDoc = await getDoc(doc(db, 'challenges', challengeId));
+    return challengeDoc.exists() ? { id: challengeDoc.id, ...challengeDoc.data() } : null;
+  },
+
+  leaveChallenge: async (challengeId, userId) => {
+    const challengeRef = doc(db, 'challenges', challengeId);
+    const challengeDoc = await getDoc(challengeRef);
+    if (!challengeDoc.exists()) return;
+
+    const challenge = challengeDoc.data();
+    const remainingMembers = { ...(challenge.members || {}) };
+    delete remainingMembers[userId];
+
+    await updateDoc(challengeRef, {
+      memberIds: (challenge.memberIds || []).filter(id => id !== userId),
+      members: remainingMembers
+    });
+  },
+
+  getChallengeLeaderboard: async (challenge) => {
+    const startDate = challenge.startDate?.toDate ? challenge.startDate.toDate() : new Date(challenge.startDate);
+    const rawEndDate = challenge.endDate?.toDate ? challenge.endDate.toDate() : new Date(challenge.endDate);
+    const endDate = rawEndDate < new Date() ? rawEndDate : new Date();
+
+    const totalDays = Math.max(1, Math.ceil((rawEndDate - startDate) / (1000 * 60 * 60 * 24)));
+
+    const memberIds = challenge.memberIds || [];
+    const results = await Promise.all(
+      memberIds.map(async (memberId) => {
+        const meals = await mealService.getUserMeals(memberId, 60);
+        const relevantMeals = meals.filter((meal) => {
+          const mealDate = meal.date?.toDate?.() || new Date(meal.date);
+          return mealDate >= startDate && mealDate <= endDate;
+        });
+
+        const dayTotals = {};
+        relevantMeals.forEach((meal) => {
+          const mealDate = meal.date?.toDate?.() || new Date(meal.date);
+          const key = mealDate.toDateString();
+          dayTotals[key] = (dayTotals[key] || 0) + (meal.totals?.calories || 0);
+        });
+
+        let daysHit = 0;
+        if (challenge.targetType === 'daysOnTarget') {
+          const memberProfile = await userService.getUserProfile(memberId);
+          const target = memberProfile?.dailyCalorieTarget || 0;
+          daysHit = target > 0
+            ? Object.values(dayTotals).filter((cals) => Math.abs(cals - target) <= 50).length
+            : 0;
+        } else {
+          daysHit = Object.keys(dayTotals).length;
+        }
+
+        return {
+          userId: memberId,
+          name: challenge.members?.[memberId]?.name || 'User',
+          daysHit,
+          totalDays
+        };
+      })
+    );
+
+    return results.sort((a, b) => b.daysHit - a.daysHit);
+  }
+};
+
+function generateInviteCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
 
 // Helper functions
 function generatePersonalCode() {

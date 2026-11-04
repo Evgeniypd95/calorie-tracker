@@ -87,8 +87,25 @@ function calculatePregnancyCalories(baseTDEE: number, trimester: 'FIRST' | 'SECO
   return Math.round(baseTDEE + (additions[trimester] || 0));
 }
 
+// ~7700 kcal of deficit/surplus per kg of body weight (standard estimate)
+const KCAL_PER_KG = 7700;
+// Safe weekly rate of change caps — outside these we clamp to the fixed
+// 15%/10% deficit/surplus instead of following an unsafe deadline.
+const MAX_SAFE_WEEKLY_LOSS_KG = 1.0;
+const MAX_SAFE_WEEKLY_GAIN_KG = 0.5;
+const MIN_TARGET_CALORIES_MULTIPLIER = 0.6; // never go below 60% of TDEE
+const MAX_TARGET_CALORIES_MULTIPLIER = 1.25; // never exceed 125% of TDEE
+
 /**
- * Calculate target calories based on goal
+ * Calculate target calories based on goal.
+ *
+ * When a target date and a target weight different from the current weight
+ * are supplied, the daily deficit/surplus is derived from how many days are
+ * left to reach that weight — but the implied weekly rate is clamped to a
+ * safe max (never a hard fallback to a differently-calibrated flat percent,
+ * which would create a discontinuity where an aggressive-but-clamped date
+ * produces a SMALLER deficit than a more relaxed one). If no date/target
+ * weight is given, uses a fixed 15% deficit / 10% surplus instead.
  */
 function calculateTargetCalories(
   tdee: number,
@@ -96,21 +113,45 @@ function calculateTargetCalories(
   currentWeight: number,
   targetWeight: number,
   isPregnant: boolean,
-  trimester?: 'FIRST' | 'SECOND' | 'THIRD'
-): number {
+  trimester?: 'FIRST' | 'SECOND' | 'THIRD',
+  targetDate?: Date
+): { calories: number; isDateDriven: boolean; achievableWeeklyRate?: number } {
   // For pregnancy, maintain healthy weight with trimester-specific calories
   if (isPregnant && trimester) {
-    return calculatePregnancyCalories(tdee, trimester);
+    return { calories: calculatePregnancyCalories(tdee, trimester), isDateDriven: false };
   }
 
   const weightDiff = targetWeight - currentWeight;
+  const hasDeadline = !!targetDate && weightDiff !== 0;
+
+  if (hasDeadline) {
+    const today = new Date();
+    const daysUntilTarget = (targetDate!.getTime() - today.getTime()) / (24 * 60 * 60 * 1000);
+
+    if (daysUntilTarget > 0) {
+      const weeksUntilTarget = daysUntilTarget / 7;
+      const requestedWeeklyRate = Math.abs(weightDiff) / weeksUntilTarget;
+      const maxSafeRate = weightDiff < 0 ? MAX_SAFE_WEEKLY_LOSS_KG : MAX_SAFE_WEEKLY_GAIN_KG;
+
+      // Clamp the RATE (not the resulting calories) so the deficit/surplus
+      // scales continuously with how aggressive the deadline is, saturating
+      // at the safe max instead of jumping to an unrelated flat percentage.
+      const safeWeeklyRate = Math.min(requestedWeeklyRate, maxSafeRate);
+      const dailyCalorieAdjustment = (safeWeeklyRate * KCAL_PER_KG) / 7;
+      const signedAdjustment = weightDiff < 0 ? -dailyCalorieAdjustment : dailyCalorieAdjustment;
+      const clampedMin = tdee * MIN_TARGET_CALORIES_MULTIPLIER;
+      const clampedMax = tdee * MAX_TARGET_CALORIES_MULTIPLIER;
+      const target = Math.min(clampedMax, Math.max(clampedMin, tdee + signedAdjustment));
+      return { calories: Math.round(target), isDateDriven: true, achievableWeeklyRate: safeWeeklyRate };
+    }
+  }
 
   if (goal === 'LOSE_WEIGHT' || weightDiff < 0) {
-    return Math.round(tdee * 0.85); // 15% deficit for safe weight loss
+    return { calories: Math.round(tdee * 0.85), isDateDriven: false }; // 15% deficit for safe weight loss
   } else if (goal === 'BUILD_MUSCLE' || weightDiff > 0) {
-    return Math.round(tdee * 1.10); // 10% surplus for muscle gain
+    return { calories: Math.round(tdee * 1.10), isDateDriven: false }; // 10% surplus for muscle gain
   }
-  return Math.round(tdee); // Maintain current weight
+  return { calories: Math.round(tdee), isDateDriven: false }; // Maintain current weight
 }
 
 /**
@@ -136,19 +177,31 @@ function calculateMacros(calories: number, isPregnant: boolean): { protein: numb
 }
 
 /**
- * Calculate weekly weight change and weeks to goal
+ * Calculate weekly weight change and weeks to goal.
+ *
+ * If `achievableWeeklyRate` is supplied (the safety-clamped rate the
+ * calorie target actually supports), weeksToGoal reflects how long reaching
+ * the target weight will REALLY take at that rate — which may be longer
+ * than the user's requested deadline if that deadline was unsafe. Without
+ * it, falls back to the naive requested-date math.
  */
 function calculateWeeklyChange(
   currentWeight: number,
   targetWeight: number,
-  targetDate: Date
+  targetDate: Date,
+  achievableWeeklyRate?: number
 ): { weeksToGoal: number; weeklyWeightChange: number } {
   const weightDiff = Math.abs(targetWeight - currentWeight);
   const today = new Date();
   const weeksUntilTarget = Math.max(1, (targetDate.getTime() - today.getTime()) / (7 * 24 * 60 * 60 * 1000));
+
+  if (achievableWeeklyRate && achievableWeeklyRate > 0) {
+    const actualWeeksNeeded = weightDiff / achievableWeeklyRate;
+    return { weeksToGoal: Math.round(actualWeeksNeeded), weeklyWeightChange: achievableWeeklyRate };
+  }
+
   const weeklyChange = weightDiff / weeksUntilTarget;
   const weeks = Math.round(weeksUntilTarget);
-
   return { weeksToGoal: weeks, weeklyWeightChange: weeklyChange };
 }
 
@@ -160,7 +213,9 @@ function generateReasoning(
   tdee: number,
   targetCalories: number,
   isPregnant: boolean,
-  trimester?: 'FIRST' | 'SECOND' | 'THIRD'
+  trimester?: 'FIRST' | 'SECOND' | 'THIRD',
+  weeklyWeightChange?: number,
+  isDateDriven?: boolean
 ): string {
   if (isPregnant && trimester) {
     const additions = { FIRST: 0, SECOND: 340, THIRD: 452 };
@@ -172,13 +227,22 @@ function generateReasoning(
 
   const deficit = tdee - targetCalories;
   const surplus = targetCalories - tdee;
+  const rateText = weeklyWeightChange && weeklyWeightChange > 0
+    ? `${weeklyWeightChange.toFixed(1)}kg per week`
+    : '0.3-0.5kg per week';
 
   if (goal === 'LOSE_WEIGHT' || deficit > 0) {
     const percentDeficit = Math.round((deficit / tdee) * 100);
-    return `This creates a sustainable ${percentDeficit}% calorie deficit (~${Math.round(deficit)} cal/day) for safe weight loss of approximately 0.3-0.5kg per week.`;
+    const paceNote = isDateDriven
+      ? `to reach your target weight by your goal date at ${rateText}`
+      : `for safe weight loss of approximately ${rateText}`;
+    return `This creates a ${percentDeficit}% calorie deficit (~${Math.round(deficit)} cal/day) ${paceNote}.`;
   } else if (goal === 'BUILD_MUSCLE' || surplus > 0) {
     const percentSurplus = Math.round((surplus / tdee) * 100);
-    return `This provides a ${percentSurplus}% calorie surplus (~${Math.round(surplus)} cal/day) to support muscle growth while minimizing fat gain.`;
+    const paceNote = isDateDriven
+      ? `to reach your target weight by your goal date at ${rateText}`
+      : 'to support muscle growth while minimizing fat gain';
+    return `This provides a ${percentSurplus}% calorie surplus (~${Math.round(surplus)} cal/day) ${paceNote}.`;
   }
 
   return 'This maintains your current weight while supporting your activity level and overall health.';
@@ -225,13 +289,15 @@ export const calculateNutritionPlan = onCall(async (request) => {
 
     // Step 4: Calculate target calories
     const targetWeight = data.targetWeight || data.currentWeight;
-    const targetCalories = calculateTargetCalories(
+    const parsedTargetDate = data.targetDate ? new Date(data.targetDate) : undefined;
+    const { calories: targetCalories, isDateDriven, achievableWeeklyRate } = calculateTargetCalories(
       tdee,
       data.goal,
       data.currentWeight,
       targetWeight,
       data.isPregnant || false,
-      data.trimester
+      data.trimester,
+      parsedTargetDate
     );
 
     // Step 5: Calculate macros
@@ -241,9 +307,8 @@ export const calculateNutritionPlan = onCall(async (request) => {
     let weeksToGoal = 0;
     let weeklyWeightChange = 0;
 
-    if (!data.isPregnant && data.targetDate && targetWeight !== data.currentWeight) {
-      const targetDate = new Date(data.targetDate);
-      const weeklyData = calculateWeeklyChange(data.currentWeight, targetWeight, targetDate);
+    if (!data.isPregnant && parsedTargetDate && targetWeight !== data.currentWeight) {
+      const weeklyData = calculateWeeklyChange(data.currentWeight, targetWeight, parsedTargetDate, achievableWeeklyRate);
       weeksToGoal = weeklyData.weeksToGoal;
       weeklyWeightChange = weeklyData.weeklyWeightChange;
     }
@@ -254,7 +319,9 @@ export const calculateNutritionPlan = onCall(async (request) => {
       tdee,
       targetCalories,
       data.isPregnant || false,
-      data.trimester
+      data.trimester,
+      weeklyWeightChange,
+      isDateDriven
     );
 
     const plan: NutritionPlan = {

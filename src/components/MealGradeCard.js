@@ -29,26 +29,26 @@ export default function MealGradeCard({ gradeData }) {
         <View style={styles.macrosContainer}>
           <View style={styles.macroBar}>
             <View style={[styles.macroSegment, {
-              backgroundColor: '#8B5CF6',
+              backgroundColor: '#EF4444',
               width: `${macroBreakdown.protein}%`
             }]} />
             <View style={[styles.macroSegment, {
-              backgroundColor: '#F59E0B',
+              backgroundColor: '#3B82F6',
               width: `${macroBreakdown.carbs}%`
             }]} />
             <View style={[styles.macroSegment, {
-              backgroundColor: '#EC4899',
+              backgroundColor: '#F59E0B',
               width: `${macroBreakdown.fat}%`
             }]} />
           </View>
           <View style={styles.macroLabels}>
-            <Text style={[styles.macroLabel, { color: '#8B5CF6' }]}>
+            <Text style={[styles.macroLabel, { color: '#EF4444' }]}>
               {t('mealGrade.proteinLabel', { value: macroBreakdown.protein })}
             </Text>
-            <Text style={[styles.macroLabel, { color: '#F59E0B' }]}>
+            <Text style={[styles.macroLabel, { color: '#3B82F6' }]}>
               {t('mealGrade.carbsLabel', { value: macroBreakdown.carbs })}
             </Text>
-            <Text style={[styles.macroLabel, { color: '#EC4899' }]}>
+            <Text style={[styles.macroLabel, { color: '#F59E0B' }]}>
               {t('mealGrade.fatLabel', { value: macroBreakdown.fat })}
             </Text>
           </View>
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 12,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F4F4F8',
   },
   macroSegment: {
     height: '100%',
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: '#F4F4F8',
   },
   ctaText: {
     flex: 1,

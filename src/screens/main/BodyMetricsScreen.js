@@ -1,10 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
-import { Text, Card, Button, TextInput, Surface, SegmentedButtons, Modal, Portal, Switch, Divider } from 'react-native-paper';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, StyleSheet, ScrollView, Alert, Platform, TouchableOpacity, Text as RNText } from 'react-native';
+import { Text, TextInput, Switch, Icon } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/firebase';
 import { calculateNutritionPlanBackend } from '../../services/geminiService';
 import { useLocalization } from '../../localization/i18n';
+import { colors, gradients, radius, shadows, type } from '../../theme';
+
+const DATE_PRESETS = [
+  { days: 30, key: 'oneMonth' },
+  { days: 60, key: 'twoMonths' },
+  { days: 90, key: 'threeMonths' },
+  { days: 180, key: 'sixMonths' },
+  { days: 365, key: 'oneYear' }
+];
+
+// Selectable pill chip
+function PillOption({ label, selected, onPress, flex }) {
+  return (
+    <TouchableOpacity
+      style={[styles.pill, flex && { flex: 1 }, selected && styles.pillSelected]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <RNText style={[styles.pillLabel, selected && styles.pillLabelSelected]}>{label}</RNText>
+    </TouchableOpacity>
+  );
+}
+
+// Larger selectable card with an icon
+function OptionCard({ icon, label, selected, onPress }) {
+  return (
+    <TouchableOpacity
+      style={[styles.optionCard, selected && styles.optionCardSelected]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Icon source={icon} size={20} color={selected ? colors.primary : colors.faint} />
+      <RNText style={[styles.optionCardLabel, selected && styles.optionCardLabelSelected]}>
+        {label}
+      </RNText>
+    </TouchableOpacity>
+  );
+}
 
 export default function BodyMetricsScreen({ navigation }) {
   const { user, refreshUserProfile, userProfile: authProfile } = useAuth();
@@ -27,7 +66,6 @@ export default function BodyMetricsScreen({ navigation }) {
 
   // Target date
   const [targetDate, setTargetDate] = useState(new Date(Date.now() + 90 * 24 * 60 * 60 * 1000));
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Calculated values
   const [calculatedData, setCalculatedData] = useState({
@@ -43,6 +81,9 @@ export default function BodyMetricsScreen({ navigation }) {
   });
 
   const [saving, setSaving] = useState(false);
+  // Recalculation fires on every keystroke; overlapping in-flight requests can
+  // resolve out of order, so track a request id and only apply the latest.
+  const calcRequestIdRef = useRef(0);
   const trimesterLabel = trimester === 'FIRST'
     ? t('bodyMetrics.trimesterFirstShort')
     : trimester === 'SECOND'
@@ -56,7 +97,10 @@ export default function BodyMetricsScreen({ navigation }) {
   }, [authProfile]);
 
   useEffect(() => {
-    calculateAllBackend();
+    const timeoutId = setTimeout(() => {
+      calculateAllBackend();
+    }, 400);
+    return () => clearTimeout(timeoutId);
   }, [birthMonth, birthYear, gender, currentWeight, targetWeight, height, workoutsPerWeek, goal, targetDate, isPregnant, trimester, prePregnancyWeight]);
 
   const loadProfileData = () => {
@@ -77,31 +121,39 @@ export default function BodyMetricsScreen({ navigation }) {
   };
 
   const calculateAllBackend = async () => {
-    // Validate required fields
-    if (!birthMonth || !birthYear || !currentWeight || !height || workoutsPerWeek === undefined) {
+    const parsedBirthMonth = parseInt(birthMonth, 10);
+    const parsedBirthYear = parseInt(birthYear, 10);
+    const parsedCurrentWeight = parseFloat(currentWeight);
+    const parsedHeight = parseFloat(height);
+    const parsedWorkouts = parseInt(workoutsPerWeek, 10);
+
+    // Guard on the PARSED values, not just non-empty strings — a field can
+    // hold non-numeric text (or be mid-edit) and still be "truthy".
+    if (
+      Number.isNaN(parsedBirthMonth) ||
+      Number.isNaN(parsedBirthYear) ||
+      Number.isNaN(parsedCurrentWeight) ||
+      Number.isNaN(parsedHeight) ||
+      Number.isNaN(parsedWorkouts)
+    ) {
       setCalculatedData({
-        age: 0,
-        bmr: 0,
-        tdee: 0,
-        targetCalories: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-        weeksToGoal: 0,
-        weeklyWeightChange: 0
+        age: 0, bmr: 0, tdee: 0, targetCalories: 0,
+        protein: 0, carbs: 0, fat: 0, weeksToGoal: 0, weeklyWeightChange: 0
       });
       return;
     }
 
+    const requestId = ++calcRequestIdRef.current;
+
     try {
       const userData = {
-        birthMonth: parseInt(birthMonth),
-        birthYear: parseInt(birthYear),
+        birthMonth: parsedBirthMonth,
+        birthYear: parsedBirthYear,
         gender,
-        currentWeight: parseFloat(currentWeight),
-        targetWeight: parseFloat(targetWeight) || parseFloat(currentWeight),
-        height: parseFloat(height),
-        workoutsPerWeek: parseInt(workoutsPerWeek),
+        currentWeight: parsedCurrentWeight,
+        targetWeight: parseFloat(targetWeight) || parsedCurrentWeight,
+        height: parsedHeight,
+        workoutsPerWeek: parsedWorkouts,
         goal: isPregnant ? 'MAINTAIN' : goal,
         targetDate: targetDate.toISOString(),
         isPregnant,
@@ -109,8 +161,10 @@ export default function BodyMetricsScreen({ navigation }) {
         prePregnancyWeight: isPregnant ? parseFloat(prePregnancyWeight) || undefined : undefined
       };
 
-      console.log('📊 Calling backend to calculate nutrition plan');
       const plan = await calculateNutritionPlanBackend(userData);
+
+      // A newer request has since started — this response is stale, discard it.
+      if (requestId !== calcRequestIdRef.current) return;
 
       setCalculatedData({
         age: plan.age,
@@ -123,16 +177,27 @@ export default function BodyMetricsScreen({ navigation }) {
         weeksToGoal: plan.weeksToGoal,
         weeklyWeightChange: plan.weeklyWeightChange
       });
-
-      console.log('✅ Nutrition plan calculated:', plan);
     } catch (error) {
-      console.error('❌ Error calculating nutrition plan:', error);
+      if (requestId !== calcRequestIdRef.current) return;
+      console.error('Error calculating nutrition plan:', error);
       // Keep current calculated data on error
     }
   };
 
   const handleSave = async () => {
-    if (!birthMonth || !birthYear || !currentWeight || !height) {
+    const parsedBirthMonth = parseInt(birthMonth, 10);
+    const parsedBirthYear = parseInt(birthYear, 10);
+    const parsedCurrentWeight = parseFloat(currentWeight);
+    const parsedHeight = parseFloat(height);
+    const parsedWorkouts = parseInt(workoutsPerWeek, 10);
+
+    if (
+      Number.isNaN(parsedBirthMonth) ||
+      Number.isNaN(parsedBirthYear) ||
+      Number.isNaN(parsedCurrentWeight) ||
+      Number.isNaN(parsedHeight) ||
+      Number.isNaN(parsedWorkouts)
+    ) {
       showAlert(t('bodyMetrics.missingInfo'), t('bodyMetrics.fillRequired'));
       return;
     }
@@ -146,22 +211,20 @@ export default function BodyMetricsScreen({ navigation }) {
     setSaving(true);
     try {
       await userService.updateUserProfile(user.uid, {
-        birthMonth: parseInt(birthMonth),
-        birthYear: parseInt(birthYear),
+        birthMonth: parsedBirthMonth,
+        birthYear: parsedBirthYear,
         gender,
-        currentWeight: parseFloat(currentWeight),
-        targetWeight: parseFloat(targetWeight) || parseFloat(currentWeight),
-        height: parseFloat(height),
-        workoutsPerWeek: parseInt(workoutsPerWeek),
+        currentWeight: parsedCurrentWeight,
+        targetWeight: parseFloat(targetWeight) || parsedCurrentWeight,
+        height: parsedHeight,
+        workoutsPerWeek: parsedWorkouts,
         goal: isPregnant ? 'MAINTAIN' : goal,
         targetDate: targetDate.toISOString(),
 
-        // Pregnancy-specific fields
         isPregnant,
         trimester: isPregnant ? trimester : null,
         prePregnancyWeight: isPregnant ? parseFloat(prePregnancyWeight) || null : null,
 
-        // Save calculated values
         dailyCalorieTarget: calculatedData.targetCalories,
         weekdayCalories: calculatedData.targetCalories,
         weekendCalories: calculatedData.targetCalories,
@@ -195,379 +258,328 @@ export default function BodyMetricsScreen({ navigation }) {
     const newDate = new Date();
     newDate.setDate(newDate.getDate() + days);
     setTargetDate(newDate);
-    setShowDatePicker(false);
+  };
+
+  const inputProps = {
+    mode: 'outlined',
+    outlineColor: colors.border,
+    activeOutlineColor: colors.primary,
+    outlineStyle: { borderRadius: radius.md },
+    dense: true
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text variant="headlineMedium" style={styles.pageTitle}>
-        {t('bodyMetrics.title')}
-      </Text>
-      <Text variant="bodyMedium" style={styles.subtitle}>
-        {isPregnant
-          ? t('bodyMetrics.subtitlePregnant')
-          : t('bodyMetrics.subtitleDefault')}
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 20, paddingBottom: 40 }}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.pageTitle}>{t('bodyMetrics.title')}</Text>
+      <Text style={styles.subtitle}>
+        {isPregnant ? t('bodyMetrics.subtitlePregnant') : t('bodyMetrics.subtitleDefault')}
       </Text>
 
       {/* Basic Info */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text variant="titleLarge" style={styles.sectionTitle}>
-            {t('bodyMetrics.basicInfo')}
-          </Text>
+      <View style={styles.card}>
+        <Text style={styles.sectionLabel}>{t('bodyMetrics.basicInfo')}</Text>
 
-          <View style={styles.rowInputs}>
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>{t('bodyMetrics.birthMonth')}</Text>
-              <TextInput
-                value={birthMonth}
-                onChangeText={setBirthMonth}
-                keyboardType="number-pad"
-                mode="outlined"
-                placeholder="1-12"
-                maxLength={2}
-                dense
-              />
-            </View>
-            <View style={styles.halfInput}>
-              <Text style={styles.inputLabel}>{t('bodyMetrics.birthYear')}</Text>
-              <TextInput
-                value={birthYear}
-                onChangeText={setBirthYear}
-                keyboardType="number-pad"
-                mode="outlined"
-                placeholder="1990"
-                maxLength={4}
-                dense
-              />
-            </View>
-          </View>
-
-          {calculatedData.age > 0 && (
-            <Surface style={styles.infoChip}>
-              <Text style={styles.infoText}>{t('bodyMetrics.ageYears', { age: calculatedData.age })}</Text>
-            </Surface>
-          )}
-
-          <Text style={styles.inputLabel}>{t('bodyMetrics.gender')}</Text>
-          <SegmentedButtons
-            value={gender}
-            onValueChange={setGender}
-            buttons={[
-              { value: 'MALE', label: t('bodyMetrics.male') },
-              { value: 'FEMALE', label: t('bodyMetrics.female') }
-            ]}
-            style={styles.segmented}
-          />
-
-          <Text style={styles.inputLabel}>{t('bodyMetrics.heightCm')}</Text>
+        <View style={styles.rowInputs}>
           <TextInput
-            value={height}
-            onChangeText={setHeight}
-            keyboardType="decimal-pad"
-            mode="outlined"
-            placeholder="170"
-            dense
-            style={styles.fullInput}
+            label={t('bodyMetrics.birthMonth')}
+            value={birthMonth}
+            onChangeText={setBirthMonth}
+            keyboardType="number-pad"
+            placeholder="1-12"
+            maxLength={2}
+            style={styles.halfInput}
+            {...inputProps}
           />
-        </Card.Content>
-      </Card>
+          <TextInput
+            label={t('bodyMetrics.birthYear')}
+            value={birthYear}
+            onChangeText={setBirthYear}
+            keyboardType="number-pad"
+            placeholder="1990"
+            maxLength={4}
+            style={styles.halfInput}
+            {...inputProps}
+          />
+        </View>
+
+        {calculatedData.age > 0 && (
+          <View style={styles.infoChip}>
+            <Text style={styles.infoText}>{t('bodyMetrics.ageYears', { age: calculatedData.age })}</Text>
+          </View>
+        )}
+
+        <Text style={styles.inputLabel}>{t('bodyMetrics.gender')}</Text>
+        <View style={styles.optionRow}>
+          <OptionCard
+            icon="gender-male"
+            label={t('bodyMetrics.male')}
+            selected={gender === 'MALE'}
+            onPress={() => setGender('MALE')}
+          />
+          <OptionCard
+            icon="gender-female"
+            label={t('bodyMetrics.female')}
+            selected={gender === 'FEMALE'}
+            onPress={() => setGender('FEMALE')}
+          />
+        </View>
+
+        <TextInput
+          label={t('bodyMetrics.heightCm')}
+          value={height}
+          onChangeText={setHeight}
+          keyboardType="decimal-pad"
+          placeholder="170"
+          style={styles.fullInput}
+          {...inputProps}
+        />
+      </View>
 
       {/* Pregnancy Support */}
       {gender === 'FEMALE' && (
-        <Card style={styles.card}>
-          <Card.Content>
-            <View style={styles.toggleRow}>
-              <View style={styles.toggleTextContainer}>
-              <Text variant="titleLarge" style={styles.sectionTitle}>
-                {t('bodyMetrics.pregnancySupport')}
-              </Text>
-              <Text variant="bodySmall" style={styles.helpText}>
-                {t('bodyMetrics.pregnancyHelp')}
-              </Text>
-              </View>
-              <Switch value={isPregnant} onValueChange={setIsPregnant} />
+        <View style={styles.card}>
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleTextContainer}>
+              <Text style={styles.sectionLabel}>{t('bodyMetrics.pregnancySupport')}</Text>
+              <Text style={styles.helpText}>{t('bodyMetrics.pregnancyHelp')}</Text>
             </View>
+            <Switch value={isPregnant} onValueChange={setIsPregnant} color={colors.primary} />
+          </View>
 
-            {isPregnant && (
-              <>
-                <Divider style={styles.divider} />
+          {isPregnant && (
+            <>
+              <View style={styles.divider} />
 
-                <Text style={styles.inputLabel}>{t('bodyMetrics.currentTrimester')}</Text>
-                <SegmentedButtons
-                  value={trimester}
-                  onValueChange={setTrimester}
-                  buttons={[
-                    { value: 'FIRST', label: t('bodyMetrics.trimesterFirstShort') },
-                    { value: 'SECOND', label: t('bodyMetrics.trimesterSecondShort') },
-                    { value: 'THIRD', label: t('bodyMetrics.trimesterThirdShort') }
-                  ]}
-                  style={styles.segmented}
+              <Text style={styles.inputLabel}>{t('bodyMetrics.currentTrimester')}</Text>
+              <View style={styles.pillRow}>
+                <PillOption
+                  label={t('bodyMetrics.trimesterFirstShort')}
+                  flex
+                  selected={trimester === 'FIRST'}
+                  onPress={() => setTrimester('FIRST')}
                 />
-
-                <Text style={styles.inputLabel}>{t('bodyMetrics.prePregWeight')}</Text>
-                <TextInput
-                  value={prePregnancyWeight}
-                  onChangeText={setPrePregnancyWeight}
-                  keyboardType="decimal-pad"
-                  mode="outlined"
-                  placeholder="65"
-                  dense
-                  style={styles.fullInput}
+                <PillOption
+                  label={t('bodyMetrics.trimesterSecondShort')}
+                  flex
+                  selected={trimester === 'SECOND'}
+                  onPress={() => setTrimester('SECOND')}
                 />
+                <PillOption
+                  label={t('bodyMetrics.trimesterThirdShort')}
+                  flex
+                  selected={trimester === 'THIRD'}
+                  onPress={() => setTrimester('THIRD')}
+                />
+              </View>
 
-                <Surface style={[styles.infoChip, { backgroundColor: '#FEF3C7' }]}>
-                  <Text style={[styles.infoText, { color: '#92400E' }]}>
-                    {t('bodyMetrics.pregnancyCalorieNote', {
-                      calories: trimester === 'FIRST' ? '0' : trimester === 'SECOND' ? '340' : '452',
-                      trimester: trimesterLabel
-                    })}
-                  </Text>
-                </Surface>
-              </>
-            )}
-          </Card.Content>
-        </Card>
+              <TextInput
+                label={t('bodyMetrics.prePregWeight')}
+                value={prePregnancyWeight}
+                onChangeText={setPrePregnancyWeight}
+                keyboardType="decimal-pad"
+                placeholder="65"
+                style={styles.fullInput}
+                {...inputProps}
+              />
+
+              <View style={[styles.infoChip, { backgroundColor: '#FEF3C7' }]}>
+                <Text style={[styles.infoText, { color: '#92400E' }]}>
+                  {t('bodyMetrics.pregnancyCalorieNote', {
+                    calories: trimester === 'FIRST' ? '0' : trimester === 'SECOND' ? '340' : '452',
+                    trimester: trimesterLabel
+                  })}
+                </Text>
+              </View>
+            </>
+          )}
+        </View>
       )}
 
       {/* Weight Goals */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text variant="titleLarge" style={styles.sectionTitle}>
-            {t('bodyMetrics.weightGoals')}
-          </Text>
+      <View style={styles.card}>
+        <Text style={styles.sectionLabel}>{t('bodyMetrics.weightGoals')}</Text>
 
-          <View style={styles.rowInputs}>
-            <View style={isPregnant ? styles.fullInput : styles.halfInput}>
-              <Text style={styles.inputLabel}>{t('bodyMetrics.currentWeight')}</Text>
-              <TextInput
-                value={currentWeight}
-                onChangeText={setCurrentWeight}
-                keyboardType="decimal-pad"
-                mode="outlined"
-                placeholder="70"
-                dense
+        <View style={styles.rowInputs}>
+          <TextInput
+            label={t('bodyMetrics.currentWeight')}
+            value={currentWeight}
+            onChangeText={setCurrentWeight}
+            keyboardType="decimal-pad"
+            placeholder="70"
+            style={isPregnant ? styles.fullInput : styles.halfInput}
+            {...inputProps}
+          />
+          {!isPregnant && (
+            <TextInput
+              label={t('bodyMetrics.targetWeight')}
+              value={targetWeight}
+              onChangeText={setTargetWeight}
+              keyboardType="decimal-pad"
+              placeholder="65"
+              style={styles.halfInput}
+              {...inputProps}
+            />
+          )}
+        </View>
+
+        {!isPregnant && (
+          <>
+            <Text style={styles.inputLabel}>{t('bodyMetrics.fitnessGoal')}</Text>
+            <View style={styles.optionRow}>
+              <OptionCard
+                icon="trending-down"
+                label={t('bodyMetrics.lose')}
+                selected={goal === 'LOSE_WEIGHT'}
+                onPress={() => setGoal('LOSE_WEIGHT')}
+              />
+              <OptionCard
+                icon="scale-balance"
+                label={t('bodyMetrics.maintain')}
+                selected={goal === 'MAINTAIN'}
+                onPress={() => setGoal('MAINTAIN')}
+              />
+              <OptionCard
+                icon="arm-flex-outline"
+                label={t('bodyMetrics.gain')}
+                selected={goal === 'BUILD_MUSCLE'}
+                onPress={() => setGoal('BUILD_MUSCLE')}
               />
             </View>
-            {!isPregnant && (
-              <View style={styles.halfInput}>
-                <Text style={styles.inputLabel}>{t('bodyMetrics.targetWeight')}</Text>
-                <TextInput
-                  value={targetWeight}
-                  onChangeText={setTargetWeight}
-                  keyboardType="decimal-pad"
-                  mode="outlined"
-                  placeholder="65"
-                  dense
-                />
-              </View>
-            )}
-          </View>
-
-          {!isPregnant && (
-            <>
-              <Text style={styles.inputLabel}>{t('bodyMetrics.fitnessGoal')}</Text>
-              <SegmentedButtons
-                value={goal}
-                onValueChange={setGoal}
-                buttons={[
-                  { value: 'LOSE_WEIGHT', label: t('bodyMetrics.lose') },
-                  { value: 'MAINTAIN', label: t('bodyMetrics.maintain') },
-                  { value: 'BUILD_MUSCLE', label: t('bodyMetrics.gain') }
-                ]}
-                style={styles.segmented}
-              />
-            </>
-          )}
-        </Card.Content>
-      </Card>
+          </>
+        )}
+      </View>
 
       {/* Activity Level */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text variant="titleLarge" style={styles.sectionTitle}>
-            {t('bodyMetrics.activityLevel')}
-          </Text>
+      <View style={styles.card}>
+        <Text style={styles.sectionLabel}>{t('bodyMetrics.activityLevel')}</Text>
 
-          <Text style={styles.inputLabel}>{t('bodyMetrics.workoutsPerWeek')}</Text>
-          <TextInput
-            value={workoutsPerWeek}
-            onChangeText={setWorkoutsPerWeek}
-            keyboardType="number-pad"
-            mode="outlined"
-            placeholder="3"
-            dense
-            style={styles.fullInput}
-          />
+        <TextInput
+          label={t('bodyMetrics.workoutsPerWeek')}
+          value={workoutsPerWeek}
+          onChangeText={setWorkoutsPerWeek}
+          keyboardType="number-pad"
+          placeholder="3"
+          style={styles.fullInput}
+          {...inputProps}
+        />
 
-          {!isPregnant && (
-            <>
-              <Text style={styles.inputLabel}>{t('bodyMetrics.targetDate')}</Text>
-              <Button
-                mode="outlined"
-                onPress={() => setShowDatePicker(true)}
-                icon="calendar"
-                style={styles.dateButton}
-              >
-                {targetDate.toLocaleDateString(localeCode, {
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
-              </Button>
+        {!isPregnant && (
+          <>
+            <Text style={styles.inputLabel}>{t('bodyMetrics.targetDate')}</Text>
+            <Text style={styles.targetDateHint}>{t('bodyMetrics.targetDateHint')}</Text>
+            <Text style={styles.targetDateValue}>
+              {targetDate.toLocaleDateString(localeCode, {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+              })}
+            </Text>
+            <View style={styles.pillRow}>
+              {DATE_PRESETS.map(({ days, key }) => {
+                const presetDate = new Date();
+                presetDate.setDate(presetDate.getDate() + days);
+                const selected = Math.abs(targetDate - presetDate) < 24 * 60 * 60 * 1000;
+                return (
+                  <PillOption
+                    key={days}
+                    label={t(`bodyMetrics.${key}`)}
+                    flex
+                    selected={selected}
+                    onPress={() => handleDateChange(days)}
+                  />
+                );
+              })}
+            </View>
 
-              <Portal>
-                <Modal
-                  visible={showDatePicker}
-                  onDismiss={() => setShowDatePicker(false)}
-                  contentContainerStyle={styles.dateModal}
-                >
-                  <Text variant="titleLarge" style={styles.modalTitle}>
-                    {t('bodyMetrics.goalDateQuestion')}
-                  </Text>
-
-                  <View style={styles.dateOptions}>
-                    <Button
-                      mode="outlined"
-                      onPress={() => handleDateChange(30)}
-                      style={styles.dateOption}
-                    >
-                      {t('bodyMetrics.oneMonth')}
-                    </Button>
-                    <Button
-                      mode="outlined"
-                      onPress={() => handleDateChange(60)}
-                      style={styles.dateOption}
-                    >
-                      {t('bodyMetrics.twoMonths')}
-                    </Button>
-                    <Button
-                      mode="outlined"
-                      onPress={() => handleDateChange(90)}
-                      style={styles.dateOption}
-                    >
-                      {t('bodyMetrics.threeMonths')}
-                    </Button>
-                    <Button
-                      mode="outlined"
-                      onPress={() => handleDateChange(180)}
-                      style={styles.dateOption}
-                    >
-                      {t('bodyMetrics.sixMonths')}
-                    </Button>
-                    <Button
-                      mode="outlined"
-                      onPress={() => handleDateChange(365)}
-                      style={styles.dateOption}
-                    >
-                      {t('bodyMetrics.oneYear')}
-                    </Button>
-                  </View>
-
-                  <Button
-                    mode="text"
-                    onPress={() => setShowDatePicker(false)}
-                    style={styles.modalClose}
-                  >
-                    {t('bodyMetrics.close')}
-                  </Button>
-                </Modal>
-              </Portal>
-
-              {calculatedData.weeksToGoal > 0 && (
-                <Surface style={styles.infoChip}>
-                  <Text style={styles.infoText}>
-                    {t('bodyMetrics.weeksToGoal', {
+            <View style={styles.infoChip}>
+              <Text style={styles.infoText}>
+                {calculatedData.weeksToGoal > 0
+                  ? t('bodyMetrics.weeksToGoal', {
                       weeks: calculatedData.weeksToGoal,
                       rate: calculatedData.weeklyWeightChange.toFixed(1)
-                    })}
-                  </Text>
-                </Surface>
-              )}
-            </>
-          )}
-        </Card.Content>
-      </Card>
+                    })
+                  : t('bodyMetrics.noWeeksToGoal')}
+              </Text>
+            </View>
+          </>
+        )}
+      </View>
 
       {/* Calculated Plan */}
       {calculatedData.targetCalories > 0 && (
-        <Card style={styles.resultsCard}>
-          <Card.Content>
-          <Text variant="titleLarge" style={styles.sectionTitle}>
-            {t('bodyMetrics.planTitle')}
-          </Text>
+        <View style={[styles.card, styles.resultsCard]}>
+          <Text style={styles.sectionLabel}>{t('bodyMetrics.planTitle')}</Text>
 
-            {isPregnant && (
-              <Surface style={[styles.infoChip, { backgroundColor: '#DCFCE7', marginBottom: 16 }]}>
-                <Text style={[styles.infoText, { color: '#166534' }]}>
-                  {t('bodyMetrics.planPregnant', { trimester: trimesterLabel })}
-                </Text>
-              </Surface>
-            )}
-
-            <View style={styles.statsGrid}>
-              <View style={styles.statBox}>
-                <Text style={styles.statLabel}>BMR</Text>
-                <Text style={styles.statValue}>{calculatedData.bmr}</Text>
-                <Text style={styles.statUnit}>{t('bodyMetrics.calPerDay')}</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statLabel}>TDEE</Text>
-                <Text style={styles.statValue}>{calculatedData.tdee}</Text>
-                <Text style={styles.statUnit}>{t('bodyMetrics.calPerDay')}</Text>
-              </View>
+          {isPregnant && (
+            <View style={[styles.infoChip, { backgroundColor: '#DCFCE7', marginBottom: 16 }]}>
+              <Text style={[styles.infoText, { color: '#166534' }]}>
+                {t('bodyMetrics.planPregnant', { trimester: trimesterLabel })}
+              </Text>
             </View>
+          )}
 
-            <Divider style={styles.divider} />
-
-            <View style={styles.calorieTarget}>
-              <Text style={styles.calorieLabel}>{t('bodyMetrics.dailyCalorieTarget')}</Text>
-              <Text style={styles.calorieValue}>{calculatedData.targetCalories}</Text>
-              <Text style={styles.calorieUnit}>{t('bodyMetrics.caloriesPerDay')}</Text>
+          <View style={styles.statsGrid}>
+            <View style={styles.statBox}>
+              <Text style={styles.statLabel}>BMR</Text>
+              <RNText style={styles.statValue}>{calculatedData.bmr}</RNText>
+              <Text style={styles.statUnit}>{t('bodyMetrics.calPerDay')}</Text>
             </View>
-
-            <Divider style={styles.divider} />
-
-            <Text variant="titleMedium" style={styles.macroTitle}>
-              {t('bodyMetrics.macroBreakdown')}
-            </Text>
-
-            <View style={styles.macrosGrid}>
-              <View style={styles.macroCard}>
-                <View style={[styles.macroBar, { backgroundColor: '#EF4444' }]} />
-                <Text style={styles.macroLabel}>{t('insights.protein')}</Text>
-                <Text style={styles.macroValue}>{calculatedData.protein}g</Text>
-                <Text style={styles.macroPercent}>{isPregnant ? '25%' : '30%'}</Text>
-              </View>
-              <View style={styles.macroCard}>
-                <View style={[styles.macroBar, { backgroundColor: '#10B981' }]} />
-                <Text style={styles.macroLabel}>{t('insights.carbs')}</Text>
-                <Text style={styles.macroValue}>{calculatedData.carbs}g</Text>
-                <Text style={styles.macroPercent}>{isPregnant ? '50%' : '40%'}</Text>
-              </View>
-              <View style={styles.macroCard}>
-                <View style={[styles.macroBar, { backgroundColor: '#F59E0B' }]} />
-                <Text style={styles.macroLabel}>{t('insights.fat')}</Text>
-                <Text style={styles.macroValue}>{calculatedData.fat}g</Text>
-                <Text style={styles.macroPercent}>{isPregnant ? '25%' : '30%'}</Text>
-              </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statLabel}>TDEE</Text>
+              <RNText style={styles.statValue}>{calculatedData.tdee}</RNText>
+              <Text style={styles.statUnit}>{t('bodyMetrics.calPerDay')}</Text>
             </View>
+          </View>
 
-            <Button
-              mode="contained"
-              onPress={handleSave}
-              loading={saving}
-              disabled={saving}
-              style={styles.saveButton}
-              contentStyle={styles.saveButtonContent}
+          <View style={styles.planHero}>
+            <Text style={styles.calorieLabel}>{t('bodyMetrics.dailyCalorieTarget')}</Text>
+            <RNText style={styles.calorieValue}>{calculatedData.targetCalories}</RNText>
+            <Text style={styles.calorieUnit}>{t('bodyMetrics.caloriesPerDay')}</Text>
+          </View>
+
+          <Text style={styles.macroTitle}>{t('bodyMetrics.macroBreakdown')}</Text>
+
+          <View style={styles.macrosGrid}>
+            <View style={styles.macroCard}>
+              <View style={[styles.macroBar, { backgroundColor: colors.protein }]} />
+              <Text style={styles.macroLabel}>{t('insights.protein')}</Text>
+              <Text style={styles.macroValue}>{calculatedData.protein}g</Text>
+              <Text style={styles.macroPercent}>{isPregnant ? '25%' : '30%'}</Text>
+            </View>
+            <View style={styles.macroCard}>
+              <View style={[styles.macroBar, { backgroundColor: colors.carbs }]} />
+              <Text style={styles.macroLabel}>{t('insights.carbs')}</Text>
+              <Text style={styles.macroValue}>{calculatedData.carbs}g</Text>
+              <Text style={styles.macroPercent}>{isPregnant ? '50%' : '40%'}</Text>
+            </View>
+            <View style={styles.macroCard}>
+              <View style={[styles.macroBar, { backgroundColor: colors.fat }]} />
+              <Text style={styles.macroLabel}>{t('insights.fat')}</Text>
+              <Text style={styles.macroValue}>{calculatedData.fat}g</Text>
+              <Text style={styles.macroPercent}>{isPregnant ? '25%' : '30%'}</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity activeOpacity={0.85} onPress={handleSave} disabled={saving}>
+            <LinearGradient
+              colors={gradients.brand}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={[styles.ctaButton, saving && { opacity: 0.6 }]}
             >
-              {t('bodyMetrics.saveMetrics')}
-            </Button>
-          </Card.Content>
-        </Card>
+              <RNText style={styles.ctaLabel}>
+                {saving ? t('common.loading') : t('bodyMetrics.saveMetrics')}
+              </RNText>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       )}
 
-      <View style={{ height: 40 }} />
+      <View style={{ height: 20 }} />
     </ScrollView>
   );
 }
@@ -575,208 +587,250 @@ export default function BodyMetricsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
-    padding: 20
+    backgroundColor: colors.background
   },
   pageTitle: {
-    marginBottom: 8,
-    fontWeight: '800',
-    color: '#1E293B',
-    letterSpacing: -1
+    ...type.display,
+    fontSize: 28,
+    marginBottom: 6
   },
   subtitle: {
-    marginBottom: 24,
-    color: '#64748B'
+    ...type.body,
+    color: colors.muted,
+    marginBottom: 20
   },
   card: {
-    marginBottom: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.08)',
-      },
-    }),
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: 18,
+    marginBottom: 14,
+    ...shadows.card
   },
   resultsCard: {
-    marginBottom: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#6366F1',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 8px 32px rgba(99, 102, 241, 0.2)',
-      },
-    }),
+    borderWidth: 1.5,
+    borderColor: colors.tintBorder
   },
-  sectionTitle: {
-    marginBottom: 20,
-    fontWeight: '700',
-    color: '#1E293B',
-    letterSpacing: -0.5
+  sectionLabel: {
+    ...type.overline,
+    marginBottom: 12
   },
   inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#475569',
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.faint,
     marginBottom: 8,
-    marginTop: 12,
+    marginTop: 4,
     textTransform: 'uppercase',
-    letterSpacing: 0.5
+    letterSpacing: 0.6
   },
   rowInputs: {
     flexDirection: 'row',
     gap: 12
   },
   halfInput: {
-    flex: 1
+    flex: 1,
+    marginBottom: 12,
+    backgroundColor: colors.surface
   },
   fullInput: {
-    marginBottom: 8
+    marginBottom: 4,
+    backgroundColor: colors.surface
   },
-  segmented: {
-    marginBottom: 8
+  optionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14
+  },
+  optionCard: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.subtle,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    gap: 5
+  },
+  optionCardSelected: {
+    backgroundColor: colors.tint,
+    borderColor: colors.primary
+  },
+  optionCardLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.muted
+  },
+  optionCardLabelSelected: {
+    color: colors.primaryDark,
+    fontWeight: '700'
+  },
+  pillRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 4
+  },
+  pill: {
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.subtle,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    alignItems: 'center'
+  },
+  pillSelected: {
+    backgroundColor: colors.tint,
+    borderColor: colors.primary
+  },
+  pillLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.muted
+  },
+  pillLabelSelected: {
+    color: colors.primaryDark,
+    fontWeight: '700'
   },
   infoChip: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: colors.tint,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: radius.md,
     marginTop: 12,
-    marginBottom: 8,
-    elevation: 0
+    marginBottom: 4
   },
   infoText: {
-    color: '#0369A1',
+    color: colors.primaryDeep,
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 13,
     textAlign: 'center'
   },
-  dateButton: {
-    marginBottom: 8
+  targetDateHint: {
+    fontSize: 12,
+    color: colors.muted,
+    lineHeight: 17,
+    marginBottom: 10
+  },
+  targetDateValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.ink,
+    marginBottom: 10
   },
   statsGrid: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 20
+    marginBottom: 16
   },
   statBox: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-    padding: 16,
-    borderRadius: 16,
+    backgroundColor: colors.subtle,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
     alignItems: 'center'
   },
   statLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.faint,
     textTransform: 'uppercase',
-    marginBottom: 8
+    letterSpacing: 0.5,
+    marginBottom: 6
   },
   statValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
-    color: '#1E293B'
+    color: colors.ink,
+    letterSpacing: -0.5
   },
   statUnit: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 4
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 2
   },
   divider: {
-    marginVertical: 20
+    height: 1,
+    backgroundColor: colors.subtle,
+    marginVertical: 16
   },
-  calorieTarget: {
+  planHero: {
     alignItems: 'center',
-    paddingVertical: 20
+    paddingVertical: 16,
+    marginBottom: 18,
+    backgroundColor: colors.tint,
+    borderRadius: radius.lg
   },
   calorieLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
     textTransform: 'uppercase',
-    marginBottom: 12
+    letterSpacing: 0.6,
+    marginBottom: 6
   },
   calorieValue: {
-    fontSize: 56,
+    fontSize: 44,
     fontWeight: '900',
-    color: '#6366F1',
+    color: colors.primaryDark,
     letterSpacing: -2
   },
   calorieUnit: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 4
+    fontSize: 13,
+    color: colors.primary,
+    marginTop: 2
   },
   macroTitle: {
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 16,
+    ...type.heading,
+    fontSize: 14,
+    marginBottom: 12,
     textAlign: 'center'
   },
   macrosGrid: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24
+    gap: 10,
+    marginBottom: 20
   },
   macroCard: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-    padding: 16,
-    borderRadius: 16,
+    backgroundColor: colors.subtle,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
     alignItems: 'center'
   },
   macroBar: {
-    width: 4,
-    height: 40,
+    width: 20,
+    height: 4,
     borderRadius: 2,
-    marginBottom: 12
+    marginBottom: 10
   },
   macroLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.faint,
     textTransform: 'uppercase',
-    marginBottom: 8
+    letterSpacing: 0.5,
+    marginBottom: 6
   },
   macroValue: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '800',
-    color: '#1E293B',
-    marginBottom: 4
+    color: colors.ink,
+    marginBottom: 2
   },
   macroPercent: {
-    fontSize: 12,
-    color: '#64748B'
+    fontSize: 11,
+    color: colors.muted
   },
-  saveButton: {
-    marginTop: 8
+  ctaButton: {
+    borderRadius: radius.pill,
+    paddingVertical: 15,
+    alignItems: 'center',
+    ...shadows.glow
   },
-  saveButtonContent: {
-    paddingVertical: 8
-  },
-  dateModal: {
-    backgroundColor: '#FFFFFF',
-    margin: 20,
-    padding: 24,
-    borderRadius: 20
-  },
-  modalTitle: {
-    marginBottom: 20,
+  ctaLabel: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '700',
-    color: '#1E293B',
-    textAlign: 'center'
-  },
-  dateOptions: {
-    gap: 12,
-    marginBottom: 20
-  },
-  dateOption: {
-    borderRadius: 12
-  },
-  modalClose: {
-    marginTop: 8
+    letterSpacing: 0.2
   },
   toggleRow: {
     flexDirection: 'row',
@@ -788,8 +842,8 @@ const styles = StyleSheet.create({
     marginRight: 16
   },
   helpText: {
-    color: '#64748B',
+    ...type.caption,
     marginTop: 4,
-    lineHeight: 20
+    lineHeight: 18
   }
 });

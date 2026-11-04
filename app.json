@@ -9,12 +9,16 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#2196F3"
+      "backgroundColor": "#F4F4F8"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.evgenypavlovd.texttocalai",
+      "appleTeamId": "ECK28G327N",
       "googleServicesFile": "./GoogleService-Info.plist",
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.evgenypavlovd.texttocalai"]
+      },
       "infoPlist": {
         "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice input when logging meals.",
         "NSSpeechRecognitionUsageDescription": "This app needs access to speech recognition to convert your voice to text when logging meals.",
@@ -25,6 +29,11 @@
               "com.googleusercontent.apps.91528684167-l7p756837slij4o5vmb9ebl26jgjn43o",
               "com.evgenypavlovd.texttocalai"
             ]
+          },
+          {
+            "CFBundleURLSchemes": [
+              "texttocalai"
+            ]
           }
         ]
       },
@@ -33,7 +42,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#2196F3"
+        "backgroundColor": "#059669"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.evgenypavlovd.texttocalai",
@@ -47,7 +56,22 @@
     },
     "plugins": [
       "expo-font",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-notifications",
+        {
+          "color": "#059669"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "17.0"
+          }
+        }
+      ],
+      "@bacons/apple-targets"
     ]
   }
 }

@@ -338,14 +338,14 @@ export default function ConversationalOnboardingScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9'
+    backgroundColor: '#F4F4F8'
   },
   header: {
     padding: 20,
     paddingTop: 60,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0'
+    borderBottomColor: '#E8E9F1'
   },
   headerTitle: {
     fontSize: 24,
@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0'
+    borderTopColor: '#E8E9F1'
   },
   macroItem: {
     alignItems: 'center'
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0'
+    borderTopColor: '#E8E9F1'
   },
   finishButton: {
     paddingVertical: 6
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 24 : 12,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#E8E9F1',
     gap: 8
   },
   voiceButton: {
