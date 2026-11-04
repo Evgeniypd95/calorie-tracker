@@ -14,7 +14,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.evgenypavlovd.texttocalai",
+      "appleTeamId": "ECK28G327N",
       "googleServicesFile": "./GoogleService-Info.plist",
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.evgenypavlovd.texttocalai"]
+      },
       "infoPlist": {
         "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice input when logging meals.",
         "NSSpeechRecognitionUsageDescription": "This app needs access to speech recognition to convert your voice to text when logging meals.",
@@ -24,6 +28,11 @@
               "com.googleusercontent.apps.91528684167-8le1u3voe1s99dkpkijqc8ppvaqkoe0m",
               "com.googleusercontent.apps.91528684167-l7p756837slij4o5vmb9ebl26jgjn43o",
               "com.evgenypavlovd.texttocalai"
+            ]
+          },
+          {
+            "CFBundleURLSchemes": [
+              "texttocalai"
             ]
           }
         ]
@@ -53,7 +62,16 @@
         {
           "color": "#059669"
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "17.0"
+          }
+        }
+      ],
+      "@bacons/apple-targets"
     ]
   }
 }

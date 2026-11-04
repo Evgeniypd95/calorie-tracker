@@ -119,16 +119,29 @@ export default function WeightTrackingScreen({ navigation }) {
     const step = Math.max(1, Math.floor(weights.length / 10));
     const sampledWeights = weights.filter((_, index) => index % step === 0);
 
+    const datasets = [{
+      data: sampledWeights.map(w => w.weight),
+      color: (opacity = 1) => `rgba(5, 150, 105, ${opacity})`,
+      strokeWidth: 3
+    }];
+
+    const targetWeight = userProfile?.targetWeight;
+    if (targetWeight) {
+      datasets.push({
+        data: sampledWeights.map(() => targetWeight),
+        color: (opacity = 1) => `rgba(249, 115, 22, ${opacity})`,
+        strokeWidth: 2,
+        withDots: false
+      });
+    }
+
     return {
       labels: sampledWeights.map(w => {
         const date = w.date?.toDate?.() || new Date(w.date);
         return `${date.getMonth() + 1}/${date.getDate()}`;
       }),
-      datasets: [{
-        data: sampledWeights.map(w => w.weight),
-        color: (opacity = 1) => `rgba(5, 150, 105, ${opacity})`,
-        strokeWidth: 3
-      }]
+      datasets,
+      legend: targetWeight ? [t('weight.actual'), t('weight.target', { value: targetWeight })] : undefined
     };
   };
 
@@ -306,6 +319,7 @@ export default function WeightTrackingScreen({ navigation }) {
       {/* Add Weight FAB */}
       <FAB
         icon="plus"
+        color="#FFFFFF"
         style={styles.fab}
         onPress={() => setShowAddModal(true)}
         label={t('weight.logWeight')}

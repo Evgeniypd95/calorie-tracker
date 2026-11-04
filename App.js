@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { ActivityIndicator, View, StyleSheet, Platform, useColorScheme } from 'react-native';
@@ -8,6 +8,21 @@ import AuthNavigator from './src/navigation/AuthNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
 import SetCaloriesScreen from './src/screens/onboarding/SetCaloriesScreen';
 import { LocalizationProvider } from './src/localization/i18n';
+import { startWatchQuickLogListener } from './src/services/watchQuickLogService';
+
+const linking = {
+  prefixes: ['texttocalai://'],
+  config: {
+    screens: {
+      Dashboard: {
+        screens: {
+          DashboardMain: 'dashboard',
+          LogMeal: 'log-meal'
+        }
+      }
+    }
+  }
+};
 
 const lightTheme = {
   ...MD3LightTheme,
@@ -56,6 +71,11 @@ const darkTheme = {
 function AppContent() {
   const { user, userProfile, loading } = useAuth();
 
+  useEffect(() => {
+    if (!user || Platform.OS !== 'ios') return;
+    return startWatchQuickLogListener({ user, userProfile });
+  }, [user, userProfile]);
+
   if (loading) {
     // Show loading while auth is initializing
     return (
@@ -98,7 +118,7 @@ export default function App() {
         <LocalizationProvider>
           <AuthProvider>
             <DateProvider>
-              <NavigationContainer theme={{
+              <NavigationContainer linking={linking} theme={{
                 dark: false,
                 colors: {
                   primary: lightTheme.colors.primary,

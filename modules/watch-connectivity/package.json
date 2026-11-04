@@ -1,0 +1,8 @@
+{
+  "name": "watch-connectivity",
+  "version": "1.0.0",
+  "description": "Local Expo module bridging WatchConnectivity (WCSession) to JS for the Apple Watch companion app.",
+  "main": "src/index.ts",
+  "license": "UNLICENSED",
+  "private": true
+}

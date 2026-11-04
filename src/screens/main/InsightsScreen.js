@@ -160,9 +160,9 @@ export default function InsightsScreen({ navigation }) {
               },
               {
                 data: Array(data.labels.length).fill(data.target),
-                color: () => `${TARGET_LINE} 0.85)`,
-                strokeWidth: 3,
-                strokeDasharray: [8, 6],
+                color: () => `${TARGET_LINE} 0.35)`,
+                strokeWidth: 1.5,
+                strokeDashArray: [6, 6],
                 withDots: false
               }
             ],

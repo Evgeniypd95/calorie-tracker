@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert, 
 import { Text, IconButton, Icon, Portal, Modal, TextInput as PaperTextInput, Button } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { mealService, userService, favouriteService } from '../../services/firebase';
+import { widgetService } from '../../services/widgetService';
 import { useAuth } from '../../context/AuthContext';
 import { useSelectedDate } from '../../context/DateContext';
 import { shouldShowCheckIn, getCheckInQuestions, calculateTargetAdjustment, getNextCheckInDate } from '../../services/checkInService';
@@ -46,6 +47,8 @@ const MEAL_TYPE_ICONS = {
   Snack: 'food-apple-outline'
 };
 
+const MEAL_TYPE_FILTERS = ['All', 'Breakfast', 'Lunch', 'Dinner', 'Snack'];
+
 // Thin labelled macro bar used in the hero card
 function MacroBar({ label, current, target, color }) {
   const pct = Math.min((current / target) * 100, 100);
@@ -79,10 +82,12 @@ export default function DashboardScreen({ navigation }) {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editDescription, setEditDescription] = useState('');
   const [editDate, setEditDate] = useState(new Date());
-  const [editMode, setEditMode] = useState('description'); // 'description' or 'date'
+  const [editMealType, setEditMealType] = useState('Breakfast');
+  const [editMode, setEditMode] = useState('description'); // 'description', 'date', or 'mealType'
   const [smartSuggestions, setSmartSuggestions] = useState([]);
   const [showGoalConfetti, setShowGoalConfetti] = useState(false);
   const [favouriteDescriptions, setFavouriteDescriptions] = useState(new Set());
+  const [mealTypeFilter, setMealTypeFilter] = useState('All');
 
   const loadFavourites = async () => {
     try {
@@ -150,6 +155,29 @@ export default function DashboardScreen({ navigation }) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           }
         }
+      }
+
+      // Keep the Home Screen widget in sync, but only when viewing today
+      // (the widget always shows "today", regardless of what date the user
+      // is currently browsing in the calendar ribbon).
+      if (isSameDay(new Date(date), new Date())) {
+        const dayTotals = dayMeals.reduce((acc, meal) => ({
+          calories: acc.calories + (meal.totals?.calories || 0),
+          protein: acc.protein + (meal.totals?.protein || 0),
+          carbs: acc.carbs + (meal.totals?.carbs || 0),
+          fat: acc.fat + (meal.totals?.fat || 0)
+        }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+        widgetService.updateTodaySnapshot({
+          meals: sortedMeals,
+          totals: dayTotals,
+          targets: {
+            calorieTarget: userProfile?.dailyCalorieTarget,
+            proteinTarget: userProfile?.proteinTarget,
+            carbsTarget: userProfile?.carbsTarget,
+            fatTarget: userProfile?.fatTarget
+          }
+        });
       }
     } catch (error) {
       console.error('Error loading meals:', error);
@@ -333,9 +361,10 @@ export default function DashboardScreen({ navigation }) {
 
   const handleEditMeal = (meal) => {
     setEditingMeal(meal);
-    setEditDescription(meal.description);
+    setEditDescription(meal.fullDescription || meal.description);
     const mealDate = meal.date?.toDate ? meal.date.toDate() : new Date(meal.date);
     setEditDate(mealDate);
+    setEditMealType(meal.mealType || 'Breakfast');
     setEditMode('description');
     setEditModalVisible(true);
   };
@@ -344,7 +373,7 @@ export default function DashboardScreen({ navigation }) {
     try {
       if (editMode === 'description') {
         navigation.navigate('LogMeal', {
-          editingMeal: { ...editingMeal, description: editDescription },
+          editingMeal: { ...editingMeal, description: editDescription, fullDescription: undefined },
           reparse: true
         });
         setEditModalVisible(false);
@@ -357,6 +386,16 @@ export default function DashboardScreen({ navigation }) {
           window.alert(t('dashboard.mealDateUpdated'));
         } else {
           Alert.alert(t('common.success'), t('dashboard.mealDateUpdated'));
+        }
+      } else if (editMode === 'mealType') {
+        await mealService.updateMeal(editingMeal.id, { mealType: editMealType });
+        setEditModalVisible(false);
+        await loadMeals();
+
+        if (Platform.OS === 'web') {
+          window.alert(t('dashboard.mealTypeUpdated'));
+        } else {
+          Alert.alert(t('common.success'), t('dashboard.mealTypeUpdated'));
         }
       }
     } catch (error) {
@@ -383,6 +422,10 @@ export default function DashboardScreen({ navigation }) {
       console.error('Error duplicating meal:', error);
     }
   };
+
+  const filteredMeals = mealTypeFilter === 'All'
+    ? meals
+    : meals.filter((meal) => meal.mealType === mealTypeFilter);
 
   const calculateTotals = () => {
     return meals.reduce((acc, meal) => ({
@@ -593,100 +636,132 @@ export default function DashboardScreen({ navigation }) {
               </Button>
             </View>
           ) : (
-            meals.map((meal) => {
-              const gradeData = meal.gradeData || null;
-              const mealTime = meal.date?.toDate?.()?.toLocaleTimeString?.(localeCode, {
-                hour: 'numeric',
-                minute: '2-digit'
-              });
+            <>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.mealFilterRow}
+                contentContainerStyle={styles.mealFilterRowContent}
+              >
+                {MEAL_TYPE_FILTERS.map((filterType) => {
+                  const isActive = mealTypeFilter === filterType;
+                  return (
+                    <TouchableOpacity
+                      key={filterType}
+                      onPress={() => setMealTypeFilter(filterType)}
+                      style={[styles.mealFilterChip, isActive && styles.mealFilterChipActive]}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.mealFilterChipText, isActive && styles.mealFilterChipTextActive]}>
+                        {filterType === 'All' ? t('dashboard.allMeals') : getMealTypeLabel(filterType, t)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
 
-              return (
-                <Swipeable
-                  key={meal.id}
-                  renderRightActions={() => renderRightActions(meal)}
-                  renderLeftActions={() => renderLeftActions(meal)}
-                >
-                  <TouchableOpacity
-                    onLongPress={() => handleEditMeal(meal)}
-                    activeOpacity={0.8}
+              {filteredMeals.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <Text style={styles.emptyIcon}>🍽️</Text>
+                  <Text style={styles.emptyText}>{t('dashboard.noMealsForFilter')}</Text>
+                </View>
+              ) : (
+                filteredMeals.map((meal) => {
+                const gradeData = meal.gradeData || null;
+                const mealTime = meal.date?.toDate?.()?.toLocaleTimeString?.(localeCode, {
+                  hour: 'numeric',
+                  minute: '2-digit'
+                });
+
+                return (
+                  <Swipeable
+                    key={meal.id}
+                    renderRightActions={() => renderRightActions(meal)}
+                    renderLeftActions={() => renderLeftActions(meal)}
                   >
-                    <View style={styles.mealCard}>
-                      <View style={styles.mealHeader}>
-                        <View style={styles.mealTypeIconWrap}>
-                          <Icon
-                            source={MEAL_TYPE_ICONS[meal.mealType] || 'silverware-fork-knife'}
+                    <TouchableOpacity
+                      onLongPress={() => handleEditMeal(meal)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.mealCard}>
+                        <View style={styles.mealHeader}>
+                          <View style={styles.mealTypeIconWrap}>
+                            <Icon
+                              source={MEAL_TYPE_ICONS[meal.mealType] || 'silverware-fork-knife'}
+                              size={18}
+                              color={colors.primary}
+                            />
+                          </View>
+                          <View style={styles.mealHeaderText}>
+                            <Text style={styles.mealType}>{getMealTypeLabel(meal.mealType, t)}</Text>
+                            {mealTime ? <Text style={styles.timeText}>{mealTime}</Text> : null}
+                          </View>
+                          {gradeData && (
+                            <View style={[styles.gradeChip, { backgroundColor: gradeData.color }]}>
+                              <Text style={styles.gradeText}>{gradeData.grade}</Text>
+                            </View>
+                          )}
+                          <IconButton
+                            icon={favouriteDescriptions.has((meal.description || '').toLowerCase().trim()) ? 'star' : 'star-outline'}
                             size={18}
-                            color={colors.primary}
+                            iconColor={favouriteDescriptions.has((meal.description || '').toLowerCase().trim()) ? colors.primary : colors.faint}
+                            style={styles.editIcon}
+                            onPress={() => handleToggleFavourite(meal)}
+                          />
+                          <IconButton
+                            icon="pencil-outline"
+                            size={18}
+                            iconColor={colors.faint}
+                            style={styles.editIcon}
+                            onPress={() => handleEditMeal(meal)}
                           />
                         </View>
-                        <View style={styles.mealHeaderText}>
-                          <Text style={styles.mealType}>{getMealTypeLabel(meal.mealType, t)}</Text>
-                          {mealTime ? <Text style={styles.timeText}>{mealTime}</Text> : null}
+
+                        <View style={styles.mealBody}>
+                          <Text style={styles.descriptionText} numberOfLines={3}>
+                            {meal.description}
+                          </Text>
+                          {meal.imageUrl && (
+                            <Image source={{ uri: meal.imageUrl }} style={styles.mealThumb} />
+                          )}
                         </View>
+
+                        <View style={styles.nutrientsContainer}>
+                          <View style={styles.calorieBadge}>
+                            <Text style={styles.caloriesValue}>{meal.totals.calories}</Text>
+                            <Text style={styles.caloriesUnit}>{t('dashboard.calShort')}</Text>
+                          </View>
+                          <View style={styles.macroPills}>
+                            <View style={[styles.macroPill, { backgroundColor: '#FEF2F2' }]}>
+                              <Text style={[styles.macroPillText, { color: colors.protein }]}>
+                                {t('dashboard.proteinLabel').charAt(0)} {Math.round(meal.totals.protein)}g
+                              </Text>
+                            </View>
+                            <View style={[styles.macroPill, { backgroundColor: '#ECFDF5' }]}>
+                              <Text style={[styles.macroPillText, { color: '#059669' }]}>
+                                {t('dashboard.carbsLabel').charAt(0)} {Math.round(meal.totals.carbs)}g
+                              </Text>
+                            </View>
+                            <View style={[styles.macroPill, { backgroundColor: '#FFFBEB' }]}>
+                              <Text style={[styles.macroPillText, { color: '#D97706' }]}>
+                                {t('dashboard.fatLabel').charAt(0)} {Math.round(meal.totals.fat)}g
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+
                         {gradeData && (
-                          <View style={[styles.gradeChip, { backgroundColor: gradeData.color }]}>
-                            <Text style={styles.gradeText}>{gradeData.grade}</Text>
+                          <View style={styles.gradeCardContainer}>
+                            <MealGradeCard gradeData={gradeData} compact />
                           </View>
                         )}
-                        <IconButton
-                          icon={favouriteDescriptions.has((meal.description || '').toLowerCase().trim()) ? 'star' : 'star-outline'}
-                          size={18}
-                          iconColor={favouriteDescriptions.has((meal.description || '').toLowerCase().trim()) ? colors.primary : colors.faint}
-                          style={styles.editIcon}
-                          onPress={() => handleToggleFavourite(meal)}
-                        />
-                        <IconButton
-                          icon="pencil-outline"
-                          size={18}
-                          iconColor={colors.faint}
-                          style={styles.editIcon}
-                          onPress={() => handleEditMeal(meal)}
-                        />
                       </View>
-
-                      <View style={styles.mealBody}>
-                        <Text style={styles.descriptionText} numberOfLines={3}>
-                          {meal.description}
-                        </Text>
-                        {meal.imageUrl && (
-                          <Image source={{ uri: meal.imageUrl }} style={styles.mealThumb} />
-                        )}
-                      </View>
-
-                      <View style={styles.nutrientsContainer}>
-                        <View style={styles.calorieBadge}>
-                          <Text style={styles.caloriesValue}>{meal.totals.calories}</Text>
-                          <Text style={styles.caloriesUnit}>{t('dashboard.calShort')}</Text>
-                        </View>
-                        <View style={styles.macroPills}>
-                          <View style={[styles.macroPill, { backgroundColor: '#FEF2F2' }]}>
-                            <Text style={[styles.macroPillText, { color: colors.protein }]}>
-                              {t('dashboard.proteinLabel').charAt(0)} {Math.round(meal.totals.protein)}g
-                            </Text>
-                          </View>
-                          <View style={[styles.macroPill, { backgroundColor: '#ECFDF5' }]}>
-                            <Text style={[styles.macroPillText, { color: '#059669' }]}>
-                              {t('dashboard.carbsLabel').charAt(0)} {Math.round(meal.totals.carbs)}g
-                            </Text>
-                          </View>
-                          <View style={[styles.macroPill, { backgroundColor: '#FFFBEB' }]}>
-                            <Text style={[styles.macroPillText, { color: '#D97706' }]}>
-                              {t('dashboard.fatLabel').charAt(0)} {Math.round(meal.totals.fat)}g
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-
-                      {gradeData && (
-                        <View style={styles.gradeCardContainer}>
-                          <MealGradeCard gradeData={gradeData} compact />
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                </Swipeable>
-              );
-            })
+                    </TouchableOpacity>
+                  </Swipeable>
+                );
+                })
+              )}
+            </>
           )}
         </View>
 
@@ -721,6 +796,15 @@ export default function DashboardScreen({ navigation }) {
             >
               {t('dashboard.date')}
             </Button>
+            <Button
+              mode={editMode === 'mealType' ? 'contained' : 'outlined'}
+              buttonColor={editMode === 'mealType' ? colors.primary : undefined}
+              onPress={() => setEditMode('mealType')}
+              style={styles.editModeButton}
+              compact
+            >
+              {t('dashboard.mealType')}
+            </Button>
           </View>
 
           {editMode === 'description' ? (
@@ -733,7 +817,7 @@ export default function DashboardScreen({ navigation }) {
               mode="outlined"
               style={styles.editInput}
             />
-          ) : (
+          ) : editMode === 'date' ? (
             <View style={styles.datePickerContainer}>
               <Text style={styles.datePickerLabel}>{t('dashboard.selectNewDate')}</Text>
               <View style={styles.datePickerButtons}>
@@ -765,6 +849,32 @@ export default function DashboardScreen({ navigation }) {
                 })}
               </View>
             </View>
+          ) : (
+            <View style={styles.datePickerContainer}>
+              <Text style={styles.datePickerLabel}>{t('dashboard.selectNewMealType')}</Text>
+              <View style={styles.datePickerButtons}>
+                {MEAL_TYPE_FILTERS.filter((mealType) => mealType !== 'All').map((mealType) => {
+                  const isSelected = editMealType === mealType;
+
+                  return (
+                    <TouchableOpacity
+                      key={mealType}
+                      style={[styles.datePickerButton, isSelected && styles.datePickerButtonSelected]}
+                      onPress={() => setEditMealType(mealType)}
+                    >
+                      <Icon
+                        source={MEAL_TYPE_ICONS[mealType]}
+                        size={20}
+                        color={isSelected ? colors.surface : colors.muted}
+                      />
+                      <Text style={[styles.datePickerDayName, isSelected && styles.datePickerDayNameSelected]}>
+                        {getMealTypeLabel(mealType, t)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
           )}
 
           <View style={styles.editModalActions}>
@@ -772,7 +882,11 @@ export default function DashboardScreen({ navigation }) {
               {t('common.cancel')}
             </Button>
             <Button mode="contained" buttonColor={colors.primary} onPress={handleSaveEdit}>
-              {editMode === 'description' ? t('dashboard.reparseSave') : t('dashboard.updateDate')}
+              {editMode === 'description'
+                ? t('dashboard.reparseSave')
+                : editMode === 'date'
+                  ? t('dashboard.updateDate')
+                  : t('dashboard.updateMealType')}
             </Button>
           </View>
         </Modal>
@@ -1008,6 +1122,33 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...type.title,
     marginBottom: 12
+  },
+  mealFilterRow: {
+    marginBottom: 12
+  },
+  mealFilterRowContent: {
+    gap: 8,
+    paddingRight: 8
+  },
+  mealFilterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  mealFilterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  mealFilterChipText: {
+    ...type.caption,
+    fontWeight: '700',
+    color: colors.body
+  },
+  mealFilterChipTextActive: {
+    color: '#FFFFFF'
   },
   emptyCard: {
     alignItems: 'center',

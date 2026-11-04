@@ -7,6 +7,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import Voice from '@react-native-voice/voice';
 import { parseMealDescription, convertImageToDescription, gradeMealBackend } from '../../services/geminiService';
 import { mealService, favouriteService } from '../../services/firebase';
+import { widgetService } from '../../services/widgetService';
 import { rescheduleMealReminderAfterLogging } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
 import { lookupBarcode, formatBarcodeProductForParsing } from '../../services/barcodeService';
@@ -21,6 +22,17 @@ const MEAL_TYPE_ICONS = {
   Lunch: 'white-balance-sunny',
   Dinner: 'weather-night',
   Snack: 'food-apple-outline'
+};
+
+const TITLE_WORD_COUNT = 5;
+
+// Shortens a long dictated/AI-generated description to a clean few-word title
+const makeShortTitle = (text) => {
+  const words = (text || '').trim().split(/\s+/).filter(Boolean);
+  if (words.length <= TITLE_WORD_COUNT) {
+    return words.join(' ');
+  }
+  return `${words.slice(0, TITLE_WORD_COUNT).join(' ')}...`;
 };
 
 // Compact nutrition strip shown under parsed AI messages
@@ -86,6 +98,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
   const [selectedMealType, setSelectedMealType] = useState(null);
   const [recognition, setRecognition] = useState(null);
   const textBeforeVoiceRef = useRef('');
+  const wasVoiceInputRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
@@ -116,9 +129,10 @@ export default function ChatLogMealScreen({ navigation, route }) {
   useEffect(() => {
     if (editingMeal && reparse && !reparseHandledRef.current) {
       reparseHandledRef.current = true;
+      const textToReparse = editingMeal.fullDescription || editingMeal.description;
       setTimeout(() => {
-        setInputText(editingMeal.description);
-        handleSendMessage(editingMeal.description);
+        setInputText(textToReparse);
+        handleSendMessage(textToReparse);
       }, 500);
     }
   }, [editingMeal, reparse]);
@@ -187,6 +201,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       items: favourite.items,
       totals: favourite.totals
     });
+    setSavedFavouriteId(favourite.id);
 
     if (favourite.mealType) {
       setSelectedMealType(favourite.mealType);
@@ -293,6 +308,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
           }
           const baseText = textBeforeVoiceRef.current;
           const separator = baseText ? ', ' : '';
+          wasVoiceInputRef.current = true;
           setInputText(baseText + separator + transcript);
         };
 
@@ -315,6 +331,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
           const transcript = event.value[0];
           const baseText = textBeforeVoiceRef.current;
           const separator = baseText ? ', ' : '';
+          wasVoiceInputRef.current = true;
           setInputText(baseText + separator + transcript);
         }
       };
@@ -850,6 +867,39 @@ export default function ChatLogMealScreen({ navigation, route }) {
     }
   };
 
+  const refreshWidgetIfToday = async (mealDate) => {
+    const today = new Date();
+    const isToday =
+      mealDate.getDate() === today.getDate() &&
+      mealDate.getMonth() === today.getMonth() &&
+      mealDate.getFullYear() === today.getFullYear();
+
+    if (!isToday) return;
+
+    try {
+      const todaysMeals = await mealService.getMealsByDate(user.uid, today);
+      const totals = todaysMeals.reduce((acc, meal) => ({
+        calories: acc.calories + (meal.totals?.calories || 0),
+        protein: acc.protein + (meal.totals?.protein || 0),
+        carbs: acc.carbs + (meal.totals?.carbs || 0),
+        fat: acc.fat + (meal.totals?.fat || 0)
+      }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+      widgetService.updateTodaySnapshot({
+        meals: todaysMeals,
+        totals,
+        targets: {
+          calorieTarget: userProfile?.dailyCalorieTarget,
+          proteinTarget: userProfile?.proteinTarget,
+          carbsTarget: userProfile?.carbsTarget,
+          fatTarget: userProfile?.fatTarget
+        }
+      });
+    } catch (error) {
+      console.error('Error refreshing widget after save:', error);
+    }
+  };
+
   const handleSaveMeal = async () => {
     if (!parsedData || !selectedMealType) {
       showAlert(t('common.error'), t('chat.saveMealError'));
@@ -870,7 +920,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       }
 
       const userMessages = messages.filter(m => m.role === 'user' && !m.data?.imageUri);
-      const description = userMessages.map(m => m.content).join(', ');
+      const typedDescription = userMessages.map(m => m.content).join(', ');
 
       const imageMessage = messages.find(m => m.data?.imageUri);
       const imageUri = imageMessage?.data?.imageUri || null;
@@ -880,9 +930,21 @@ export default function ChatLogMealScreen({ navigation, route }) {
         imageUrl = await mealService.uploadMealImage(user.uid, imageUri);
       }
 
+      // Photo-derived and voice-dictated descriptions can be long (a full
+      // food list or a spoken sentence) - use a short auto-title for display
+      // while keeping the full text around for editing/re-parsing.
+      const isFromPhoto = !typedDescription && !!imageMessage?.content;
+      const isFromVoice = !!typedDescription && wasVoiceInputRef.current;
+      const fullDescription = isFromPhoto ? imageMessage.content : typedDescription;
+
+      const description = isFromPhoto || isFromVoice
+        ? makeShortTitle(fullDescription) || t('chat.photoMealDescription')
+        : (fullDescription || t('chat.photoMealDescription'));
+
       const mealData = {
         mealType: selectedMealType,
-        description: description || t('chat.photoMealDescription'),
+        description,
+        ...((isFromPhoto || isFromVoice) && fullDescription !== description && { fullDescription }),
         items: parsedData.items,
         totals: parsedData.totals,
         date: mealDate,
@@ -892,6 +954,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       const mealId = await mealService.logMeal(user.uid, mealData);
       refreshUserProfile();
       rescheduleMealReminderAfterLogging(selectedMealType);
+      refreshWidgetIfToday(mealDate);
 
       addMessage('ai', t('chat.mealLogged', { mealType: getMealTypeLabelLower(selectedMealType, t) }));
 
@@ -912,6 +975,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
       setIsSaving(false);
       setInputText('');
       textBeforeVoiceRef.current = '';
+      wasVoiceInputRef.current = false;
     } catch (error) {
       console.error('Error saving meal:', error);
       showAlert(t('common.error'), t('chat.saveFailed'));
@@ -927,6 +991,7 @@ export default function ChatLogMealScreen({ navigation, route }) {
     setSavedFavouriteId(null);
     setInputText('');
     textBeforeVoiceRef.current = '';
+    wasVoiceInputRef.current = false;
     setMessages([
       {
         id: Date.now(),
@@ -1472,7 +1537,10 @@ export default function ChatLogMealScreen({ navigation, route }) {
             mode="outlined"
             placeholder={parsedData ? t('chat.improveMeal') : t('chat.describeMeal')}
             value={inputText}
-            onChangeText={setInputText}
+            onChangeText={(text) => {
+              wasVoiceInputRef.current = false;
+              setInputText(text);
+            }}
             style={styles.textInput}
             outlineStyle={styles.textInputOutline}
             multiline
