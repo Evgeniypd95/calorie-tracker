@@ -90,7 +90,14 @@ private class SessionDelegate: NSObject, WCSessionDelegate {
     emitter?.emitStateChange(reachable: session.isReachable)
   }
 
-  // Watch -> phone, sent while reachable (e.g. quick-log dictation text).
+  // Watch -> phone, sent without a reply handler. The watch uses this path
+  // for quick-log requests, so it must be handled separately from the
+  // reply-requesting overload below.
+  func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+    emitter?.emit(message: message)
+  }
+
+  // Watch -> phone messages that explicitly request a reply.
   func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
     emitter?.emit(message: message)
     replyHandler(["received": true])

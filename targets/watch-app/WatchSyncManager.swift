@@ -9,12 +9,21 @@ final class WatchSyncManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var snapshot: WatchSnapshot = SnapshotStore.load()
     @Published var isReachable = false
     @Published var pendingLogText: String?
+    @Published var pendingLogStatus: QuickLogStatus?
     @Published var lastLogResult: QuickLogResult?
+
+    enum QuickLogStatus: Equatable {
+        case sending
+        case waitingForPhone
+        case processing
+    }
 
     struct QuickLogResult: Identifiable {
         let id = UUID()
+        let requestId: String
         let success: Bool
         let calories: Int?
+        let reason: String?
     }
 
     private var pendingRequestId: String?
@@ -22,7 +31,7 @@ final class WatchSyncManager: NSObject, ObservableObject, WCSessionDelegate {
     // The phone might not be reachable, foregrounded, or even running its JS
     // layer to answer at all (e.g. force-quit). Without a timeout a failed
     // round trip leaves the Log screen spinning forever.
-    private static let quickLogTimeout: TimeInterval = 20
+    private static let quickLogTimeout: TimeInterval = 90
     private var timeoutTask: Task<Void, Never>?
 
     override init() {
@@ -34,31 +43,42 @@ final class WatchSyncManager: NSObject, ObservableObject, WCSessionDelegate {
 
     // MARK: - Sending a quick log up to the phone
 
-    func submitQuickLog(_ text: String) {
+    func submitQuickLog(_ text: String, requestId: String = UUID().uuidString) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        let requestId = UUID().uuidString
         pendingRequestId = requestId
         pendingLogText = trimmed
+        pendingLogStatus = .sending
         lastLogResult = nil
 
-        let payload: [String: Any] = ["type": "quickLog", "text": trimmed, "requestId": requestId]
+        let payload: [String: Any] = [
+            "type": "quickLog",
+            "text": trimmed,
+            "requestId": requestId
+        ]
+        let session = WCSession.default
 
-        guard WCSession.isSupported() else {
+        guard WCSession.isSupported(), session.activationState == .activated else {
             pendingLogText = nil
-            lastLogResult = QuickLogResult(success: false, calories: nil)
+            pendingLogStatus = nil
+            pendingRequestId = nil
+            lastLogResult = QuickLogResult(requestId: requestId, success: false, calories: nil, reason: "unavailable")
             return
         }
-        let session = WCSession.default
 
         if session.isReachable {
             session.sendMessage(payload, replyHandler: nil) { _ in
                 // Phone unreachable mid-send; fall back to a queued transfer
                 // rather than giving up (the timeout below still applies).
                 session.transferUserInfo(payload)
+                Task { @MainActor [weak self] in
+                    guard let self, self.pendingRequestId == requestId else { return }
+                    self.pendingLogStatus = .waitingForPhone
+                }
             }
         } else {
+            pendingLogStatus = .waitingForPhone
             session.transferUserInfo(payload)
         }
 
@@ -73,10 +93,15 @@ final class WatchSyncManager: NSObject, ObservableObject, WCSessionDelegate {
             await MainActor.run {
                 guard let self, self.pendingRequestId == requestId else { return }
                 self.pendingLogText = nil
+                self.pendingLogStatus = nil
                 self.pendingRequestId = nil
-                self.lastLogResult = QuickLogResult(success: false, calories: nil)
+                self.lastLogResult = QuickLogResult(requestId: requestId, success: false, calories: nil, reason: "timeout")
             }
         }
+    }
+
+    func clearLastLogResult() {
+        lastLogResult = nil
     }
 
     // MARK: - WCSessionDelegate
@@ -101,14 +126,28 @@ final class WatchSyncManager: NSObject, ObservableObject, WCSessionDelegate {
     private func handleIncoming(_ payload: [String: Any]) {
         if payload["type"] as? String == "quickLogResult" {
             let requestId = payload["requestId"] as? String
-            guard requestId == nil || requestId == pendingRequestId else { return }
+            guard
+                let requestId,
+                requestId == pendingRequestId || requestId == lastLogResult?.requestId
+            else { return }
+
+            if payload["status"] as? String == "processing" {
+                guard requestId == pendingRequestId else { return }
+                pendingLogStatus = .processing
+                armTimeout(for: requestId)
+                return
+            }
 
             timeoutTask?.cancel()
             let success = payload["success"] as? Bool ?? false
             let calories = payload["calories"] as? Int
-            lastLogResult = QuickLogResult(success: success, calories: calories)
-            pendingLogText = nil
-            pendingRequestId = nil
+            let reason = payload["reason"] as? String
+            lastLogResult = QuickLogResult(requestId: requestId, success: success, calories: calories, reason: reason)
+            if requestId == pendingRequestId {
+                pendingLogText = nil
+                pendingLogStatus = nil
+                pendingRequestId = nil
+            }
             return
         }
 

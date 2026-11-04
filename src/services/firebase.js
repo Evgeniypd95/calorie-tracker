@@ -181,7 +181,7 @@ export const mealService = {
       return null;
     }
   },
-  logMeal: async (userId, mealData) => {
+  logMeal: async (userId, mealData, idempotencyKey = null) => {
     console.log('🔥 [Firebase] logMeal called');
     console.log('👤 [Firebase] User ID:', userId);
     console.log('📦 [Firebase] Meal data:', JSON.stringify(mealData, null, 2));
@@ -194,8 +194,18 @@ export const mealService = {
       };
       console.log('💾 [Firebase] Data to save:', JSON.stringify(dataToSave, null, 2));
 
-      console.log('🔥 [Firebase] Adding document to meals collection');
-      const mealRef = await addDoc(collection(db, 'meals'), dataToSave);
+      // Watch retries reuse a request ID. A deterministic document ID makes
+      // repeated delivery update the same meal instead of logging it twice.
+      const safeIdempotencyKey = typeof idempotencyKey === 'string' ?
+        idempotencyKey.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120) : '';
+      let mealRef;
+      if (safeIdempotencyKey) {
+        mealRef = doc(db, 'meals', `watch-${safeIdempotencyKey}`);
+        await setDoc(mealRef, dataToSave);
+      } else {
+        mealRef = await addDoc(collection(db, 'meals'), dataToSave);
+      }
+      console.log('🔥 [Firebase] Saving document to meals collection:', mealRef.id);
       console.log('✅ [Firebase] Meal document created with ID:', mealRef.id);
 
       // Update streak

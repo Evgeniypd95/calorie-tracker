@@ -46,6 +46,13 @@ export const startWatchQuickLogListener = ({ user, userProfile, locale }) => {
     if (message?.type !== 'quickLog' || !message.text) return;
 
     const requestId = message.requestId || null;
+    const sendResult = (result) => sendQuickLogResult({
+      type: 'quickLogResult',
+      requestId,
+      ...result
+    });
+
+    sendResult({ status: 'processing' });
 
     try {
       const result = await parseMealDescription(message.text, null, locale);
@@ -53,7 +60,7 @@ export const startWatchQuickLogListener = ({ user, userProfile, locale }) => {
       const hasNoItems = !result?.items || result.items.length === 0;
 
       if (totalCal < 20 || hasNoItems) {
-        sendQuickLogResult({ type: 'quickLogResult', requestId, success: false, reason: 'unrecognized' });
+        sendResult({ success: false, reason: 'unrecognized' });
         return;
       }
 
@@ -63,19 +70,17 @@ export const startWatchQuickLogListener = ({ user, userProfile, locale }) => {
         items: result.items,
         totals: result.totals,
         date: new Date()
-      });
+      }, requestId);
 
       await refreshSnapshotForToday(user.uid, userProfile);
 
-      sendQuickLogResult({
-        type: 'quickLogResult',
-        requestId,
+      sendResult({
         success: true,
         calories: Math.round(totalCal)
       });
     } catch (error) {
       console.error('Error handling watch quick-log message:', error);
-      sendQuickLogResult({ type: 'quickLogResult', requestId, success: false, reason: 'error' });
+      sendResult({ success: false, reason: 'error' });
     }
   });
 
